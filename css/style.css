@@ -1,0 +1,159 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent;
+}
+
+body {
+    font-family: "Microsoft YaHei", "SimHei", sans-serif;
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    touch-action: manipulation;
+}
+
+.game-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 15px;
+    padding: 10px;
+}
+
+.game-title {
+    font-size: 28px;
+    font-weight: bold;
+    color: #e8d5b7;
+    text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+    letter-spacing: 8px;
+}
+
+.game-info {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    color: #e8d5b7;
+    font-size: 16px;
+}
+
+.turn-indicator {
+    padding: 8px 20px;
+    border-radius: 20px;
+    font-weight: bold;
+    transition: all 0.3s;
+}
+
+.turn-red {
+    background: linear-gradient(135deg, #c0392b, #e74c3c);
+    box-shadow: 0 2px 10px rgba(231, 76, 60, 0.4);
+}
+
+.turn-black {
+    background: linear-gradient(135deg, #2c3e50, #34495e);
+    box-shadow: 0 2px 10px rgba(52, 73, 94, 0.4);
+}
+
+.game-status {
+    color: #f39c12;
+    font-size: 18px;
+    font-weight: bold;
+    min-height: 25px;
+    text-align: center;
+}
+
+.board-wrapper {
+    position: relative;
+    background: linear-gradient(135deg, #deb887, #d2a56e);
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.5), inset 0 2px 3px rgba(255,255,255,0.3);
+    border: 3px solid #8b4513;
+}
+
+canvas {
+    display: block;
+    cursor: pointer;
+    border-radius: 4px;
+}
+
+.controls {
+    display: flex;
+    gap: 15px;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+.btn {
+    padding: 12px 28px;
+    font-size: 16px;
+    font-weight: bold;
+    border: none;
+    border-radius: 25px;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-family: inherit;
+}
+
+.btn:active {
+    transform: scale(0.95);
+}
+
+.btn-restart {
+    background: linear-gradient(135deg, #27ae60, #2ecc71);
+    color: white;
+    box-shadow: 0 4px 15px rgba(46, 204, 113, 0.4);
+}
+
+.btn-undo {
+    background: linear-gradient(135deg, #8e44ad, #9b59b6);
+    color: white;
+    box-shadow: 0 4px 15px rgba(155, 89, 182, 0.4);
+}
+
+.btn-undo:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.btn-ai {
+    background: linear-gradient(135deg, #e67e22, #f39c12);
+    color: white;
+    box-shadow: 0 4px 15px rgba(243, 156, 18, 0.4);
+}
+
+.btn-ai.active {
+    background: linear-gradient(135deg, #c0392b, #e74c3c);
+}
+
+.btn-difficulty {
+    background: linear-gradient(135deg, #2980b9, #3498db);
+    color: white;
+    box-shadow: 0 4px 15px rgba(52, 152, 219, 0.4);
+}
+
+.difficulty-desc {
+    color: #bdc3c7;
+    font-size: 13px;
+    text-align: center;
+    min-height: 20px;
+    max-width: 300px;
+}
+
+@media (max-width: 500px) {
+    .game-title {
+        font-size: 22px;
+        letter-spacing: 4px;
+    }
+    .board-wrapper {
+        padding: 12px;
+    }
+    .btn {
+        padding: 10px 20px;
+        font-size: 14px;
+    }
+}

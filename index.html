@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>中国象棋</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="game-container">
+        <h1 class="game-title">中国象棋</h1>
+        <div class="game-info">
+            <span id="turnIndicator" class="turn-indicator turn-red">红方走棋</span>
+        </div>
+        <div id="gameStatus" class="game-status"></div>
+        <div class="board-wrapper">
+            <canvas id="gameCanvas"></canvas>
+        </div>
+        <div class="controls">
+            <button class="btn btn-restart" onclick="game.restart()">重新开始</button>
+            <button class="btn btn-undo" id="undoBtn" onclick="game.undo()" disabled>悔棋</button>
+            <button class="btn btn-ai" id="aiBtn" onclick="game.toggleAI()">AI对战: 关</button>
+            <button class="btn btn-difficulty" id="difficultyBtn" onclick="game.cycleDifficulty()" style="display:none;">难度: 中级</button>
+        </div>
+        <div id="difficultyDesc" class="difficulty-desc"></div>
+    </div>
+
+    <script src="js/ai.js"></script>
+    <script src="js/game.js"></script>
+</body>
+</html>
