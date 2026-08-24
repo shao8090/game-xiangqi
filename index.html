@@ -1,31 +1,118 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>中国象棋</title>
-    <link rel="stylesheet" href="css/style.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>游戏合集</title>
+<style>
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+  :root {
+    --bg: #0a0a12;
+    --surface: #141420;
+    --surface2: #1c1c2e;
+    --accent: #c5a55a;
+    --accent2: #6c8ce0;
+    --text: #e8dcc8;
+    --text-muted: #8a7d6b;
+  }
+  body {
+    font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--bg);
+    background-image:
+      radial-gradient(ellipse at 20% 10%, rgba(139,100,30,0.08) 0%, transparent 50%),
+      radial-gradient(ellipse at 80% 80%, rgba(60,80,160,0.06) 0%, transparent 45%);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+  .orb { position: fixed; border-radius: 50%; filter: blur(70px); opacity: 0.18; pointer-events: none; z-index: 0; }
+  .orb1 { width: 320px; height: 320px; background: #c5a55a; top: -60px; left: -60px; }
+  .orb2 { width: 280px; height: 280px; background: #6c8ce0; bottom: -50px; right: -40px; }
+
+  .header { text-align: center; margin-bottom: 36px; z-index: 1; }
+  .header h1 {
+    font-size: 2.2rem; font-weight: 900; letter-spacing: 0.15em;
+    background: linear-gradient(135deg, var(--accent) 0%, #ffd76e 50%, var(--accent) 100%);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .header p { color: var(--text-muted); font-size: 0.95rem; margin-top: 6px; letter-spacing: 0.1em; }
+
+  .grid {
+    z-index: 1; display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 20px; max-width: 640px; width: 100%;
+  }
+  .card {
+    display: block; text-decoration: none; color: inherit;
+    background: var(--surface); border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 16px; padding: 28px 24px;
+    transition: all 0.3s ease; cursor: pointer;
+    position: relative; overflow: hidden;
+  }
+  .card::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+    background: var(--card-color, var(--accent)); opacity: 0.6;
+    transition: opacity 0.3s;
+  }
+  .card:hover { transform: translateY(-4px); border-color: var(--card-color, var(--accent)); box-shadow: 0 12px 40px rgba(0,0,0,0.4); }
+  .card:hover::before { opacity: 1; }
+  .card .icon { font-size: 2.4rem; margin-bottom: 14px; }
+  .card h2 { font-size: 1.25rem; font-weight: 700; margin-bottom: 6px; letter-spacing: 0.04em; }
+  .card .tag { font-size: 0.75rem; color: var(--card-color, var(--accent)); margin-bottom: 10px; letter-spacing: 0.08em; }
+  .card p { font-size: 0.88rem; color: var(--text-muted); line-height: 1.6; }
+
+  .footer { z-index: 1; margin-top: 32px; color: var(--text-muted); font-size: 0.8rem; letter-spacing: 0.05em; }
+
+  @media (max-width: 480px) {
+    .header h1 { font-size: 1.7rem; }
+    .grid { grid-template-columns: 1fr; }
+  }
+</style>
 </head>
 <body>
-    <div class="game-container">
-        <h1 class="game-title">中国象棋</h1>
-        <div class="game-info">
-            <span id="turnIndicator" class="turn-indicator turn-red">红方走棋</span>
-        </div>
-        <div id="gameStatus" class="game-status"></div>
-        <div class="board-wrapper">
-            <canvas id="gameCanvas"></canvas>
-        </div>
-        <div class="controls">
-            <button class="btn btn-restart" onclick="game.restart()">重新开始</button>
-            <button class="btn btn-undo" id="undoBtn" onclick="game.undo()" disabled>悔棋</button>
-            <button class="btn btn-ai" id="aiBtn" onclick="game.toggleAI()">AI对战: 关</button>
-            <button class="btn btn-difficulty" id="difficultyBtn" onclick="game.cycleDifficulty()" style="display:none;">难度: 中级</button>
-        </div>
-        <div id="difficultyDesc" class="difficulty-desc"></div>
-    </div>
+<div class="orb orb1"></div>
+<div class="orb orb2"></div>
 
-    <script src="js/ai.js"></script>
-    <script src="js/game.js"></script>
+<div class="header">
+  <h1>游戏合集</h1>
+  <p>选择一款游戏开始</p>
+</div>
+
+<div class="grid">
+  <a class="card" href="001.html" style="--card-color: #c43030;">
+    <div class="icon">♟</div>
+    <h2>中国象棋</h2>
+    <div class="tag">经典版</div>
+    <p>原版中国象棋，双人对战或开启 AI 挑战，附带多算法难度配置。</p>
+  </a>
+  
+  <a class="card" href="xiaomi.html" style="--card-color: #c5a55a;">
+    <div class="icon">♟</div>
+    <h2>中国象棋 · AI</h2>
+    <div class="tag">单机对弈</div>
+    <p>与 AI 对弈的中国象棋，支持简单/中等/困难三档难度，悔棋功能。</p>
+  </a>
+
+
+  <a class="card" href="ccz.html" style="--card-color: #FFD60A;">
+    <div class="icon">⬤</div>
+    <h2>彩珠排序</h2>
+    <div class="tag">益智 · 极简</div>
+    <p>将同色珠子归入同一管中通关，4 至 6 种颜色三种难度，极简暗色风格。</p>
+  </a>
+
+  <a class="card" href="901.html" style="--card-color: #ffd76e;">
+    <div class="icon">⬤</div>
+    <h2>珠子归位 · Deluxe</h2>
+    <div class="tag">益智 · 豪华版</div>
+    <p>带音效、计时、星级评定与最佳步数记录的珠子排序豪华版，含提示与撤销。</p>
+  </a>
+</div>
+
+<div class="footer">共 4 款游戏</div>
 </body>
 </html>
