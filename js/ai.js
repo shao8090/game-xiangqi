@@ -562,6 +562,13 @@ const ChineseChessAI = (function() {
         EXPERT: 5       // 大师
     };
 
+    // 纯随机走法（无吃子偏好）
+    function getRandomMove(board) {
+        const moves = getAllValidMoves(board, 'black');
+        if (moves.length === 0) return null;
+        return moves[Math.floor(Math.random() * moves.length)];
+    }
+
     // 简单：随机走法，略有偏好吃子
     function getSimpleMove(board) {
         const moves = getAllValidMoves(board, 'black');
@@ -718,6 +725,67 @@ const ChineseChessAI = (function() {
         }
     }
 
+    // ==================== 难度算法池配置（数据驱动） ====================
+
+    // 各难度可选算法及权重，整局抽取其一以增加随机性同时保持强度梯度
+    const DIFFICULTY_ALGORITHMS = {
+        [Difficulty.SIMPLE]: [
+            { algo: 'random', weight: 0.5 },
+            { algo: 'randomCapture', weight: 0.5 }
+        ],
+        [Difficulty.EASY]: [
+            { algo: 'randomCapture', weight: 0.4 },
+            { algo: 'greedy', weight: 0.6 }
+        ],
+        [Difficulty.MEDIUM]: [
+            { algo: 'greedy', weight: 0.3 },
+            { algo: 'minimax2', weight: 0.7 }
+        ],
+        [Difficulty.HARD]: [
+            { algo: 'minimax2', weight: 0.3 },
+            { algo: 'minimax3', weight: 0.7 }
+        ],
+        [Difficulty.EXPERT]: [
+            { algo: 'minimax3', weight: 0.35 },
+            { algo: 'minimax4', weight: 0.65 }
+        ]
+    };
+
+    // 算法名 -> 实现
+    const ALGORITHM_REGISTRY = {
+        random: getRandomMove,
+        randomCapture: getSimpleMove,
+        greedy: getEasyMove,
+        minimax2: getMediumMove,
+        minimax3: getHardMove,
+        minimax4: getExpertMove
+    };
+
+    // 当前局所选算法（每局开局重新抽取）
+    let currentAlgorithm = null;
+
+    // 按权重随机抽取一个算法名
+    function weightedPick(pool) {
+        const total = pool.reduce((sum, e) => sum + e.weight, 0);
+        let r = Math.random() * total;
+        for (const entry of pool) {
+            r -= entry.weight;
+            if (r < 0) return entry.algo;
+        }
+        return pool[pool.length - 1].algo;
+    }
+
+    /**
+     * 为本局抽取一个算法并缓存（按难度算法池加权随机）
+     * @param {number} difficulty - 难度等级 (1-5)
+     * @returns {string} 算法名
+     */
+    function selectAlgorithm(difficulty) {
+        const pool = DIFFICULTY_ALGORITHMS[difficulty] || DIFFICULTY_ALGORITHMS[Difficulty.EASY];
+        currentAlgorithm = weightedPick(pool);
+        return currentAlgorithm;
+    }
+
     // ==================== 公共接口 ====================
 
     /**
@@ -728,21 +796,18 @@ const ChineseChessAI = (function() {
      */
     function getMove(board, difficulty) {
         const boardCopy = JSON.parse(JSON.stringify(board));
-        
-        switch (difficulty) {
-            case Difficulty.SIMPLE:
-                return getSimpleMove(boardCopy);
-            case Difficulty.EASY:
-                return getEasyMove(boardCopy);
-            case Difficulty.MEDIUM:
-                return getMediumMove(boardCopy);
-            case Difficulty.HARD:
-                return getHardMove(boardCopy);
-            case Difficulty.EXPERT:
-                return getExpertMove(boardCopy);
-            default:
-                return getEasyMove(boardCopy);
+
+        // 若本局未抽取算法（兜底），按难度抽取一个
+        if (!currentAlgorithm) {
+            selectAlgorithm(difficulty);
         }
+
+        const fn = ALGORITHM_REGISTRY[currentAlgorithm];
+        if (fn) {
+            return fn(boardCopy);
+        }
+        // 未命中注册表，回退到初级评估
+        return getEasyMove(boardCopy);
     }
 
     /**
@@ -770,9 +835,9 @@ const ChineseChessAI = (function() {
         const descs = {
             1: '随机走法，适合新手熟悉规则',
             2: '简单评估，会吃子和将军',
-            3: '2层搜索，有一定策略',
-            4: '3层搜索，较强的对手',
-            5: '4层搜索，大师级AI'
+            3: '多种算法随机，2层搜索，有一定策略',
+            4: '多种算法随机，3层搜索，较强的对手',
+            5: '多种算法随机，4层搜索，大师级AI'
         };
         return descs[level] || '';
     }
@@ -782,7 +847,8 @@ const ChineseChessAI = (function() {
         getMove: getMove,
         Difficulty: Difficulty,
         getDifficultyName: getDifficultyName,
-        getDifficultyDesc: getDifficultyDesc
+        getDifficultyDesc: getDifficultyDesc,
+        selectAlgorithm: selectAlgorithm
     };
 
 })();

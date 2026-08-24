@@ -1,0 +1,759 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>中国象棋 · AI对弈</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Ma+Shan+Zheng&family=Noto+Serif+SC:wght@400;700;900&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0a0a12;
+  --surface: #141420;
+  --surface2: #1c1c2e;
+  --accent: #c5a55a;
+  --accent-dim: rgba(197,165,90,0.15);
+  --text: #e8dcc8;
+  --text-muted: #8a7d6b;
+  --red: #c43030;
+  --red-dim: rgba(196,48,48,0.12);
+  --green: #4caf50;
+}
+*, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+html { font-size:16px; }
+body {
+  font-family: 'Noto Serif SC', 'KaiTi', 'STKaiti', serif;
+  background: var(--bg);
+  background-image:
+    radial-gradient(ellipse at 25% 15%, rgba(139,100,30,0.07) 0%, transparent 55%),
+    radial-gradient(ellipse at 75% 85%, rgba(100,50,20,0.05) 0%, transparent 45%);
+  color: var(--text);
+  min-height:100vh;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  padding:16px;
+}
+body::after {
+  content:''; position:fixed; inset:0;
+  background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  opacity:0.025; pointer-events:none; z-index:9999;
+}
+#app { max-width:920px; width:100%; }
+.header { text-align:center; margin-bottom:24px; }
+.header h1 {
+  font-family:'Ma Shan Zheng', cursive;
+  font-size:2.6rem; color:var(--accent);
+  letter-spacing:0.12em;
+  text-shadow:0 2px 20px rgba(197,165,90,0.25);
+}
+.header p { color:var(--text-muted); font-size:0.95rem; margin-top:4px; letter-spacing:0.08em; }
+.game-area { display:flex; gap:28px; align-items:flex-start; justify-content:center; }
+.board-wrap {
+  flex-shrink:0; border-radius:10px;
+  box-shadow: 0 8px 50px rgba(0,0,0,0.6), 0 0 0 1px rgba(197,165,90,0.08);
+  overflow:hidden; position:relative;
+}
+.board-wrap canvas { display:block; max-width:100%; height:auto; }
+.panel { flex:1; min-width:190px; max-width:240px; display:flex; flex-direction:column; gap:16px; }
+.status {
+  font-size:1.15rem; font-weight:700; padding:14px 18px;
+  border-radius:8px; text-align:center;
+  border:1px solid transparent;
+  transition:all 0.3s ease;
+}
+.status.red-turn { background:var(--red-dim); color:#e85050; border-color:rgba(196,48,48,0.25); }
+.status.black-turn { background:rgba(60,60,80,0.2); color:#bbb; border-color:rgba(100,100,120,0.2); }
+.status.thinking { background:var(--accent-dim); color:var(--accent); border-color:rgba(197,165,90,0.2); animation:pulse 1.4s ease-in-out infinite; }
+.status.win { background:rgba(76,175,80,0.15); color:#6fd876; border-color:rgba(76,175,80,0.25); }
+.status.lose { background:rgba(196,48,48,0.18); color:#e85050; border-color:rgba(196,48,48,0.3); }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.55} }
+.controls { display:flex; flex-direction:column; gap:10px; }
+.btn-row { display:flex; gap:10px; }
+.btn {
+  flex:1; padding:11px 14px; border:1px solid rgba(197,165,90,0.35);
+  background:transparent; color:var(--accent);
+  font-family:'Noto Serif SC',serif; font-size:0.95rem; font-weight:700;
+  border-radius:7px; cursor:pointer; transition:all 0.2s ease;
+  letter-spacing:0.04em;
+}
+.btn:hover { background:var(--accent); color:var(--bg); border-color:var(--accent); }
+.btn:active { transform:scale(0.97); }
+.btn-primary { background:rgba(197,165,90,0.12); }
+.diff-group { display:flex; flex-direction:column; gap:6px; }
+.diff-group label { font-size:0.8rem; color:var(--text-muted); letter-spacing:0.06em; }
+.diff-btns { display:flex; gap:6px; }
+.diff-btn {
+  flex:1; padding:7px 0; border:1px solid rgba(197,165,90,0.2);
+  background:transparent; color:var(--text-muted);
+  font-family:'Noto Serif SC',serif; font-size:0.82rem;
+  border-radius:5px; cursor:pointer; transition:all 0.2s ease;
+}
+.diff-btn.active { background:var(--accent-dim); color:var(--accent); border-color:rgba(197,165,90,0.4); }
+.diff-btn:hover { border-color:var(--accent); color:var(--accent); }
+.info-box {
+  background:var(--surface); border-radius:8px; padding:14px;
+  border:1px solid rgba(255,255,255,0.04);
+}
+.info-box h3 { font-size:0.82rem; color:var(--text-muted); margin-bottom:8px; letter-spacing:0.06em; }
+.captured-row { display:flex; flex-wrap:wrap; gap:4px; min-height:26px; align-items:center; }
+.captured-piece {
+  width:24px; height:24px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+  font-size:0.7rem; font-weight:900; border:1.5px solid;
+}
+.captured-piece.red { color:var(--red); border-color:var(--red); background:rgba(196,48,48,0.08); }
+.captured-piece.black { color:#aaa; border-color:#666; background:rgba(60,60,60,0.15); }
+.captured-label { font-size:0.75rem; color:var(--text-muted); }
+@media (max-width:700px) {
+  .game-area { flex-direction:column; align-items:center; }
+  .panel { width:100%; max-width:100%; flex-direction:row; flex-wrap:wrap; }
+  .status { width:100%; }
+  .controls { width:100%; flex-direction:row; flex-wrap:wrap; }
+  .diff-group { flex:1; min-width:140px; }
+  .btn-row { flex:1; min-width:140px; }
+  .info-box { flex:1 1 100%; }
+  .header h1 { font-size:2rem; }
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="header">
+    <h1>中 国 象 棋</h1>
+    <p>与 AI 对弈</p>
+  </div>
+  <div class="game-area">
+    <div class="board-wrap">
+      <canvas id="board"></canvas>
+    </div>
+    <div class="panel">
+      <div id="status" class="status red-turn">红方走棋</div>
+      <div class="controls">
+        <div class="diff-group">
+          <label>AI 难度</label>
+          <div class="diff-btns">
+            <button class="diff-btn" data-depth="2">简单</button>
+            <button class="diff-btn active" data-depth="3">中等</button>
+            <button class="diff-btn" data-depth="4">困难</button>
+          </div>
+        </div>
+        <div class="btn-row">
+          <button class="btn" id="btn-undo">悔 棋</button>
+          <button class="btn btn-primary" id="btn-new">新对局</button>
+        </div>
+      </div>
+      <div class="info-box">
+        <h3>黑方被吃</h3>
+        <div class="captured-row" id="cap-black"></div>
+      </div>
+      <div class="info-box">
+        <h3>红方被吃</h3>
+        <div class="captured-row" id="cap-red"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════
+//  CONSTANTS
+// ═══════════════════════════════════════════════════
+const CELL = 66, PAD = 40, COLS = 9, ROWS = 10;
+const CW = PAD * 2 + CELL * (COLS - 1);
+const CH = PAD * 2 + CELL * (ROWS - 1);
+const PR = CELL * 0.44;
+
+const PIECE_CHAR = {
+  rK:'帅',rA:'仕',rB:'相',rN:'马',rR:'车',rC:'炮',rP:'兵',
+  bK:'将',bA:'士',bB:'象',bN:'马',bR:'车',bC:'炮',bP:'卒'
+};
+const PIECE_VAL = {K:10000,R:600,C:285,N:270,B:120,A:120,P:30};
+
+const INIT = [
+  ['bR','bN','bB','bA','bK','bA','bB','bN','bR'],
+  ['','','','','','','','',''],
+  ['','bC','','','','','','bC',''],
+  ['bP','','bP','','bP','','bP','','bP'],
+  ['','','','','','','','',''],
+  ['','','','','','','','',''],
+  ['rP','','rP','','rP','','rP','','rP'],
+  ['','rC','','','','','','rC',''],
+  ['','','','','','','','',''],
+  ['rR','rN','rB','rA','rK','rA','rB','rN','rR']
+];
+
+const DIRS = [[-1,0],[1,0],[0,-1],[0,1]];
+const HD = [
+  {dr:-2,dc:-1,lr:-1,lc:0},{dr:-2,dc:1,lr:-1,lc:0},
+  {dr:2,dc:-1,lr:1,lc:0},{dr:2,dc:1,lr:1,lc:0},
+  {dr:-1,dc:-2,lr:0,lc:-1},{dr:-1,dc:2,lr:0,lc:1},
+  {dr:1,dc:-2,lr:0,lc:-1},{dr:1,dc:2,lr:0,lc:1}
+];
+const ED = [
+  {dr:-2,dc:-2,er:-1,ec:-1},{dr:-2,dc:2,er:-1,ec:1},
+  {dr:2,dc:-2,er:1,ec:-1},{dr:2,dc:2,er:1,ec:1}
+];
+
+const MARKERS = [
+  [2,1],[2,7],[7,1],[7,7],
+  [3,0],[3,2],[3,4],[3,6],[3,8],
+  [6,0],[6,2],[6,4],[6,6],[6,8]
+];
+
+// ═══════════════════════════════════════════════════
+//  GAME CLASS
+// ═══════════════════════════════════════════════════
+class Game {
+  constructor() {
+    this.cv = document.getElementById('board');
+    this.ctx = this.cv.getContext('2d');
+    this.cv.width = CW; this.cv.height = CH;
+    this.depth = 3;
+    this.newGame();
+    this.bindEvents();
+  }
+
+  newGame() {
+    this.board = INIT.map(r => [...r]);
+    this.turn = 'r';
+    this.sel = null;
+    this.vmoves = [];
+    this.last = null;
+    this.over = false;
+    this.winner = '';
+    this.stack = [];
+    this.capR = []; this.capB = [];
+    this.thinking = false;
+    this.anim = null;
+    this.render();
+    this.updateStatus();
+    this.updateCaptured();
+  }
+
+  // ── coordinate helpers ──
+  toXY(r, c) { return {x: PAD + c * CELL, y: PAD + r * CELL}; }
+  fromXY(px, py) {
+    const c = Math.round((px - PAD) / CELL);
+    const r = Math.round((py - PAD) / CELL);
+    return (r >= 0 && r < ROWS && c >= 0 && c < COLS) ? {r, c} : null;
+  }
+  inB(r, c) { return r >= 0 && r < ROWS && c >= 0 && c < COLS; }
+  inPalace(r, c, col) {
+    if (c < 3 || c > 5) return false;
+    return col === 'r' ? r >= 7 && r <= 9 : r >= 0 && r <= 2;
+  }
+  ownSide(r, col) { return col === 'r' ? r >= 5 : r <= 4; }
+  crossed(r, col) { return col === 'r' ? r <= 4 : r >= 5; }
+
+  // ── move generation ──
+  pseudoMoves(board, r, c) {
+    const p = board[r][c]; if (!p) return [];
+    const col = p[0], tp = p[1], ms = [];
+    const add = (tr, tc) => { ms.push({fr:r, fc:c, tr, tc}); };
+    const own = (x, y) => board[x] && board[x][y] && board[x][y][0] === col;
+    const inB = (x, y) => this.inB(x, y);
+
+    switch (tp) {
+      case 'K':
+        for (const [dr,dc] of DIRS) {
+          const nr=r+dr, nc=c+dc;
+          if (this.inPalace(nr,nc,col) && !own(nr,nc)) add(nr,nc);
+        }
+        break;
+      case 'A':
+        for (let dr=-1;dr<=1;dr+=2) for (let dc=-1;dc<=1;dc+=2) {
+          const nr=r+dr, nc=c+dc;
+          if (this.inPalace(nr,nc,col) && !own(nr,nc)) add(nr,nc);
+        }
+        break;
+      case 'B':
+        for (const {dr,dc,er,ec} of ED) {
+          const nr=r+dr, nc=c+dc, er2=r+er, ec2=c+ec;
+          if (inB(nr,nc) && this.ownSide(nr,col) && !own(nr,nc) && !board[er2][ec2]) add(nr,nc);
+        }
+        break;
+      case 'N':
+        for (const {dr,dc,lr,lc} of HD) {
+          const nr=r+dr, nc=c+dc, lr2=r+lr, lc2=c+lc;
+          if (inB(nr,nc) && !own(nr,nc) && !board[lr2][lc2]) add(nr,nc);
+        }
+        break;
+      case 'R':
+        for (const [dr,dc] of DIRS) {
+          let nr=r+dr, nc=c+dc;
+          while (inB(nr,nc)) {
+            if (board[nr][nc]) { if (!own(nr,nc)) add(nr,nc); break; }
+            add(nr,nc); nr+=dr; nc+=dc;
+          }
+        }
+        break;
+      case 'C':
+        for (const [dr,dc] of DIRS) {
+          let nr=r+dr, nc=c+dc, jumped=false;
+          while (inB(nr,nc)) {
+            if (!jumped) {
+              if (board[nr][nc]) jumped=true; else add(nr,nc);
+            } else {
+              if (board[nr][nc]) { if (!own(nr,nc)) add(nr,nc); break; }
+            }
+            nr+=dr; nc+=dc;
+          }
+        }
+        break;
+      case 'P': {
+        const fwd = col==='r' ? -1 : 1;
+        const cr = this.crossed(r, col);
+        if (inB(r+fwd,c) && !own(r+fwd,c)) add(r+fwd,c);
+        if (cr) {
+          if (inB(r,c-1) && !own(r,c-1)) add(r,c-1);
+          if (inB(r,c+1) && !own(r,c+1)) add(r,c+1);
+        }
+        break;
+      }
+    }
+    return ms;
+  }
+
+  allMoves(board, col) {
+    const ms = [];
+    for (let r=0;r<ROWS;r++) for (let c=0;c<COLS;c++)
+      if (board[r][c] && board[r][c][0]===col) ms.push(...this.pseudoMoves(board,r,c));
+    return ms;
+  }
+
+  apply(board, m) {
+    const nb = board.map(row=>[...row]);
+    nb[m.tr][m.tc] = nb[m.fr][m.fc];
+    nb[m.fr][m.fc] = '';
+    return nb;
+  }
+
+  // ── check / legality ──
+  findKing(board, col) {
+    for (let r=0;r<ROWS;r++) for (let c=0;c<COLS;c++)
+      if (board[r][c]===col+'K') return {r,c};
+    return null;
+  }
+
+  inCheck(board, col) {
+    const opp = col==='r'?'b':'r';
+    const k = this.findKing(board, col);
+    if (!k) return true;
+    for (let r=0;r<ROWS;r++) for (let c=0;c<COLS;c++) {
+      if (board[r][c] && board[r][c][0]===opp) {
+        for (const m of this.pseudoMoves(board,r,c))
+          if (m.tr===k.r && m.tc===k.c) return true;
+      }
+    }
+    return false;
+  }
+
+  kingsFacing(board) {
+    const rk = this.findKing(board,'r'), bk = this.findKing(board,'b');
+    if (!rk||!bk||rk.c!==bk.c) return false;
+    const mn=Math.min(rk.r,bk.r), mx=Math.max(rk.r,bk.r);
+    for (let r=mn+1;r<mx;r++) if (board[r][rk.c]) return false;
+    return true;
+  }
+
+  legalMoves(board, col) {
+    return this.allMoves(board, col).filter(m => {
+      const nb = this.apply(board, m);
+      return !this.inCheck(nb, col) && !this.kingsFacing(nb);
+    });
+  }
+
+  validFor(board, r, c) {
+    const col = board[r][c][0];
+    return this.pseudoMoves(board, r, c).filter(m => {
+      const nb = this.apply(board, m);
+      return !this.inCheck(nb, col) && !this.kingsFacing(nb);
+    });
+  }
+
+  // ── AI ──
+  evaluate(board) {
+    let score = 0;
+    for (let r=0;r<ROWS;r++) for (let c=0;c<COLS;c++) {
+      const p = board[r][c]; if (!p) continue;
+      const col = p[0], tp = p[1];
+      const sign = col==='r'?1:-1;
+      let v = PIECE_VAL[tp];
+      switch (tp) {
+        case 'P': {
+          const adv = col==='r'?(6-r):(r-3);
+          v += adv * 12;
+          if (c>=3&&c<=5) v += 8;
+          break;
+        }
+        case 'N': {
+          const d = Math.abs(c-4)+Math.abs(r-4.5);
+          v += Math.max(0, Math.round(18 - d*2.5));
+          break;
+        }
+        case 'R':
+          if (col==='r'&&r<=4) v+=18;
+          if (col==='b'&&r>=5) v+=18;
+          break;
+        case 'C':
+          v += (4-Math.abs(c-4))*3;
+          break;
+      }
+      score += sign * v;
+    }
+    return score;
+  }
+
+  minimax(board, depth, alpha, beta, maximizing) {
+    if (depth === 0) return this.evaluate(board);
+    const col = maximizing ? 'r' : 'b';
+    let moves = this.legalMoves(board, col);
+    if (moves.length === 0) return maximizing ? -99999 : 99999;
+
+    // move ordering: captures first by victim value
+    moves.sort((a, ba) => {
+      const va = board[a.tr][a.tc] ? PIECE_VAL[board[a.tr][a.tc][1]] : 0;
+      const vb = board[ba.tr][ba.tc] ? PIECE_VAL[board[ba.tr][ba.tc][1]] : 0;
+      return vb - va;
+    });
+
+    if (maximizing) {
+      let best = -Infinity;
+      for (const m of moves) {
+        const nb = this.apply(board, m);
+        const s = this.minimax(nb, depth-1, alpha, beta, false);
+        if (s > best) best = s;
+        if (best > alpha) alpha = best;
+        if (beta <= alpha) break;
+      }
+      return best;
+    } else {
+      let best = Infinity;
+      for (const m of moves) {
+        const nb = this.apply(board, m);
+        const s = this.minimax(nb, depth-1, alpha, beta, true);
+        if (s < best) best = s;
+        if (best < beta) beta = best;
+        if (beta <= alpha) break;
+      }
+      return best;
+    }
+  }
+
+  bestMove() {
+    let moves = this.legalMoves(this.board, 'b');
+    if (!moves.length) return null;
+    moves.sort((a, ba) => {
+      const va = this.board[a.tr][a.tc] ? PIECE_VAL[this.board[a.tr][a.tc][1]] : 0;
+      const vb = this.board[ba.tr][ba.tc] ? PIECE_VAL[this.board[ba.tr][ba.tc][1]] : 0;
+      return vb - va;
+    });
+    let best = null, bestS = Infinity;
+    for (const m of moves) {
+      const nb = this.apply(this.board, m);
+      const s = this.minimax(nb, this.depth - 1, -Infinity, Infinity, true);
+      if (s < bestS) { bestS = s; best = m; }
+    }
+    return best;
+  }
+
+  // ── rendering ──
+  render() {
+    const ctx = this.ctx;
+    this.drawBoard(ctx);
+    this.drawHighlights(ctx);
+    this.drawPieces(ctx);
+  }
+
+  drawBoard(ctx) {
+    // wood background
+    const bg = ctx.createLinearGradient(0,0,CW,CH);
+    bg.addColorStop(0,'#c8a46e'); bg.addColorStop(0.5,'#dbb87a'); bg.addColorStop(1,'#c49e60');
+    ctx.fillStyle = bg; ctx.fillRect(0,0,CW,CH);
+
+    // wood grain
+    ctx.save(); ctx.globalAlpha = 0.04;
+    for (let i=0;i<50;i++) {
+      const y = (i/50)*CH + (Math.random()-0.5)*8;
+      ctx.fillStyle = '#8b6914';
+      ctx.fillRect(0, y, CW, 0.8+Math.random()*1.5);
+    }
+    ctx.restore();
+
+    // outer frame
+    ctx.strokeStyle = '#5c3a1e'; ctx.lineWidth = 3;
+    ctx.strokeRect(PAD-8, PAD-8, CELL*8+16, CELL*9+16);
+    ctx.lineWidth = 1;
+    ctx.strokeRect(PAD-12, PAD-12, CELL*8+24, CELL*9+24);
+
+    ctx.strokeStyle = '#5c3a1e'; ctx.lineWidth = 1.2;
+
+    // horizontals
+    for (let r=0;r<ROWS;r++) {
+      const y = PAD + r*CELL;
+      ctx.beginPath(); ctx.moveTo(PAD, y); ctx.lineTo(PAD+8*CELL, y); ctx.stroke();
+    }
+    // verticals
+    for (let c=0;c<COLS;c++) {
+      const x = PAD + c*CELL;
+      if (c===0||c===8) {
+        ctx.beginPath(); ctx.moveTo(x,PAD); ctx.lineTo(x,PAD+9*CELL); ctx.stroke();
+      } else {
+        ctx.beginPath(); ctx.moveTo(x,PAD); ctx.lineTo(x,PAD+4*CELL); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(x,PAD+5*CELL); ctx.lineTo(x,PAD+9*CELL); ctx.stroke();
+      }
+    }
+
+    // palace
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(PAD+3*CELL,PAD); ctx.lineTo(PAD+5*CELL,PAD+2*CELL);
+    ctx.moveTo(PAD+5*CELL,PAD); ctx.lineTo(PAD+3*CELL,PAD+2*CELL);
+    ctx.moveTo(PAD+3*CELL,PAD+7*CELL); ctx.lineTo(PAD+5*CELL,PAD+9*CELL);
+    ctx.moveTo(PAD+5*CELL,PAD+7*CELL); ctx.lineTo(PAD+3*CELL,PAD+9*CELL);
+    ctx.stroke();
+
+    // river text
+    ctx.save();
+    ctx.font = `bold ${Math.round(CELL*0.42)}px "Ma Shan Zheng","KaiTi","STKaiti",serif`;
+    ctx.fillStyle = '#5c3a1e'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const ry = PAD + 4.5*CELL;
+    ctx.fillText('楚  河', PAD + 2*CELL, ry);
+    ctx.fillText('漢  界', PAD + 6*CELL, ry);
+    ctx.restore();
+
+    // star markers
+    const gap=4, len=8;
+    ctx.strokeStyle='#5c3a1e'; ctx.lineWidth=1;
+    for (const [mr,mc] of MARKERS) {
+      const mx = PAD+mc*CELL, my = PAD+mr*CELL;
+      const sides = [];
+      if (mc>0) sides.push([-1,-1],[-1,1]);
+      if (mc<8) sides.push([1,-1],[1,1]);
+      for (const [sx,sy] of sides) {
+        ctx.beginPath();
+        ctx.moveTo(mx+sx*gap, my+sy*(gap+len));
+        ctx.lineTo(mx+sx*gap, my+sy*gap);
+        ctx.lineTo(mx+sx*(gap+len), my+sy*gap);
+        ctx.stroke();
+      }
+    }
+  }
+
+  drawHighlights(ctx) {
+    // last move
+    if (this.last) {
+      ctx.save(); ctx.globalAlpha=0.28; ctx.fillStyle='#ffd700';
+      for (const {r,c} of [{r:this.last.fr,c:this.last.fc},{r:this.last.tr,c:this.last.tc}]) {
+        const {x,y} = this.toXY(r,c);
+        ctx.beginPath(); ctx.arc(x,y,PR+3,0,Math.PI*2); ctx.fill();
+      }
+      ctx.restore();
+    }
+    // selected
+    if (this.sel) {
+      const {x,y} = this.toXY(this.sel.r, this.sel.c);
+      ctx.save();
+      ctx.shadowColor='#ffd700'; ctx.shadowBlur=18;
+      ctx.strokeStyle='#ffd700'; ctx.lineWidth=2.5;
+      ctx.beginPath(); ctx.arc(x,y,PR+4,0,Math.PI*2); ctx.stroke();
+      ctx.restore();
+    }
+    // valid moves
+    for (const m of this.vmoves) {
+      const {x,y} = this.toXY(m.tr, m.tc);
+      if (this.board[m.tr][m.tc]) {
+        ctx.save(); ctx.strokeStyle='rgba(220,50,50,0.65)'; ctx.lineWidth=2.5;
+        ctx.beginPath(); ctx.arc(x,y,PR+3,0,Math.PI*2); ctx.stroke(); ctx.restore();
+      } else {
+        ctx.save(); ctx.fillStyle='rgba(76,175,80,0.45)';
+        ctx.beginPath(); ctx.arc(x,y,6,0,Math.PI*2); ctx.fill(); ctx.restore();
+      }
+    }
+  }
+
+  drawPieces(ctx) {
+    const a = this.anim;
+    for (let r=0;r<ROWS;r++) for (let c=0;c<COLS;c++) {
+      const p = this.board[r][c]; if (!p) continue;
+      if (a && ((r===a.fr&&c===a.fc)||(r===a.tr&&c===a.tc))) continue;
+      const {x,y} = this.toXY(r,c);
+      this.drawOne(ctx, x, y, p);
+    }
+    if (a) this.drawOne(ctx, a.cx, a.cy, a.piece);
+  }
+
+  drawOne(ctx, x, y, piece) {
+    const col = piece[0], char = PIECE_CHAR[piece];
+    // shadow
+    ctx.save();
+    ctx.shadowColor='rgba(0,0,0,0.3)'; ctx.shadowBlur=6; ctx.shadowOffsetX=2; ctx.shadowOffsetY=3;
+    // disc
+    const g = ctx.createRadialGradient(x-3,y-4,2,x,y,PR);
+    g.addColorStop(0,'#fffaed'); g.addColorStop(0.5,'#f5ecda'); g.addColorStop(1,'#ddd0b4');
+    ctx.beginPath(); ctx.arc(x,y,PR,0,Math.PI*2);
+    ctx.fillStyle=g; ctx.fill();
+    ctx.restore();
+    // outer ring
+    ctx.beginPath(); ctx.arc(x,y,PR-2,0,Math.PI*2);
+    ctx.strokeStyle=col==='r'?'#a01010':'#2a2a2a'; ctx.lineWidth=2.5; ctx.stroke();
+    // inner ring
+    ctx.beginPath(); ctx.arc(x,y,PR-5.5,0,Math.PI*2);
+    ctx.strokeStyle=col==='r'?'#a01010':'#2a2a2a'; ctx.lineWidth=1; ctx.stroke();
+    // character
+    ctx.font = `900 ${Math.round(PR*1.15)}px "Noto Serif SC","KaiTi","STKaiti","SimSun",serif`;
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillStyle = col==='r'?'#a01010':'#1a1a1a';
+    ctx.fillText(char, x, y+1);
+  }
+
+  // ── animation ──
+  animate(fr, fc, tr, tc, cb) {
+    const from = this.toXY(fr,fc), to = this.toXY(tr,tc);
+    const piece = this.board[fr][fc];
+    this.anim = {fr,fc,tr,tc,piece,cx:from.x,cy:from.y};
+    const dur = 180, t0 = performance.now();
+    const step = (now) => {
+      const p = Math.min((now-t0)/dur, 1);
+      const e = p<0.5 ? 2*p*p : 1-(-2*p+2)**2/2;
+      this.anim.cx = from.x+(to.x-from.x)*e;
+      this.anim.cy = from.y+(to.y-from.y)*e;
+      this.render();
+      if (p<1) requestAnimationFrame(step);
+      else { this.anim=null; cb(); }
+    };
+    requestAnimationFrame(step);
+  }
+
+  // ── game flow ──
+  doHumanMove(fr, fc, tr, tc) {
+    this.stack.push(this.board.map(r=>[...r]));
+    const cap = this.board[tr][tc];
+    this.animate(fr,fc,tr,tc, () => {
+      this.board[tr][tc] = this.board[fr][fc];
+      this.board[fr][fc] = '';
+      if (cap) { this.capB.push(cap); }
+      this.last = {fr,fc,tr,tc}; this.sel=null; this.vmoves=[];
+      if (cap && cap[1]==='K') { this.over=true; this.winner='r'; this.render(); this.updateStatus(); this.updateCaptured(); return; }
+      this.turn='b'; this.render(); this.updateStatus(); this.updateCaptured();
+      if (!this.legalMoves(this.board,'b').length) { this.over=true; this.winner='r'; this.render(); this.updateStatus(); return; }
+      setTimeout(()=>this.doAIMove(), 80);
+    });
+  }
+
+  doAIMove() {
+    this.thinking=true; this.updateStatus();
+    setTimeout(()=>{
+      const m = this.bestMove();
+      if (!m) { this.over=true; this.winner='r'; this.thinking=false; this.render(); this.updateStatus(); return; }
+      this.stack.push(this.board.map(r=>[...r]));
+      const cap = this.board[m.tr][m.tc];
+      this.animate(m.fr,m.fc,m.tr,m.tc, () => {
+        this.board[m.tr][m.tc] = this.board[m.fr][m.fc];
+        this.board[m.fr][m.fc] = '';
+        if (cap) { this.capR.push(cap); }
+        this.last = {fr:m.fr,fc:m.fc,tr:m.tr,tc:m.tc};
+        if (cap && cap[1]==='K') { this.over=true; this.winner='b'; this.thinking=false; this.render(); this.updateStatus(); this.updateCaptured(); return; }
+        this.turn='r'; this.thinking=false;
+        if (!this.legalMoves(this.board,'r').length) this.over=true, this.winner='b';
+        this.render(); this.updateStatus(); this.updateCaptured();
+      });
+    }, 40);
+  }
+
+  undo() {
+    if (this.over||this.thinking||this.anim||this.turn!=='r') return;
+    if (this.stack.length<2) return;
+    this.stack.pop(); // AI state
+    this.board = this.stack.pop(); // before human move
+    // recalculate captured pieces
+    this.capR=[]; this.capB=[];
+    // we lose captured tracking on undo — acceptable for simplicity
+    this.last=null; this.sel=null; this.vmoves=[];
+    this.render(); this.updateStatus(); this.updateCaptured();
+  }
+
+  // ── events ──
+  bindEvents() {
+    const getPos = (e) => {
+      const rect = this.cv.getBoundingClientRect();
+      const sx = this.cv.width/rect.width, sy = this.cv.height/rect.height;
+      return this.fromXY((e.clientX-rect.left)*sx, (e.clientY-rect.top)*sy);
+    };
+
+    this.cv.addEventListener('click', e => {
+      if (this.over||this.turn!=='r'||this.thinking||this.anim) return;
+      const pos = getPos(e); if (!pos) return;
+      const {r, c} = pos, p = this.board[r][c];
+
+      if (this.sel) {
+        if (this.sel.r===r && this.sel.c===c) { this.sel=null; this.vmoves=[]; this.render(); return; }
+        if (this.vmoves.some(m=>m.tr===r&&m.tc===c)) { this.doHumanMove(this.sel.r,this.sel.c,r,c); return; }
+        if (p && p[0]==='r') { this.sel={r,c}; this.vmoves=this.validFor(this.board,r,c); this.render(); return; }
+        this.sel=null; this.vmoves=[]; this.render(); return;
+      }
+      if (p && p[0]==='r') { this.sel={r,c}; this.vmoves=this.validFor(this.board,r,c); this.render(); }
+    });
+
+    this.cv.addEventListener('touchend', e => {
+      e.preventDefault();
+      if (e.changedTouches.length) {
+        const t = e.changedTouches[0];
+        const rect = this.cv.getBoundingClientRect();
+        const sx = this.cv.width/rect.width, sy = this.cv.height/rect.height;
+        const pos = this.fromXY((t.clientX-rect.left)*sx, (t.clientY-rect.top)*sy);
+        if (!pos) return;
+        // Simulate click logic
+        const ev = {clientX:t.clientX, clientY:t.clientY};
+        this.cv.dispatchEvent(new MouseEvent('click', ev));
+      }
+    });
+
+    document.getElementById('btn-new').addEventListener('click', () => this.newGame());
+    document.getElementById('btn-undo').addEventListener('click', () => this.undo());
+
+    document.querySelectorAll('.diff-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.diff-btn').forEach(b=>b.classList.remove('active'));
+        btn.classList.add('active');
+        this.depth = parseInt(btn.dataset.depth);
+      });
+    });
+
+    document.fonts.ready.then(() => this.render());
+  }
+
+  // ── UI updates ──
+  updateStatus() {
+    const el = document.getElementById('status');
+    if (this.over) {
+      if (this.winner==='r') { el.textContent='🎉 红方胜利！'; el.className='status win'; }
+      else { el.textContent='黑方胜利'; el.className='status lose'; }
+    } else if (this.thinking) {
+      el.textContent='AI 思考中…'; el.className='status thinking';
+    } else if (this.turn==='r') {
+      el.textContent='红方走棋'; el.className='status red-turn';
+    } else {
+      el.textContent='黑方走棋'; el.className='status black-turn';
+    }
+  }
+
+  updateCaptured() {
+    const renderCap = (arr, id, cls) => {
+      const el = document.getElementById(id);
+      el.innerHTML = arr.map(p => `<span class="captured-piece ${cls}">${PIECE_CHAR[p]}</span>`).join('');
+      if (!arr.length) el.innerHTML = '<span class="captured-label">无</span>';
+    };
+    renderCap(this.capB, 'cap-black', 'black');
+    renderCap(this.capR, 'cap-red', 'red');
+  }
+}
+
+// ═══════════════════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════════════════
+const game = new Game();
+</script>
+</body>
+</html>

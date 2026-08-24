@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>珠子归位 · Deluxe</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; user-select:none; -webkit-tap-highlight-color:transparent; }
+  body {
+    min-height:100vh; display:flex; flex-direction:column; align-items:center;
+    font-family:"PingFang SC","Microsoft YaHei",sans-serif;
+    background:radial-gradient(ellipse at 20% 10%, #2b3a67 0%, #171e3c 55%, #0d1128 100%);
+    color:#fff; padding:14px; overflow-x:hidden;
+  }
+  /* 漂浮装饰 */
+  .bg-orb { position:fixed; border-radius:50%; filter:blur(60px); opacity:.25; pointer-events:none; z-index:0; }
+  .orb1 { width:300px; height:300px; background:#ff6b6b; top:-80px; left:-80px; }
+  .orb2 { width:260px; height:260px; background:#4ecdc4; bottom:-60px; right:-60px; }
+  .orb3 { width:200px; height:200px; background:#a78bfa; top:40%; left:70%; }
+
+  header { z-index:1; text-align:center; margin-bottom:10px; }
+  h1 { font-size:24px; letter-spacing:6px;
+       background:linear-gradient(90deg,#ffd76e,#ff9f43,#ffd76e);
+       -webkit-background-clip:text; background-clip:text; color:transparent;
+       filter:drop-shadow(0 2px 8px rgba(255,160,60,.4)); }
+  .subtitle { font-size:12px; opacity:.6; margin-top:2px; letter-spacing:2px; }
+
+  /* 状态栏 */
+  .stats { z-index:1; display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap; justify-content:center; }
+  .stat {
+    background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.15);
+    border-radius:14px; padding:6px 16px; text-align:center; backdrop-filter:blur(8px);
+    min-width:72px;
+  }
+  .stat .label { font-size:11px; opacity:.6; }
+  .stat .value { font-size:20px; font-weight:bold; color:#ffd76e; font-variant-numeric:tabular-nums; }
+  .stat.gold .value { color:#8ef7b0; }
+
+  /* 难度选择 */
+  .diff { z-index:1; display:flex; gap:6px; margin-bottom:14px; }
+  .diff button {
+    padding:6px 14px; border-radius:16px; border:1px solid rgba(255,255,255,.2);
+    background:rgba(255,255,255,.07); color:#fff; cursor:pointer; font-size:13px;
+    transition:all .2s;
+  }
+  .diff button.active { background:linear-gradient(135deg,#ffd76e,#ff9f43); color:#5a3a00; font-weight:bold; border-color:transparent; }
+
+  /* 棋盘 */
+  #board { z-index:1; display:grid; gap:10px; justify-content:center; margin-bottom:14px; }
+  .slot {
+    width:54px; height:232px; border-radius:14px; cursor:pointer;
+    background:linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.09));
+    border:2px solid rgba(255,255,255,.14);
+    display:flex; flex-direction:column-reverse; align-items:center;
+    padding:5px 0; transition:all .18s ease; position:relative;
+  }
+  .slot::before { content:''; position:absolute; inset:0; border-radius:14px;
+    box-shadow:inset 0 8px 18px rgba(0,0,0,.35); pointer-events:none; }
+  .slot:hover { transform:translateY(-3px); border-color:rgba(255,255,255,.35); }
+  .slot.selected { border-color:#ffd76e; background:rgba(255,215,110,.15);
+    box-shadow:0 0 18px rgba(255,215,110,.45), inset 0 0 12px rgba(255,215,110,.15); }
+  .slot.can-drop { border-color:rgba(140,255,180,.7); animation:glow 1.1s infinite; }
+  @keyframes glow { 50% { box-shadow:0 0 16px rgba(140,255,180,.55); } }
+  .slot.full-blink { animation:shake .3s; }
+  @keyframes shake { 25%{transform:translateX(-4px)} 75%{transform:translateX(4px)} }
+
+  .bead {
+    width:38px; height:38px; border-radius:50%; margin-top:3px; position:relative;
+    box-shadow: inset -3px -5px 8px rgba(0,0,0,.4),
+                inset 3px 4px 8px rgba(255,255,255,.5),
+                0 3px 6px rgba(0,0,0,.45);
+    animation:drop .28s cubic-bezier(.34,1.56,.64,1);
+    transition:transform .18s;
+  }
+  .bead::after { content:''; position:absolute; top:15%; left:20%; width:32%; height:26%;
+    border-radius:50%; background:rgba(255,255,255,.75); filter:blur(1.5px); }
+  @keyframes drop { from { transform:translateY(-36px) scale(.85); opacity:0; } }
+  .bead.float { transform:translateY(-9px) scale(1.06);
+    box-shadow:0 8px 14px rgba(0,0,0,.55), inset -3px -5px 8px rgba(0,0,0,.4), inset 3px 4px 8px rgba(255,255,255,.5); }
+  .bead.done { animation:pop .5s; }
+  @keyframes pop { 30% { transform:scale(1.22); } }
+
+  /* 按钮组 */
+  .controls { z-index:1; display:flex; gap:8px; flex-wrap:wrap; justify-content:center; }
+  .btn {
+    padding:10px 20px; border:none; border-radius:22px; cursor:pointer;
+    background:rgba(255,255,255,.1); color:#fff; font-size:14px; font-weight:bold;
+    border:1px solid rgba(255,255,255,.2); backdrop-filter:blur(6px); transition:all .15s;
+  }
+  .btn:hover { background:rgba(255,255,255,.2); }
+  .btn:active { transform:scale(.94); }
+  .btn.primary { background:linear-gradient(135deg,#ffd76e,#ff9f43); color:#5a3a00; border:none; }
+  .btn:disabled { opacity:.35; cursor:not-allowed; }
+
+  #msg { z-index:1; margin-top:10px; font-size:14px; min-height:20px; color:#ffb3b3; transition:opacity .3s; }
+
+  /* 胜利弹窗 */
+  #win {
+    position:fixed; inset:0; background:rgba(8,10,25,.82); backdrop-filter:blur(6px);
+    display:none; flex-direction:column; align-items:center; justify-content:center; z-index:20;
+  }
+  #win .card {
+    background:linear-gradient(160deg, rgba(60,70,120,.95), rgba(30,38,80,.95));
+    border:1px solid rgba(255,255,255,.2); border-radius:24px; padding:34px 44px;
+    text-align:center; box-shadow:0 20px 60px rgba(0,0,0,.6);
+    animation:cardIn .45s cubic-bezier(.34,1.56,.64,1);
+  }
+  @keyframes cardIn { from { transform:scale(.6) translateY(40px); opacity:0; } }
+  #win h2 { font-size:32px; color:#ffd76e; margin-bottom:6px; }
+  #win .stars { font-size:26px; letter-spacing:6px; margin-bottom:10px; }
+  #win p { font-size:15px; opacity:.9; margin-bottom:6px; line-height:1.7; }
+  #win .record { color:#8ef7b0; font-weight:bold; }
+
+  /* 星星评级说明 */
+  .star-guide { z-index:1; font-size:11px; opacity:.5; margin-top:10px; text-align:center; }
+</style>
+</head>
+<body>
+<div class="bg-orb orb1"></div><div class="bg-orb orb2"></div><div class="bg-orb orb3"></div>
+
+<header>
+  <h1>珠 子 归 位</h1>
+  <div class="subtitle">DELUXE EDITION</div>
+</header>
+
+<div class="stats">
+  <div class="stat"><div class="label">步数</div><div class="value" id="moves">0</div></div>
+  <div class="stat"><div class="label">时间</div><div class="value" id="timer">0:00</div></div>
+  <div class="stat gold"><div class="label">最佳</div><div class="value" id="best">—</div></div>
+</div>
+
+<div class="diff" id="diff">
+  <button data-level="0">Easy · 4色</button>
+  <button data-level="1" class="active">Normal · 6色</button>
+  <button data-level="2">Hard · 7色</button>
+</div>
+
+<div id="board"></div>
+
+<div class="controls">
+  <button class="btn" id="undoBtn" onclick="undo()">↩️ 撤销</button>
+  <button class="btn" onclick="showHint()">💡 提示</button>
+  <button class="btn primary" onclick="newGame()">🔄 新游戏</button>
+  <button class="btn" id="soundBtn" onclick="toggleSound()">🔊 音效</button>
+</div>
+
+<div id="msg"></div>
+<div class="star-guide">⭐ 目标步数内 = 3星 ｜ 超过 = 2星 ｜ 完成即 1星</div>
+
+<div id="win"><div class="card">
+  <h2>🎉 归位成功！</h2>
+  <div class="stars" id="stars"></div>
+  <p>步数：<b id="wMoves"></b> ｜ 用时：<b id="wTime"></b></p>
+  <p id="wRecord"></p>
+  <button class="btn primary" style="margin-top:14px" onclick="newGame()">再来一局</button>
+</div></div>
+
+<script>
+/* ============ 配置 ============ */
+const COLORS = [
+  ['#ff5e5e','#b03030'], ['#3ddbc4','#128a74'], ['#ffd93d','#c39800'],
+  ['#a78bfa','#5f3fc4'], ['#ff9f43','#c26a00'], ['#4ade80','#15803d'],
+  ['#60a5fa','#1e5fd0']
+];
+const LEVELS = [
+  { colors: 4, extra: 2, cap: 8, par: 30 },
+  { colors: 6, extra: 2, cap: 8, par: 55 },
+  { colors: 7, extra: 3, cap: 8, par: 80 },
+];
+
+let cols, moves, selected = -1, level = 1;
+let history = [], timerId = null, startTime = 0, seconds = 0;
+let soundOn = true;
+
+/* ============ 音效（Web Audio，无需文件） ============ */
+let audioCtx = null;
+function beep(freq, dur = .1, type = 'sine', vol = .15) {
+  if (!soundOn) return;
+  try {
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+    o.type = type; o.frequency.value = freq;
+    g.gain.setValueAtTime(vol, audioCtx.currentTime);
+    g.gain.exponentialRampToValueAtTime(.001, audioCtx.currentTime + dur);
+    o.connect(g); g.connect(audioCtx.destination);
+    o.start(); o.stop(audioCtx.currentTime + dur);
+  } catch(e){}
+}
+const sfx = {
+  pick:   () => beep(520, .08, 'triangle'),
+  drop:   () => { beep(440, .07); setTimeout(()=>beep(660, .08), 40); },
+  error:  () => beep(160, .18, 'sawtooth', .1),
+  undo:   () => beep(300, .1, 'triangle'),
+  win:    () => [523,659,784,1047].forEach((f,i)=>setTimeout(()=>beep(f,.22,'triangle',.2), i*130)),
+};
+
+/* ============ 核心 ============ */
+function newGame() {
+  const L = LEVELS[level];
+  moves = 0; selected = -1; history = []; seconds = 0;
+  document.getElementById('win').style.display = 'none';
+  msg('');
+  updateMoves(); startTimer();
+
+  let pool = [];
+  for (let i = 0; i < L.colors; i++)
+    for (let j = 0; j < L.cap; j++) pool.push(i);
+  // 洗牌（保证可玩：避免某列全部同色开局即胜）
+  do {
+    for (let i = pool.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [pool[i], pool[j]] = [pool[j], pool[i]];
+    }
+    cols = [];
+    for (let i = 0; i < L.colors; i++) cols.push(pool.slice(i * L.cap, (i + 1) * L.cap));
+  } while (isWin());
+  for (let i = 0; i < L.extra; i++) cols.push([]);
+
+  render();
+}
+
+function topRun(ci) {  // 顶部连续同色数量
+  const c = cols[ci];
+  if (!c.length) return 0;
+  let n = 1;
+  for (let i = c.length - 2; i >= 0 && c[i] === c[c.length - 1]; i--) n++;
+  return n;
+}
+function beadColor(id) { return COLORS[id][0]; }
+
+function clickSlot(i) {
+  msg('');
+  if (selected === -1) {
+    if (!cols[i].length) { msg('这列是空的，选有珠子的列'); sfx.error(); return; }
+    selected = i; sfx.pick(); render(); return;
+  }
+  if (i === selected) { selected = -1; render(); return; }
+
+  const n = topRun(selected), color = cols[selected].at(-1), t = cols[i];
+  const canColor = t.length === 0 || t.at(-1) === color;
+
+  if (canColor && t.length + n <= LEVELS[level].cap) {
+    history.push({ from: selected, to: i, n });
+    t.push(...cols[selected].splice(cols[selected].length - n, n));
+    moves++; updateMoves();
+    selected = -1; sfx.drop(); render();
+    if (isWin()) setTimeout(win, 350);
+  } else {
+    const slotEl = document.querySelectorAll('.slot')[i];
+    slotEl.classList.add('full-blink');
+    setTimeout(() => slotEl.classList.remove('full-blink'), 320);
+    msg(!canColor ? '⚠️ 只能放入空列或底部同色的列' : '⚠️ 空间不足，放不下这一串');
+    sfx.error();
+    selected = -1; render();
+  }
+}
+
+function undo() {
+  if (!history.length) return;
+  const { from, to, n } = history.pop();
+  cols[from].push(...cols[to].splice(cols[to].length - n, n));
+  moves = Math.max(0, moves - 1); updateMoves();
+  selected = -1; sfx.undo(); msg('已撤销一步'); render();
+}
+
+/* ============ 提示：贪心找一步“有效合并” ============ */
+function showHint() {
+  // 优先找能合并到同色列的移动
+  for (let s = 0; s < cols.length; s++) {
+    if (!cols[s].length) continue;
+    const n = topRun(s), color = cols[s].at(-1);
+    for (let t = 0; t < cols.length; t++) {
+      if (t === s) continue;
+      const tc = cols[t];
+      if (tc.length && tc.at(-1) === color && tc.length + n <= LEVELS[level].cap) {
+        flash(s, t); return;
+      }
+    }
+  }
+  // 否则找空列暂存
+  const empty = cols.findIndex(c => !c.length);
+  const src = cols.findIndex(c => c.length && topRun(c) < c.length);
+  if (empty >= 0 && src >= 0) { flash(src, empty); return; }
+  msg('暂无更好的建议，试试重新布局 🤔');
+}
+function flash(a, b) {
+  const slots = document.querySelectorAll('.slot');
+  [a, b].forEach((idx, k) => {
+    setTimeout(() => {
+      slots[idx].classList.add('selected');
+      setTimeout(() => render(), 900);
+    }, k * 300);
+  });
+  msg(`💡 试试从第 ${a + 1} 列 → 第 ${b + 1} 列`);
+}
+
+/* ============ 胜负 ============ */
+function isWin() {
+  return cols.every(c => !c.length || c.every(x => x === c[0]));
+}
+function win() {
+  stopTimer(); sfx.win();
+  const L = LEVELS[level];
+  const stars = moves <= L.par ? '⭐⭐⭐' : moves <= L.par * 1.5 ? '⭐⭐' : '⭐';
+  document.getElementById('stars').textContent = stars;
+  document.getElementById('wMoves').textContent = moves;
+  document.getElementById('wTime').textContent = fmt(seconds);
+
+  const key = 'ballsort_best_' + level;
+  const prev = +localStorage.getItem(key) || Infinity;
+  let rec = '';
+  if (moves < prev) {
+    localStorage.setItem(key, moves);
+    rec = '🏆 新纪录！'; updateBest();
+  } else rec = `历史最佳：${prev} 步`;
+  document.getElementById('wRecord').innerHTML = `<span class="record">${rec}</span>`;
+  document.getElementById('win').style.display = 'flex';
+  confetti();
+}
+function confetti() {
+  for (let i = 0; i < 40; i++) {
+    const p = document.createElement('div');
+    const c = COLORS[Math.floor(Math.random() * COLORS.length)][0];
+    p.style.cssText = `position:fixed;width:8px;height:14px;background:${c};
+      left:${Math.random()*100}vw;top:-20px;z-index:19;pointer-events:none;border-radius:2px;`;
+    document.body.appendChild(p);
+    const fall = p.animate([
+      { transform:`translateY(0) rotate(0)`, opacity:1 },
+      { transform:`translateY(105vh) rotate(${720*Math.random()}deg)`, opacity:.4 }
+    ], { duration: 1800 + Math.random()*1500, easing:'cubic-bezier(.2,.6,.8,1)' });
+    fall.onfinish = () => p.remove();
+  }
+}
+
+/* ============ 渲染 ============ */
+function render() {
+  const board = document.getElementById('board');
+  board.style.gridTemplateColumns = `repeat(${cols.length}, 54px)`;
+  board.innerHTML = '';
+  cols.forEach((col, i) => {
+    const s = document.createElement('div');
+    s.className = 'slot' + (i === selected ? ' selected' : '');
+    if (selected >= 0 && i !== selected) {
+      const n = topRun(selected), c = cols[selected].at(-1), t = col;
+      if ((t.length === 0 || t.at(-1) === c) && t.length + n <= LEVELS[level].cap)
+        s.classList.add('can-drop');
+    }
+    col.forEach((c, j) => {
+      const b = document.createElement('div');
+      b.className = 'bead' + (i === selected && j >= cols[i].length - topRun(i) ? ' float' : '');
+      b.style.background = `radial-gradient(circle at 35% 30%, #ffffffcc, ${beadColor(c)} 60%, ${COLORS[c][1]})`;
+      s.appendChild(b);
+    });
+    s.onclick = () => clickSlot(i);
+    board.appendChild(s);
+  });
+  document.getElementById('undoBtn').disabled = !history.length;
+}
+
+/* ============ 杂项 ============ */
+function msg(t) {
+  const m = document.getElementById('msg');
+  m.textContent = t; m.style.color = t.startsWith('💡') ? '#ffd76e' : t.startsWith('已') ? '#8ef7b0' : '#ffb3b3';
+}
+function updateMoves() { document.getElementById('moves').textContent = moves; }
+function updateBest() {
+  const b = localStorage.getItem('ballsort_best_' + level);
+  document.getElementById('best').textContent = b ? b + '步' : '—';
+}
+function startTimer() {
+  clearInterval(timerId); startTime = Date.now();
+  timerId = setInterval(() => {
+    seconds = Math.floor((Date.now() - startTime) / 1000);
+    document.getElementById('timer').textContent = fmt(seconds);
+  }, 500);
+}
+function stopTimer() { clearInterval(timerId); }
+function fmt(s) { return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); }
+function toggleSound() {
+  soundOn = !soundOn;
+  document.getElementById('soundBtn').textContent = soundOn ? '🔊 音效' : '🔇 静音';
+}
+
+document.getElementById('diff').addEventListener('click', e => {
+  if (!e.target.dataset.level) return;
+  level = +e.target.dataset.level;
+  document.querySelectorAll('.diff button').forEach(b => b.classList.toggle('active', b === e.target));
+  updateBest(); newGame();
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'z' || e.key === 'Z') undo();
+  if (e.key === 'Escape') { selected = -1; render(); }
+  if (e.key >= '1' && e.key <= '9') clickSlot(+e.key - 1);
+});
+
+updateBest(); newGame();
+</script>
+</body>
+</html>

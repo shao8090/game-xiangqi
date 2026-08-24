@@ -117,6 +117,8 @@ class ChineseChessGame {
                 const diffDesc = document.getElementById('difficultyDesc');
                 
                 if (this.aiEnabled) {
+                    // 为本局抽取一个算法（按难度算法池加权随机）
+                    ChineseChessAI.selectAlgorithm(this.aiDifficulty);
                     btn.textContent = `AI: ${ChineseChessAI.getDifficultyName(this.aiDifficulty)}`;
                     btn.classList.add('active');
                     diffBtn.style.display = 'inline-block';
