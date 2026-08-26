@@ -2,15 +2,19 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#171e3c">
 <title>珠子归位 · Deluxe</title>
 <style>
-  * { margin:0; padding:0; box-sizing:border-box; user-select:none; -webkit-tap-highlight-color:transparent; }
-  body {
-    min-height:100vh; display:flex; flex-direction:column; align-items:center;
+  * { margin:0; padding:0; box-sizing:border-box; user-select:none; -webkit-tap-highlight-color:transparent; touch-action:manipulation; }
+  html, body {
+    min-height:100vh; min-height:100dvh; display:flex; flex-direction:column; align-items:center;
     font-family:"PingFang SC","Microsoft YaHei",sans-serif;
     background:radial-gradient(ellipse at 20% 10%, #2b3a67 0%, #171e3c 55%, #0d1128 100%);
-    color:#fff; padding:14px; overflow-x:hidden;
+    color:#fff; padding:14px; padding:max(14px, env(safe-area-inset-top)) 14px max(14px, env(safe-area-inset-bottom)); overflow-x:hidden;
+    -webkit-overflow-scrolling:touch;
   }
   /* 漂浮装饰 */
   .bg-orb { position:fixed; border-radius:50%; filter:blur(60px); opacity:.25; pointer-events:none; z-index:0; }
@@ -52,17 +56,21 @@
     background:linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.09));
     border:2px solid rgba(255,255,255,.14);
     display:flex; flex-direction:column-reverse; align-items:center;
-    padding:5px 0; transition:all .18s ease; position:relative;
+    padding:5px 0; transition:border-color .15s, background .15s, box-shadow .15s; position:relative;
+    will-change:transform;
   }
   .slot::before { content:''; position:absolute; inset:0; border-radius:14px;
     box-shadow:inset 0 8px 18px rgba(0,0,0,.35); pointer-events:none; }
-  .slot:hover { transform:translateY(-3px); border-color:rgba(255,255,255,.35); }
+  @media (hover:hover) {
+    .slot:hover { transform:translateY(-3px); border-color:rgba(255,255,255,.35); }
+  }
+  .slot:active { transform:scale(.96); transition:transform .05s; }
   .slot.selected { border-color:#ffd76e; background:rgba(255,215,110,.15);
     box-shadow:0 0 18px rgba(255,215,110,.45), inset 0 0 12px rgba(255,215,110,.15); }
   .slot.can-drop { border-color:rgba(140,255,180,.7); animation:glow 1.1s infinite; }
   @keyframes glow { 50% { box-shadow:0 0 16px rgba(140,255,180,.55); } }
-  .slot.full-blink { animation:shake .3s; }
-  @keyframes shake { 25%{transform:translateX(-4px)} 75%{transform:translateX(4px)} }
+  .slot.full-blink { animation:shake .25s; }
+  @keyframes shake { 25%{transform:translateX(-3px)} 75%{transform:translateX(3px)} }
 
   .bead {
     width:38px; height:38px; border-radius:50%; margin-top:3px; position:relative;
@@ -113,6 +121,51 @@
 
   /* 星星评级说明 */
   .star-guide { z-index:1; font-size:11px; opacity:.5; margin-top:10px; text-align:center; }
+
+  /* ============ 手机端适配 ============ */
+  @media (max-width: 600px) {
+    body { padding:8px; padding:max(8px, env(safe-area-inset-top)) 8px max(8px, env(safe-area-inset-bottom)); }
+    h1 { font-size:18px; letter-spacing:4px; }
+    .subtitle { font-size:10px; }
+    .stats { gap:5px; margin-bottom:8px; }
+    .stat { padding:4px 10px; min-width:56px; border-radius:10px; }
+    .stat .label { font-size:9px; }
+    .stat .value { font-size:16px; }
+    .diff { gap:4px; margin-bottom:10px; }
+    .diff button { padding:5px 10px; font-size:11px; border-radius:12px; }
+    #board { gap:6px; margin-bottom:10px; }
+    .slot { width:38px; height:165px; border-radius:10px; padding:3px 0; }
+    .slot::before { border-radius:10px; }
+    .bead { width:27px; height:27px; margin-top:2px; }
+    .controls { gap:6px; }
+    .btn { padding:8px 14px; font-size:12px; border-radius:18px; }
+    #msg { font-size:12px; }
+    .star-guide { font-size:9px; }
+    #win .card { padding:24px 28px; border-radius:18px; }
+    #win h2 { font-size:24px; }
+    #win .stars { font-size:20px; }
+    #win p { font-size:13px; }
+  }
+
+  @media (max-width: 400px) {
+    .slot { width:32px; height:140px; border-radius:8px; }
+    .bead { width:22px; height:22px; }
+    #board { gap:4px; }
+    h1 { font-size:16px; letter-spacing:3px; }
+  }
+
+  /* 横屏手机 */
+  @media (max-height: 500px) and (orientation: landscape) {
+    body { flex-direction:row; flex-wrap:wrap; justify-content:center; }
+    header { width:100%; margin-bottom:5px; }
+    h1 { font-size:16px; }
+    .stats { margin-bottom:5px; }
+    .diff { margin-bottom:5px; }
+    #board { margin:0 10px; }
+    .slot { height:120px; }
+    .bead { height:18px; width:18px; }
+    .controls { width:100%; }
+  }
 </style>
 </head>
 <body>
@@ -157,10 +210,17 @@
 
 <script>
 /* ============ 配置 ============ */
+// 色相环均匀分布的高对比度颜色 (HSL色相角: 0°,45°,90°,135°,180°,225°,270°,315°)
 const COLORS = [
-  ['#ff5e5e','#b03030'], ['#3ddbc4','#128a74'], ['#ffd93d','#c39800'],
-  ['#a78bfa','#5f3fc4'], ['#ff9f43','#c26a00'], ['#4ade80','#15803d'],
-  ['#60a5fa','#1e5fd0']
+  ['#ff3333','#990000'], // 红色 0°
+  ['#ff9900','#995c00'], // 橙色 39°
+  ['#ffdd00','#998500'], // 黄色 51°
+  ['#66ff00','#3d9900'], // 黄绿 96°
+  ['#00ff99','#00995c'], // 青绿 156°
+  ['#0099ff','#005c99'], // 天蓝 204°
+  ['#6600ff','#3d0099'], // 紫色 264°
+  ['#ff00cc','#99007a'], // 品红 306°
+  ['#ff6699','#993d5c']  // 粉红 336°
 ];
 const LEVELS = [
   { colors: 4, extra: 2, cap: 8, par: 30 },
@@ -171,6 +231,8 @@ const LEVELS = [
 let cols, moves, selected = -1, level = 1;
 let history = [], timerId = null, startTime = 0, seconds = 0;
 let soundOn = true;
+let clickLock = false; // 点击防抖锁
+const CLICK_DELAY = 120; // 点击间隔(ms)
 
 /* ============ 音效（Web Audio，无需文件） ============ */
 let audioCtx = null;
@@ -229,6 +291,10 @@ function topRun(ci) {  // 顶部连续同色数量
 function beadColor(id) { return COLORS[id][0]; }
 
 function clickSlot(i) {
+  if (clickLock) return; // 防抖：忽略快速重复点击
+  clickLock = true;
+  setTimeout(() => clickLock = false, CLICK_DELAY);
+
   msg('');
   if (selected === -1) {
     if (!cols[i].length) { msg('这列是空的，选有珠子的列'); sfx.error(); return; }
@@ -247,8 +313,10 @@ function clickSlot(i) {
     if (isWin()) setTimeout(win, 350);
   } else {
     const slotEl = document.querySelectorAll('.slot')[i];
-    slotEl.classList.add('full-blink');
-    setTimeout(() => slotEl.classList.remove('full-blink'), 320);
+    if (slotEl) {
+      slotEl.classList.add('full-blink');
+      setTimeout(() => slotEl.classList.remove('full-blink'), 280);
+    }
     msg(!canColor ? '⚠️ 只能放入空列或底部同色的列' : '⚠️ 空间不足，放不下这一串');
     sfx.error();
     selected = -1; render();
@@ -335,7 +403,9 @@ function confetti() {
 /* ============ 渲染 ============ */
 function render() {
   const board = document.getElementById('board');
-  board.style.gridTemplateColumns = `repeat(${cols.length}, 54px)`;
+  const isMobile = window.innerWidth <= 600;
+  const slotWidth = isMobile ? (window.innerWidth <= 400 ? 32 : 38) : 54;
+  board.style.gridTemplateColumns = `repeat(${cols.length}, ${slotWidth}px)`;
   board.innerHTML = '';
   cols.forEach((col, i) => {
     const s = document.createElement('div');
