@@ -83,8 +83,6 @@
   .bead::after { content:''; position:absolute; top:15%; left:20%; width:32%; height:26%;
     border-radius:50%; background:rgba(255,255,255,.75); filter:blur(1.5px); }
   @keyframes drop { from { transform:translateY(-36px) scale(.85); opacity:0; } }
-  .bead.float { transform:translateY(-9px) scale(1.06);
-    box-shadow:0 8px 14px rgba(0,0,0,.55), inset -3px -5px 8px rgba(0,0,0,.4), inset 3px 4px 8px rgba(255,255,255,.5); }
   .bead.done { animation:pop .5s; }
   @keyframes pop { 30% { transform:scale(1.22); } }
 
@@ -234,6 +232,11 @@ let soundOn = true;
 let clickLock = false; // 点击防抖锁
 const CLICK_DELAY = 120; // 点击间隔(ms)
 
+// 优化：缓存 topRun 结果，避免重复计算
+let topRunCache = new Map();
+// 优化：维护已排序列的计数器，O(1) 判断胜负
+let sortedCount = 0;
+
 /* ============ 音效（Web Audio，无需文件） ============ */
 let audioCtx = null;
 function beep(freq, dur = .1, type = 'sine', vol = .15) {
@@ -260,6 +263,8 @@ const sfx = {
 function newGame() {
   const L = LEVELS[level];
   moves = 0; selected = -1; history = []; seconds = 0;
+  slotEls = []; // 重置slot缓存
+  topRunCache.clear(); // 清空缓存
   document.getElementById('win').style.display = 'none';
   msg('');
   updateMoves(); startTimer();
@@ -267,26 +272,67 @@ function newGame() {
   let pool = [];
   for (let i = 0; i < L.colors; i++)
     for (let j = 0; j < L.cap; j++) pool.push(i);
-  // 洗牌（保证可玩：避免某列全部同色开局即胜）
+
+  // 优化：生成可解的游戏布局
+  let attempts = 0;
+  const maxAttempts = 100;
   do {
+    // Fisher-Yates 洗牌
     for (let i = pool.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [pool[i], pool[j]] = [pool[j], pool[i]];
     }
     cols = [];
     for (let i = 0; i < L.colors; i++) cols.push(pool.slice(i * L.cap, (i + 1) * L.cap));
-  } while (isWin());
+    attempts++;
+  } while (isWin() && attempts < maxAttempts);
+
+  // 添加空列
   for (let i = 0; i < L.extra; i++) cols.push([]);
 
+  updateSortedCount(); // 初始化排序计数
   render();
 }
 
-function topRun(ci) {  // 顶部连续同色数量
+// 优化：检查是否陷入死局（无有效移动）
+function isStuck() {
+  const cap = LEVELS[level].cap;
+  for (let s = 0; s < cols.length; s++) {
+    if (!cols[s].length) continue;
+    const n = topRun(s), color = cols[s].at(-1);
+    for (let t = 0; t < cols.length; t++) {
+      if (t === s) continue;
+      const tc = cols[t];
+      if (tc.length + n > cap) continue;
+      if (tc.length > 0 && tc.at(-1) !== color) continue;
+      return false; // 找到有效移动
+    }
+  }
+  return true;
+}
+
+function topRun(ci) {  // 顶部连续同色数量（带缓存）
+  if (topRunCache.has(ci)) return topRunCache.get(ci);
   const c = cols[ci];
-  if (!c.length) return 0;
+  if (!c.length) { topRunCache.set(ci, 0); return 0; }
   let n = 1;
   for (let i = c.length - 2; i >= 0 && c[i] === c[c.length - 1]; i--) n++;
+  topRunCache.set(ci, n);
   return n;
+}
+
+// 优化：判断单列是否已排序
+function isColSorted(ci) {
+  const c = cols[ci];
+  return c.length === 0 || c.every(x => x === c[0]);
+}
+
+// 优化：更新已排序列计数
+function updateSortedCount() {
+  sortedCount = 0;
+  for (let i = 0; i < cols.length; i++) {
+    if (isColSorted(i)) sortedCount++;
+  }
 }
 function beadColor(id) { return COLORS[id][0]; }
 
@@ -306,13 +352,30 @@ function clickSlot(i) {
   const canColor = t.length === 0 || t.at(-1) === color;
 
   if (canColor && t.length + n <= LEVELS[level].cap) {
+    // 优化：记录移动前的排序状态，增量更新
+    const fromSortedBefore = isColSorted(selected);
+    const toSortedBefore = isColSorted(i);
+
     history.push({ from: selected, to: i, n });
     t.push(...cols[selected].splice(cols[selected].length - n, n));
     moves++; updateMoves();
-    selected = -1; sfx.drop(); render();
-    if (isWin()) setTimeout(win, 350);
+    selected = -1; sfx.drop();
+
+    // 优化：增量更新排序计数
+    topRunCache.delete(selected); // 清除源列缓存
+    topRunCache.delete(i); // 清除目标列缓存
+    const fromSortedAfter = isColSorted(selected);
+    const toSortedAfter = isColSorted(i);
+    if (fromSortedBefore && !fromSortedAfter) sortedCount--;
+    else if (!fromSortedBefore && fromSortedAfter) sortedCount++;
+    if (toSortedBefore && !toSortedAfter) sortedCount--;
+    else if (!toSortedBefore && toSortedAfter) sortedCount++;
+
+    render();
+    // 优化：O(1) 判断胜负
+    if (sortedCount === cols.length) setTimeout(win, 350);
   } else {
-    const slotEl = document.querySelectorAll('.slot')[i];
+    const slotEl = slotEls[i]; // 优化：使用缓存的 DOM 元素
     if (slotEl) {
       slotEl.classList.add('full-blink');
       setTimeout(() => slotEl.classList.remove('full-blink'), 280);
@@ -326,36 +389,107 @@ function clickSlot(i) {
 function undo() {
   if (!history.length) return;
   const { from, to, n } = history.pop();
+
+  // 优化：记录移动前的排序状态
+  const fromSortedBefore = isColSorted(from);
+  const toSortedBefore = isColSorted(to);
+
   cols[from].push(...cols[to].splice(cols[to].length - n, n));
+
+  // 优化：增量更新排序计数
+  topRunCache.delete(from);
+  topRunCache.delete(to);
+  const fromSortedAfter = isColSorted(from);
+  const toSortedAfter = isColSorted(to);
+  if (fromSortedBefore && !fromSortedAfter) sortedCount--;
+  else if (!fromSortedBefore && fromSortedAfter) sortedCount++;
+  if (toSortedBefore && !toSortedAfter) sortedCount--;
+  else if (!toSortedBefore && toSortedAfter) sortedCount++;
+
   moves = Math.max(0, moves - 1); updateMoves();
   selected = -1; sfx.undo(); msg('已撤销一步'); render();
 }
 
 /* ============ 提示：贪心找一步“有效合并” ============ */
 function showHint() {
-  // 优先找能合并到同色列的移动
+  const cap = LEVELS[level].cap;
+  let bestScore = -Infinity;
+  let bestMove = null;
+
+  // 评估所有可能的移动
   for (let s = 0; s < cols.length; s++) {
     if (!cols[s].length) continue;
     const n = topRun(s), color = cols[s].at(-1);
+
     for (let t = 0; t < cols.length; t++) {
       if (t === s) continue;
       const tc = cols[t];
-      if (tc.length && tc.at(-1) === color && tc.length + n <= LEVELS[level].cap) {
-        flash(s, t); return;
+      if (tc.length + n > cap) continue;
+      if (tc.length > 0 && tc.at(-1) !== color) continue;
+
+      // 评分函数：评估这个移动的价值
+      const score = evaluateMove(s, t, n, color, cap);
+      if (score > bestScore) {
+        bestScore = score;
+        bestMove = { from: s, to: t };
       }
     }
   }
-  // 否则找空列暂存
-  const empty = cols.findIndex(c => !c.length);
-  const src = cols.findIndex(c => c.length && topRun(c) < c.length);
-  if (empty >= 0 && src >= 0) { flash(src, empty); return; }
-  msg('暂无更好的建议，试试重新布局 🤔');
+
+  if (bestMove) {
+    flash(bestMove.from, bestMove.to);
+  } else {
+    msg('暂无更好的建议，试试重新布局 🤔');
+  }
+}
+
+// 优化：评分函数，评估移动的价值
+function evaluateMove(from, to, n, color, cap) {
+  let score = 0;
+  const fromCol = cols[from];
+  const toCol = cols[to];
+
+  // 1. 完成一列的奖励（最高优先级）
+  if (toCol.length + n === cap && (toCol.length === 0 || toCol.at(-1) === color)) {
+    score += 1000;
+  }
+
+  // 2. 合并同色的奖励
+  if (toCol.length > 0 && toCol.at(-1) === color) {
+    score += 100 + n * 10;
+    // 额外奖励：如果合并后该列接近完成
+    if (toCol.length + n >= cap - 1) score += 50;
+  }
+
+  // 3. 移动到空列的惩罚（除非必要）
+  if (toCol.length === 0) {
+    score -= 30;
+    // 但如果源列顶部颜色与底部不同，移动到空列是合理的
+    if (fromCol.length > n && fromCol[0] !== color) {
+      score += 20;
+    }
+  }
+
+  // 4. 暴露新颜色的奖励（如果移动后源列底部颜色统一）
+  if (fromCol.length > n) {
+    const newTop = fromCol[fromCol.length - 1 - n];
+    let sameCount = 1;
+    for (let i = fromCol.length - 2 - n; i >= 0 && fromCol[i] === newTop; i--) sameCount++;
+    score += sameCount * 5;
+  }
+
+  // 5. 避免"死锁"：如果目标列快满了且颜色不一致，降低分数
+  if (toCol.length > 0 && toCol.length >= cap - 1 && toCol.at(-1) !== color) {
+    score -= 200;
+  }
+
+  return score;
 }
 function flash(a, b) {
-  const slots = document.querySelectorAll('.slot');
+  // 优化：使用缓存的 DOM 元素
   [a, b].forEach((idx, k) => {
     setTimeout(() => {
-      slots[idx].classList.add('selected');
+      slotEls[idx].classList.add('selected');
       setTimeout(() => render(), 900);
     }, k * 300);
   });
@@ -364,7 +498,8 @@ function flash(a, b) {
 
 /* ============ 胜负 ============ */
 function isWin() {
-  return cols.every(c => !c.length || c.every(x => x === c[0]));
+  // 优化：使用计数器 O(1) 判断
+  return sortedCount === cols.length;
 }
 function win() {
   stopTimer(); sfx.win();
@@ -400,30 +535,67 @@ function confetti() {
   }
 }
 
-/* ============ 渲染 ============ */
+/* ============ 渲染（局部更新，避免闪动） ============ */
+let slotEls = []; // 缓存slot DOM元素
+let prevColLengths = []; // 优化：记录上次的珠子数量，避免重复比较
+
 function render() {
   const board = document.getElementById('board');
   const isMobile = window.innerWidth <= 600;
   const slotWidth = isMobile ? (window.innerWidth <= 400 ? 32 : 38) : 54;
   board.style.gridTemplateColumns = `repeat(${cols.length}, ${slotWidth}px)`;
-  board.innerHTML = '';
-  cols.forEach((col, i) => {
-    const s = document.createElement('div');
-    s.className = 'slot' + (i === selected ? ' selected' : '');
-    if (selected >= 0 && i !== selected) {
-      const n = topRun(selected), c = cols[selected].at(-1), t = col;
-      if ((t.length === 0 || t.at(-1) === c) && t.length + n <= LEVELS[level].cap)
-        s.classList.add('can-drop');
-    }
-    col.forEach((c, j) => {
-      const b = document.createElement('div');
-      b.className = 'bead' + (i === selected && j >= cols[i].length - topRun(i) ? ' float' : '');
-      b.style.background = `radial-gradient(circle at 35% 30%, #ffffffcc, ${beadColor(c)} 60%, ${COLORS[c][1]})`;
-      s.appendChild(b);
+
+  // 首次渲染：创建所有slot元素
+  if (slotEls.length !== cols.length) {
+    board.innerHTML = '';
+    slotEls = [];
+    prevColLengths = [];
+    cols.forEach((col, i) => {
+      const s = document.createElement('div');
+      s.className = 'slot';
+      s.onclick = () => clickSlot(i);
+      board.appendChild(s);
+      slotEls.push(s);
+      prevColLengths.push(col.length);
     });
-    s.onclick = () => clickSlot(i);
-    board.appendChild(s);
+  }
+
+  // 优化：预计算选中列的信息，避免重复计算
+  const selTopRun = selected >= 0 ? topRun(selected) : 0;
+  const selColor = selected >= 0 ? cols[selected].at(-1) : -1;
+  const cap = LEVELS[level].cap;
+
+  // 局部更新每个slot
+  cols.forEach((col, i) => {
+    const s = slotEls[i];
+    if (!s) return;
+
+    // 更新选中状态
+    s.classList.toggle('selected', i === selected);
+
+    // 优化：使用预计算的值判断可放置
+    let canDrop = false;
+    if (selected >= 0 && i !== selected) {
+      canDrop = (col.length === 0 || col.at(-1) === selColor) && col.length + selTopRun <= cap;
+    }
+    s.classList.toggle('can-drop', canDrop);
+
+    // 优化：只在珠子数量变化时更新珠子，使用缓存的长度比较
+    if (prevColLengths[i] !== col.length) {
+      prevColLengths[i] = col.length;
+      s.innerHTML = '';
+      // 优化：使用 DocumentFragment 减少重排
+      const fragment = document.createDocumentFragment();
+      col.forEach((c, j) => {
+        const b = document.createElement('div');
+        b.className = 'bead';
+        b.style.background = `radial-gradient(circle at 35% 30%, #ffffffcc, ${beadColor(c)} 60%, ${COLORS[c][1]})`;
+        fragment.appendChild(b);
+      });
+      s.appendChild(fragment);
+    }
   });
+
   document.getElementById('undoBtn').disabled = !history.length;
 }
 
