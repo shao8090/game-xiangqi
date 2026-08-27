@@ -192,7 +192,6 @@
   <button class="btn" id="undoBtn" onclick="undo()">↩️ 撤销</button>
   <button class="btn" onclick="showHint()">💡 提示</button>
   <button class="btn primary" onclick="newGame()">🔄 新游戏</button>
-  <button class="btn" id="soundBtn" onclick="toggleSound()">🔊 音效</button>
 </div>
 
 <div id="msg"></div>
@@ -228,7 +227,6 @@ const LEVELS = [
 
 let cols, moves, selected = -1, level = 1;
 let history = [], timerId = null, startTime = 0, seconds = 0;
-let soundOn = true;
 let clickLock = false; // 点击防抖锁
 const CLICK_DELAY = 120; // 点击间隔(ms)
 
@@ -237,33 +235,12 @@ let topRunCache = new Map();
 // 优化：维护已排序列的计数器，O(1) 判断胜负
 let sortedCount = 0;
 
-/* ============ 音效（Web Audio，无需文件） ============ */
-let audioCtx = null;
-function beep(freq, dur = .1, type = 'sine', vol = .15) {
-  if (!soundOn) return;
-  try {
-    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
-    const o = audioCtx.createOscillator(), g = audioCtx.createGain();
-    o.type = type; o.frequency.value = freq;
-    g.gain.setValueAtTime(vol, audioCtx.currentTime);
-    g.gain.exponentialRampToValueAtTime(.001, audioCtx.currentTime + dur);
-    o.connect(g); g.connect(audioCtx.destination);
-    o.start(); o.stop(audioCtx.currentTime + dur);
-  } catch(e){}
-}
-const sfx = {
-  pick:   () => beep(520, .08, 'triangle'),
-  drop:   () => { beep(440, .07); setTimeout(()=>beep(660, .08), 40); },
-  error:  () => beep(160, .18, 'sawtooth', .1),
-  undo:   () => beep(300, .1, 'triangle'),
-  win:    () => [523,659,784,1047].forEach((f,i)=>setTimeout(()=>beep(f,.22,'triangle',.2), i*130)),
-};
-
 /* ============ 核心 ============ */
 function newGame() {
   const L = LEVELS[level];
   moves = 0; selected = -1; history = []; seconds = 0;
   slotEls = []; // 重置slot缓存
+  prevColLengths = []; // 重置长度缓存
   topRunCache.clear(); // 清空缓存
   document.getElementById('win').style.display = 'none';
   msg('');
@@ -343,8 +320,8 @@ function clickSlot(i) {
 
   msg('');
   if (selected === -1) {
-    if (!cols[i].length) { msg('这列是空的，选有珠子的列'); sfx.error(); return; }
-    selected = i; sfx.pick(); render(); return;
+    if (!cols[i].length) { msg('这列是空的，选有珠子的列'); return; }
+    selected = i; render(); return;
   }
   if (i === selected) { selected = -1; render(); return; }
 
@@ -352,19 +329,22 @@ function clickSlot(i) {
   const canColor = t.length === 0 || t.at(-1) === color;
 
   if (canColor && t.length + n <= LEVELS[level].cap) {
+    // 保存源列索引，因为 selected 会被重置
+    const fromIdx = selected;
+    
     // 优化：记录移动前的排序状态，增量更新
-    const fromSortedBefore = isColSorted(selected);
+    const fromSortedBefore = isColSorted(fromIdx);
     const toSortedBefore = isColSorted(i);
 
-    history.push({ from: selected, to: i, n });
-    t.push(...cols[selected].splice(cols[selected].length - n, n));
+    history.push({ from: fromIdx, to: i, n });
+    t.push(...cols[fromIdx].splice(cols[fromIdx].length - n, n));
     moves++; updateMoves();
-    selected = -1; sfx.drop();
+    selected = -1;
 
     // 优化：增量更新排序计数
-    topRunCache.delete(selected); // 清除源列缓存
+    topRunCache.delete(fromIdx); // 清除源列缓存
     topRunCache.delete(i); // 清除目标列缓存
-    const fromSortedAfter = isColSorted(selected);
+    const fromSortedAfter = isColSorted(fromIdx);
     const toSortedAfter = isColSorted(i);
     if (fromSortedBefore && !fromSortedAfter) sortedCount--;
     else if (!fromSortedBefore && fromSortedAfter) sortedCount++;
@@ -372,6 +352,12 @@ function clickSlot(i) {
     else if (!toSortedBefore && toSortedAfter) sortedCount++;
 
     render();
+    
+    // 检测死局
+    if (sortedCount !== cols.length && isStuck()) {
+      msg('⚠️ 陷入死局！点击"新游戏"或"撤销"重新开始');
+    }
+    
     // 优化：O(1) 判断胜负
     if (sortedCount === cols.length) setTimeout(win, 350);
   } else {
@@ -381,7 +367,6 @@ function clickSlot(i) {
       setTimeout(() => slotEl.classList.remove('full-blink'), 280);
     }
     msg(!canColor ? '⚠️ 只能放入空列或底部同色的列' : '⚠️ 空间不足，放不下这一串');
-    sfx.error();
     selected = -1; render();
   }
 }
@@ -407,7 +392,7 @@ function undo() {
   else if (!toSortedBefore && toSortedAfter) sortedCount++;
 
   moves = Math.max(0, moves - 1); updateMoves();
-  selected = -1; sfx.undo(); msg('已撤销一步'); render();
+  selected = -1; msg('已撤销一步'); render();
 }
 
 /* ============ 提示：贪心找一步“有效合并” ============ */
@@ -502,7 +487,7 @@ function isWin() {
   return sortedCount === cols.length;
 }
 function win() {
-  stopTimer(); sfx.win();
+  stopTimer();
   const L = LEVELS[level];
   const stars = moves <= L.par ? '⭐⭐⭐' : moves <= L.par * 1.5 ? '⭐⭐' : '⭐';
   document.getElementById('stars').textContent = stars;
@@ -556,7 +541,7 @@ function render() {
       s.onclick = () => clickSlot(i);
       board.appendChild(s);
       slotEls.push(s);
-      prevColLengths.push(col.length);
+      prevColLengths.push(-1); // 使用-1作为哨兵值，确保首次渲染创建珠子
     });
   }
 
@@ -618,10 +603,6 @@ function startTimer() {
 }
 function stopTimer() { clearInterval(timerId); }
 function fmt(s) { return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); }
-function toggleSound() {
-  soundOn = !soundOn;
-  document.getElementById('soundBtn').textContent = soundOn ? '🔊 音效' : '🔇 静音';
-}
 
 document.getElementById('diff').addEventListener('click', e => {
   if (!e.target.dataset.level) return;
