@@ -389,3 +389,152 @@ h1 small {
     margin-top: 1rem;
     color: #5a6bf0;
 }
+
+/* ==================== H5 手机端适配 ==================== */
+@media (max-width: 600px) {
+    body {
+        padding: 0;
+        background: #ffffff;
+    }
+    .container {
+        padding: 1rem;
+        border-radius: 0;
+        box-shadow: none;
+        max-width: 100%;
+    }
+    h1 {
+        font-size: 1.3rem;
+        flex-wrap: wrap;
+    }
+    h1 small {
+        font-size: 0.75rem;
+    }
+    .subtitle {
+        font-size: 0.8rem;
+        margin-bottom: 1rem;
+        padding-bottom: 0.75rem;
+    }
+    .subtitle code {
+        font-size: 0.7rem;
+        word-break: break-all;
+    }
+    .two-col {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+    }
+
+    /* 配置区 */
+    .config-section {
+        padding: 1rem;
+        border-radius: 12px;
+    }
+    .config-section h2 {
+        font-size: 1rem;
+        margin-bottom: 0.75rem;
+    }
+    .form-group {
+        margin-bottom: 0.75rem;
+    }
+    .form-group label {
+        font-size: 0.8rem;
+    }
+    .form-group input,
+    .form-group select,
+    .form-group textarea {
+        padding: 0.55rem 0.7rem;
+        font-size: 0.85rem;
+    }
+    .form-row {
+        grid-template-columns: 1fr;
+        gap: 0.75rem;
+    }
+
+    /* 结果区 */
+    .result-section {
+        padding: 1rem;
+        border-radius: 12px;
+        min-height: 280px;
+    }
+    .result-section h2 {
+        font-size: 1rem;
+    }
+    .result-image-wrapper img {
+        max-height: 260px;
+    }
+    .result-meta {
+        font-size: 0.75rem;
+        padding: 0.5rem 0.75rem;
+    }
+
+    /* 按钮 */
+    .btn {
+        padding: 0.65rem 1rem;
+        font-size: 0.9rem;
+        border-radius: 10px;
+    }
+    .btn-group {
+        margin-top: 0.5rem;
+    }
+
+    /* 历史记录 */
+    .history-section {
+        margin-top: 1.25rem;
+        padding-top: 1rem;
+    }
+    .history-header h2 {
+        font-size: 1rem;
+    }
+    .history-header .btn-clear-all {
+        padding: 0.35rem 0.75rem;
+        font-size: 0.75rem;
+    }
+    .history-list {
+        grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+        gap: 0.75rem;
+    }
+    .history-item .thumb {
+        height: 110px;
+    }
+    .history-item .info {
+        padding: 0.5rem 0.6rem;
+    }
+    .history-item .prompt {
+        font-size: 0.7rem;
+        -webkit-line-clamp: 2;
+    }
+    .history-item .time {
+        font-size: 0.65rem;
+    }
+    /* 手机端始终显示操作按钮（触摸设备无 hover） */
+    .history-item .actions {
+        opacity: 1;
+    }
+    .history-item .actions button {
+        width: 32px;
+        height: 32px;
+        font-size: 0.85rem;
+    }
+
+    /* 加载动画 */
+    .spinner.spinner-lg {
+        width: 28px;
+        height: 28px;
+    }
+}
+
+/* 更小屏幕 */
+@media (max-width: 380px) {
+    .container {
+        padding: 0.75rem;
+    }
+    h1 {
+        font-size: 1.15rem;
+    }
+    .history-list {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 0.5rem;
+    }
+    .history-item .thumb {
+        height: 100px;
+    }
+}
