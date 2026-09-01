@@ -23,7 +23,7 @@
             overflow-x: hidden;
         }
 
-        /* 顶部导航与状态栏 */
+        /* 底部导航与状态栏 */
         header {
             width: 100%;
             max-width: 800px;
@@ -33,6 +33,7 @@
             align-items: center;
             background: rgba(0, 0, 0, 0.2);
             backdrop-filter: blur(10px);
+            order: 2;
         }
         .stats {
             font-size: 1.1rem;
@@ -71,10 +72,11 @@
             display: flex;
             flex-wrap: wrap;
             justify-content: center;
-            align-items: flex-end;
+            align-items: flex-start;
             gap: 15px;
             padding: 20px 10px;
             overflow-y: auto;
+            order: 1;
         }
 
         /* 试管/列的样式 */
@@ -319,7 +321,7 @@
             // 根据屏幕空间计算球的尺寸
             const maxTubeHeight = Math.min(screenHeight * 0.65, 550);
             let ballSize = Math.floor((maxTubeHeight - 30) / config.capacity);
-            ballSize = Math.max(16, Math.min(ballSize, 40)); // 限制球的尺寸在 16px - 40px
+            ballSize = Math.max(10, Math.min(ballSize, 28)); // 限制球的尺寸在 10px - 28px
 
             const tubeWidth = ballSize + 12;
             const tubeHeight = ballSize * config.capacity + 15;
