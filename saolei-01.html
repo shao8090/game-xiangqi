@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>经典扫雷 H5</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: #f0f2f5;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            padding: 10px;
+        }
+        .header {
+            width: 100%;
+            max-width: 450px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+        /* 难度选择 */
+        .level-select {
+            width: 100%;
+            padding: 8px 12px;
+            font-size: 15px;
+            border-radius: 8px;
+            border: 1px solid #ccc;
+            background: #fff;
+            font-weight: bold;
+            color: #333;
+        }
+        /* 仪表盘 */
+        .dashboard {
+            background: #333;
+            color: #fff;
+            padding: 10px 15px;
+            border-radius: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 20px;
+            font-weight: bold;
+        }
+        .digit-box {
+            background: #000;
+            color: #ff3b30;
+            padding: 4px 8px;
+            border-radius: 4px;
+            min-width: 50px;
+            text-align: center;
+        }
+        .face-btn {
+            font-size: 24px;
+            background: none;
+            border: none;
+            cursor: pointer;
+        }
+        /* 操作模式切换（针对手机端） */
+        .action-bar {
+            width: 100%;
+            max-width: 450px;
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+        .mode-btn {
+            flex: 1;
+            padding: 10px;
+            border: 2px solid #007aff;
+            background: #fff;
+            color: #007aff;
+            font-size: 16px;
+            font-weight: bold;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .mode-btn.active {
+            background: #007aff;
+            color: #fff;
+        }
+
+        /* 棋盘区域 */
+        .board-container {
+            width: 100%;
+            max-width: 450px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: #bbb;
+            padding: 6px;
+            border-radius: 8px;
+            box-shadow: inset 0 0 8px rgba(0,0,0,0.2);
+            overflow: auto;
+            touch-action: manipulation;
+        }
+        .board {
+            display: grid;
+            gap: 2px;
+            background-color: #888;
+            border: 2px solid #888;
+            margin: auto;
+        }
+        .cell {
+            background-color: #c6c6c6;
+            border: 2px outset #ffffff;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .cell:active {
+            border-style: inset;
+        }
+        .cell.revealed {
+            background-color: #ddd;
+            border: 1px solid #aaa;
+            cursor: default;
+        }
+        .cell.mine {
+            background-color: #ff3b30 !important;
+        }
+
+        /* 数字颜色 */
+        .c-1 { color: #0000ff; }
+        .c-2 { color: #008000; }
+        .c-3 { color: #ff0000; }
+        .c-4 { color: #000080; }
+        .c-5 { color: #800000; }
+        .c-6 { color: #008080; }
+        .c-7 { color: #000000; }
+        .c-8 { color: #808080; }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <!-- 5个等级选择 -->
+        <select id="levelSelect" class="level-select" onchange="changeLevel()">
+            <option value="1">1. 新手入门 (8x8 - 8雷)</option>
+            <option value="2">2. 初级训练 (10x10 - 15雷)</option>
+            <option value="3" selected>3. 中级挑战 (12x14 - 30雷)</option>
+            <option value="4">4. 高级进阶 (14x18 - 50雷)</option>
+            <option value="5">5. 地狱大师 (16x22 - 75雷)</option>
+        </select>
+
+        <div class="dashboard">
+            <div class="digit-box" id="mineCount">000</div>
+            <button class="face-btn" id="faceBtn" onclick="initGame()">🙂</button>
+            <div class="digit-box" id="timer">000</div>
+        </div>
+    </div>
+
+    <!-- 手机触屏专属模式切换 -->
+    <div class="action-bar">
+        <button id="digModeBtn" class="mode-btn active" onclick="setMode('dig')">⛏️ 挖开模式</button>
+        <button id="flagModeBtn" class="mode-btn" onclick="setMode('flag')">🚩 插旗模式</button>
+    </div>
+
+    <!-- 游戏棋盘 -->
+    <div class="board-container">
+        <div id="board" class="board"></div>
+    </div>
+
+    <script>
+        // 5 个等级定义
+        const LEVELS = {
+            1: { rows: 8,  cols: 8,  mines: 8  },
+            2: { rows: 10, cols: 10, mines: 15 },
+            3: { rows: 14, cols: 12, mines: 30 },
+            4: { rows: 18, cols: 14, mines: 50 },
+            5: { rows: 22, cols: 16, mines: 75 }
+        };
+
+        let currentLevel = 3;
+        let rows, cols, totalMines;
+        let grid = [];
+        let gameOver = false;
+        let isFirstClick = true;
+        let timerInterval = null;
+        let timeElapsed = 0;
+        let flagsLeft = 0;
+        let currentMode = 'dig'; // 'dig' or 'flag'
+        let longPressTimer = null;
+
+        function setMode(mode) {
+            currentMode = mode;
+            document.getElementById('digModeBtn').classList.toggle('active', mode === 'dig');
+            document.getElementById('flagModeBtn').classList.toggle('active', mode === 'flag');
+        }
+
+        function changeLevel() {
+            currentLevel = parseInt(document.getElementById('levelSelect').value);
+            initGame();
+        }
+
+        function initGame() {
+            clearInterval(timerInterval);
+            timerInterval = null;
+            timeElapsed = 0;
+            gameOver = false;
+            isFirstClick = true;
+
+            const config = LEVELS[currentLevel];
+            rows = config.rows;
+            cols = config.cols;
+            totalMines = config.mines;
+            flagsLeft = totalMines;
+
+            document.getElementById('faceBtn').innerText = '🙂';
+            document.getElementById('timer').innerText = '000';
+            updateMineDisplay();
+
+            createGrid();
+        }
+
+        function updateMineDisplay() {
+            document.getElementById('mineCount').innerText = String(flagsLeft).padStart(3, '0');
+        }
+
+        function startTimer() {
+            timerInterval = setInterval(() => {
+                timeElapsed++;
+                if (timeElapsed > 999) timeElapsed = 999;
+                document.getElementById('timer').innerText = String(timeElapsed).padStart(3, '0');
+            }, 1000);
+        }
+
+        function createGrid() {
+            const board = document.getElementById('board');
+            board.innerHTML = '';
+            
+            // 手机动态计算单元格大小
+            const containerWidth = Math.min(window.innerWidth - 30, 440);
+            const cellSize = Math.floor(containerWidth / cols);
+            
+            board.style.gridTemplateColumns = `repeat(${cols}, ${cellSize}px)`;
+            board.style.gridTemplateRows = `repeat(${rows}, ${cellSize}px)`;
+
+            grid = [];
+            for (let r = 0; r < rows; r++) {
+                grid[r] = [];
+                for (let c = 0; c < cols; c++) {
+                    const cell = document.createElement('div');
+                    cell.classList.add('cell');
+                    cell.style.width = `${cellSize}px`;
+                    cell.style.height = `${cellSize}px`;
+                    cell.style.fontSize = `${Math.floor(cellSize * 0.55)}px`;
+
+                    const cellData = {
+                        r, c,
+                        element: cell,
+                        isMine: false,
+                        isRevealed: false,
+                        isFlagged: false,
+                        neighborMines: 0
+                    };
+
+                    // 绑定触摸与点击事件
+                    bindCellEvents(cellData);
+
+                    grid[r][c] = cellData;
+                    board.appendChild(cell);
+                }
+            }
+        }
+
+        function bindCellEvents(cellData) {
+            const el = cellData.element;
+
+            // 禁用手机默认右键/长按菜单
+            el.addEventListener('contextmenu', (e) => e.preventDefault());
+
+            // 针对触屏的长按触发插旗支持
+            el.addEventListener('touchstart', (e) => {
+                if (gameOver || cellData.isRevealed) return;
+                longPressTimer = setTimeout(() => {
+                    toggleFlag(cellData);
+                    if (navigator.vibrate) navigator.vibrate(40); // 震动反馈
+                }, 400);
+            }, { passive: true });
+
+            el.addEventListener('touchend', () => clearTimeout(longPressTimer));
+            el.addEventListener('touchmove', () => clearTimeout(longPressTimer));
+
+            // 点击处理
+            el.addEventListener('click', () => {
+                if (gameOver || cellData.isRevealed) return;
+
+                if (currentMode === 'flag') {
+                    toggleFlag(cellData);
+                } else {
+                    if (!cellData.isFlagged) {
+                        handleClick(cellData);
+                    }
+                }
+            });
+        }
+
+        function handleClick(cell) {
+            if (isFirstClick) {
+                isFirstClick = false;
+                startTimer();
+                generateMines(cell.r, cell.c);
+            }
+
+            if (cell.isMine) {
+                // 踩雷 失败
+                revealMines();
+                cell.element.style.backgroundColor = '#ff0000';
+                document.getElementById('faceBtn').innerText = '😵';
+                gameOver = true;
+                clearInterval(timerInterval);
+                if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
+                return;
+            }
+
+            revealCell(cell);
+            checkWin();
+        }
+
+        function generateMines(firstR, firstC) {
+            let minesPlaced = 0;
+            while (minesPlaced < totalMines) {
+                let r = Math.floor(Math.random() * rows);
+                let c = Math.floor(Math.random() * cols);
+
+                // 确保第一次点击及其周围九宫格无雷
+                const isAdjacent = Math.abs(r - firstR) <= 1 && Math.abs(c - firstC) <= 1;
+                if (!grid[r][c].isMine && !isAdjacent) {
+                    grid[r][c].isMine = true;
+                    minesPlaced++;
+                }
+            }
+
+            // 计算相邻雷数
+            for (let r = 0; r < rows; r++) {
+                for (let c = 0; c < cols; c++) {
+                    if (!grid[r][c].isMine) {
+                        grid[r][c].neighborMines = countNeighbors(r, c);
+                    }
+                }
+            }
+        }
+
+        function countNeighbors(r, c) {
+            let count = 0;
+            for (let dr = -1; dr <= 1; dr++) {
+                for (let dc = -1; dc <= 1; dc++) {
+                    const nr = r + dr, nc = c + dc;
+                    if (nr >= 0 && nr < rows && nc >= 0 && nc < cols) {
+                        if (grid[nr][nc].isMine) count++;
+                    }
+                }
+            }
+            return count;
+        }
+
+        function revealCell(cell) {
+            if (cell.isRevealed || cell.isFlagged) return;
+
+            cell.isRevealed = true;
+            cell.element.classList.add('revealed');
+
+            if (cell.neighborMines > 0) {
+                cell.element.innerText = cell.neighborMines;
+                cell.element.classList.add(`c-${cell.neighborMines}`);
+            } else {
+                // 递归展开空白区域
+                for (let dr = -1; dr <= 1; dr++) {
+                    for (let dc = -1; dc <= 1; dc++) {
+                        const nr = cell.r + dr, nc = cell.c + dc;
+                        if (nr >= 0 && nr < rows && nc >= 0 && nc < cols) {
+                            if (!grid[nr][nc].isRevealed) {
+                                revealCell(grid[nr][nc]);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        function toggleFlag(cell) {
+            if (cell.isRevealed) return;
+
+            if (cell.isFlagged) {
+                cell.isFlagged = false;
+                cell.element.innerText = '';
+                flagsLeft++;
+            } else {
+                if (flagsLeft > 0) {
+                    cell.isFlagged = true;
+                    cell.element.innerText = '🚩';
+                    flagsLeft--;
+                }
+            }
+            updateMineDisplay();
+        }
+
+        function revealMines() {
+            for (let r = 0; r < rows; r++) {
+                for (let c = 0; c < cols; c++) {
+                    const cell = grid[r][c];
+                    if (cell.isMine) {
+                        cell.element.classList.add('revealed', 'mine');
+                        cell.element.innerText = '💣';
+                    }
+                }
+            }
+        }
+
+        function checkWin() {
+            let revealedCount = 0;
+            for (let r = 0; r < rows; r++) {
+                for (let c = 0; c < cols; c++) {
+                    if (grid[r][c].isRevealed) revealedCount++;
+                }
+            }
+
+            if (revealedCount === rows * cols - totalMines) {
+                gameOver = true;
+                clearInterval(timerInterval);
+                document.getElementById('faceBtn').innerText = '😎';
+                setTimeout(() => alert(`🎉 恭喜通关！耗时: ${timeElapsed} 秒`), 100);
+            }
+        }
+
+        // 初始化加载
+        window.onload = initGame;
+        // 旋转屏幕时重绘以自适应
+        window.onresize = () => createGrid();
+    </script>
+</body>
+</html>
