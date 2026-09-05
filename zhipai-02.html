@@ -173,6 +173,7 @@
                 <option value="4">四花色 (高级 ♠♥♣♦)</option>
             </select>
             <button onclick="initGame()">重新开始</button>
+            <button onclick="undoMove()">↩ 撤回</button>
         </div>
         <div>
             <span>步数: <b id="moves-count">0</b></span>
@@ -227,6 +228,7 @@
     let completedSets = 0;
     let moves = 0;
     let selected = null; // { colIdx, cardIdx }
+    let history = []; // 操作历史，用于撤回
 
     function changeDifficulty(val) {
         difficulty = parseInt(val);
@@ -237,6 +239,7 @@
         moves = 0;
         completedSets = 0;
         selected = null;
+        history = [];
         columns = [[], [], [], [], [], [], [], [], [], []];
 
         // 构造104张牌
@@ -385,6 +388,32 @@
         return true;
     }
 
+    // 保存当前状态到历史
+    function saveState() {
+        history.push({
+            columns: JSON.parse(JSON.stringify(columns)),
+            stock: JSON.parse(JSON.stringify(stock)),
+            completedSets: completedSets,
+            moves: moves
+        });
+        // 限制历史记录数量，最多50步
+        if (history.length > 50) {
+            history.shift();
+        }
+    }
+
+    // 撤回操作
+    function undoMove() {
+        if (history.length === 0) return;
+        const state = history.pop();
+        columns = state.columns;
+        stock = state.stock;
+        completedSets = state.completedSets;
+        moves = state.moves;
+        selected = null;
+        render();
+    }
+
     // 移动牌
     function handleMove(targetColIdx) {
         if (!selected) return;
@@ -407,6 +436,7 @@
         }
 
         if (canMove) {
+            saveState();
             columns[targetColIdx] = toCol.concat(movingCards);
             columns[selected.colIdx] = fromCol.slice(0, selected.cardIdx);
 
@@ -479,6 +509,7 @@
             return;
         }
 
+        saveState();
         const cardsToDeal = stock.pop();
         cardsToDeal.forEach((card, idx) => {
             card.faceUp = true;

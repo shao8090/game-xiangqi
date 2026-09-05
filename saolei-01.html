@@ -155,9 +155,9 @@
     <div class="header">
         <!-- 5个等级选择 -->
         <select id="levelSelect" class="level-select" onchange="changeLevel()">
-            <option value="1">1. 新手入门 (8x8 - 8雷)</option>
+            <option value="1" selected>1. 新手入门 (8x8 - 8雷)</option>
             <option value="2">2. 初级训练 (10x10 - 15雷)</option>
-            <option value="3" selected>3. 中级挑战 (12x14 - 30雷)</option>
+            <option value="3" >3. 中级挑战 (12x14 - 30雷)</option>
             <option value="4">4. 高级进阶 (14x18 - 50雷)</option>
             <option value="5">5. 地狱大师 (16x22 - 75雷)</option>
         </select>
@@ -190,7 +190,7 @@
             5: { rows: 22, cols: 16, mines: 75 }
         };
 
-        let currentLevel = 3;
+        let currentLevel = 1;
         let rows, cols, totalMines;
         let grid = [];
         let gameOver = false;
