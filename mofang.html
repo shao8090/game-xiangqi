@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -19,7 +18,7 @@
             overflow: hidden;
             background: radial-gradient(circle, #2c3e50 0%, #000000 100%);
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            touch-action: none; /* 禁止手机端双击缩放和下拉刷新 */
+            touch-action: none;
         }
         #webgl-container {
             width: 100%;
@@ -41,20 +40,21 @@
             display: flex;
             flex-direction: column;
             justify-content: space-between;
-            padding: 15px;
+            padding: 12px;
         }
         .header {
             text-align: center;
             color: #fff;
-            text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+            text-shadow: 0 2px 4px rgba(0,0,0,0.6);
             pointer-events: auto;
+            margin-top: env(safe-area-inset-top, 5px);
         }
         .header h1 {
-            font-size: 1.3rem;
-            margin-bottom: 4px;
+            font-size: 1.2rem;
+            margin-bottom: 2px;
         }
         .header p {
-            font-size: 0.8rem;
+            font-size: 0.75rem;
             color: #bdc3c7;
         }
         /* 底部控制区 */
@@ -62,49 +62,76 @@
             pointer-events: auto;
             display: flex;
             flex-direction: column;
-            gap: 10px;
-            background: rgba(255, 255, 255, 0.1);
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
-            padding: 12px;
+            gap: 8px;
+            background: rgba(20, 25, 35, 0.7);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            padding: 10px;
             border-radius: 16px;
-            border: 1px solid rgba(255, 255, 255, 0.15);
-            margin-bottom: env(safe-area-inset-bottom, 10px);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            margin-bottom: env(safe-area-inset-bottom, 8px);
+        }
+        .section-label {
+            font-size: 0.7rem;
+            color: #95a5a6;
+            margin-bottom: 2px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
         }
         .btn-row {
             display: flex;
-            justify-content: space-around;
-            gap: 6px;
+            justify-content: space-between;
+            gap: 5px;
         }
         button {
             flex: 1;
-            padding: 10px 0;
-            background: rgba(255, 255, 255, 0.2);
+            padding: 7px 0;
+            background: rgba(255, 255, 255, 0.15);
             color: white;
             border: none;
             border-radius: 8px;
-            font-size: 0.9rem;
+            font-size: 0.8rem;
             font-weight: bold;
             cursor: pointer;
             outline: none;
+            line-height: 1.2;
             transition: background 0.15s, transform 0.1s;
         }
+        button small {
+            font-size: 0.65rem;
+            opacity: 0.8;
+            display: block;
+        }
         button:active {
-            background: rgba(255, 255, 255, 0.4);
-            transform: scale(0.96);
+            transform: scale(0.94);
         }
-        button.action-btn {
-            background: #e67e22;
+        /* 顺时针按键 */
+        .btn-cw {
+            background: rgba(52, 152, 219, 0.35);
+            border: 1px solid rgba(52, 152, 219, 0.4);
         }
-        button.action-btn:active {
-            background: #d35400;
+        .btn-cw:active {
+            background: rgba(52, 152, 219, 0.7);
         }
-        /* 逆时针切换高亮 */
-        button.active-toggle {
-            background: #e74c3c;
+        /* 逆时针按键 */
+        .btn-ccw {
+            background: rgba(231, 76, 60, 0.35);
+            border: 1px solid rgba(231, 76, 60, 0.4);
+        }
+        .btn-ccw:active {
+            background: rgba(231, 76, 60, 0.7);
+        }
+        /* 功能按键 */
+        .action-btn {
+            background: rgba(243, 156, 18, 0.4);
+            border: 1px solid rgba(243, 156, 18, 0.4);
+            padding: 8px 0;
+        }
+        .action-btn:active {
+            background: rgba(243, 156, 18, 0.8);
         }
     </style>
-    <!-- 引入 Three.js 和 轨道控制器 -->
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 </head>
@@ -119,26 +146,42 @@
         </div>
 
         <div class="controls">
-            <!-- 顶层功能按钮 -->
+            <!-- 辅助功能 -->
             <div class="btn-row">
-                <button class="action-btn" id="shuffle-btn">随机打乱</button>
-                <button class="action-btn" id="reset-btn">一键复原</button>
-                <button id="toggle-dir-btn">当前: 顺时针</button>
+                <button class="action-btn" id="shuffle-btn">🎲 随机打乱</button>
+                <button class="action-btn" id="reset-btn">🔄 一键复原</button>
             </div>
-            <!-- 转动层按钮 (对应标准魔方符号: U D L R F B) -->
-            <div class="btn-row">
-                <button data-face="U">上 (U)</button>
-                <button data-face="D">下 (D)</button>
-                <button data-face="L">左 (L)</button>
-                <button data-face="R">右 (R)</button>
-                <button data-face="F">前 (F)</button>
-                <button data-face="B">后 (B)</button>
+
+            <!-- 第一排：顺时针 -->
+            <div>
+                <div class="section-label">↷ 顺时针 (Clockwise)</div>
+                <div class="btn-row">
+                    <button class="btn-cw" data-face="U" data-dir="1">上<small>U</small></button>
+                    <button class="btn-cw" data-face="D" data-dir="1">下<small>D</small></button>
+                    <button class="btn-cw" data-face="L" data-dir="1">左<small>L</small></button>
+                    <button class="btn-cw" data-face="R" data-dir="1">右<small>R</small></button>
+                    <button class="btn-cw" data-face="F" data-dir="1">前<small>F</small></button>
+                    <button class="btn-cw" data-face="B" data-dir="1">后<small>B</small></button>
+                </div>
+            </div>
+
+            <!-- 第二排：逆时针 -->
+            <div>
+                <div class="section-label">↶ 逆时针 (Counter-Clockwise)</div>
+                <div class="btn-row">
+                    <button class="btn-ccw" data-face="U" data-dir="-1">上'<small>U'</small></button>
+                    <button class="btn-ccw" data-face="D" data-dir="-1">下'<small>D'</small></button>
+                    <button class="btn-ccw" data-face="L" data-dir="-1">左'<small>L'</small></button>
+                    <button class="btn-ccw" data-face="R" data-dir="-1">右'<small>R'</small></button>
+                    <button class="btn-ccw" data-face="F" data-dir="-1">前'<small>F'</small></button>
+                    <button class="btn-ccw" data-face="B" data-dir="-1">后'<small>B'</small></button>
+                </div>
             </div>
         </div>
     </div>
 
     <script>
-        // --- 1. 初始化场景、相机、渲染器 ---
+        // --- 1. 场景与相机 ---
         const container = document.getElementById('webgl-container');
         const scene = new THREE.Scene();
         
@@ -146,38 +189,43 @@
         camera.position.set(4.5, 4.5, 6);
 
         const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // 优化手机端视网膜屏幕
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         container.appendChild(renderer.domElement);
 
-        // 控制器支持触摸缩放和旋转视角
+        // 统一调整视口与大小（让魔方视觉重心上移）
+        function updateViewport() {
+            const w = window.innerWidth;
+            const h = window.innerHeight;
+            camera.aspect = w / h;
+
+            // 关键改动：将相机投影视口向下偏移，魔方在视觉上就会整体向上移动（避开底部按键）
+            const yShift = Math.min(h * 0.12, 90); // 向上偏移约 12% 屏高
+            camera.setViewOffset(w, h, 0, yShift, w, h);
+
+            camera.updateProjectionMatrix();
+            renderer.setSize(w, h);
+        }
+        updateViewport();
+
         const controls = new THREE.OrbitControls(camera, renderer.domElement);
         controls.enableDamping = true;
         controls.dampingFactor = 0.05;
         controls.rotateSpeed = 0.8;
 
         // 灯光
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
-        scene.add(ambientLight);
-
-        const dirLight = new THREE.DirectionalLight(0xffffff, 0.6);
+        scene.add(new THREE.AmbientLight(0xffffff, 0.75));
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.55);
         dirLight.position.set(10, 20, 10);
         scene.add(dirLight);
 
-        // --- 2. 创建魔方结构 ---
-        // 魔方 6 面标准颜色: 
-        // 右(+X):红, 左(-X):橙, 上(+Y):白, 下(-Y):黄, 前(+Z):绿, 后(-Z):蓝, 内部:深黑
+        // --- 2. 魔方初始化 ---
         const colors = {
-            R: 0xb71234, // 右 - 红
-            L: 0xff5800, // 左 - 橙
-            U: 0xffffff, // 上 - 白
-            D: 0xffd500, // 下 - 黄
-            F: 0x009b48, // 前 - 绿
-            B: 0x0046ad, // 后 - 蓝
-            IN: 0x222222 // 内部深灰
+            R: 0xb71234, L: 0xff5800, U: 0xffffff, 
+            D: 0xffd500, F: 0x009b48, B: 0x0046ad, 
+            IN: 0x1e1e1e
         };
 
-        const pieceSize = 0.96; // 留一点微小的缝隙更真实
+        const pieceSize = 0.96;
         const spacing = 1.0;
         const cubeGroup = new THREE.Group();
         scene.add(cubeGroup);
@@ -185,8 +233,7 @@
         const pieces = [];
 
         function createCube() {
-            // 清理已存在的色块
-            while(cubeGroup.children.length > 0){ 
+            while (cubeGroup.children.length > 0) { 
                 cubeGroup.remove(cubeGroup.children[0]); 
             }
             pieces.length = 0;
@@ -196,14 +243,13 @@
             for (let x = -1; x <= 1; x++) {
                 for (let y = -1; y <= 1; y++) {
                     for (let z = -1; z <= 1; z++) {
-                        // 只为外表面着色，内侧表面黑色
                         const materials = [
-                            new THREE.MeshLambertMaterial({ color: x === 1 ? colors.R : colors.IN }), // 右
-                            new THREE.MeshLambertMaterial({ color: x === -1 ? colors.L : colors.IN }), // 左
-                            new THREE.MeshLambertMaterial({ color: y === 1 ? colors.U : colors.IN }), // 上
-                            new THREE.MeshLambertMaterial({ color: y === -1 ? colors.D : colors.IN }), // 下
-                            new THREE.MeshLambertMaterial({ color: z === 1 ? colors.F : colors.IN }), // 前
-                            new THREE.MeshLambertMaterial({ color: z === -1 ? colors.B : colors.IN })  // 后
+                            new THREE.MeshLambertMaterial({ color: x === 1 ? colors.R : colors.IN }),
+                            new THREE.MeshLambertMaterial({ color: x === -1 ? colors.L : colors.IN }),
+                            new THREE.MeshLambertMaterial({ color: y === 1 ? colors.U : colors.IN }),
+                            new THREE.MeshLambertMaterial({ color: y === -1 ? colors.D : colors.IN }),
+                            new THREE.MeshLambertMaterial({ color: z === 1 ? colors.F : colors.IN }),
+                            new THREE.MeshLambertMaterial({ color: z === -1 ? colors.B : colors.IN })
                         ];
 
                         const piece = new THREE.Mesh(boxGeo, materials);
@@ -218,60 +264,50 @@
 
         // --- 3. 旋转逻辑 ---
         let isAnimating = false;
-        let isClockwise = true;
 
-        // 将旋转轴与层对应
         const faceAxes = {
-            'R': { axis: 'x', value: 1,  dir: -1 },
-            'L': { axis: 'x', value: -1, dir: 1 },
-            'U': { axis: 'y', value: 1,  dir: -1 },
-            'D': { axis: 'y', value: -1, dir: 1 },
-            'F': { axis: 'z', value: 1,  dir: -1 },
-            'B': { axis: 'z', value: -1, dir: 1 },
+            'R': { axis: 'x', value: 1,  baseDir: -1 },
+            'L': { axis: 'x', value: -1, baseDir: 1 },
+            'U': { axis: 'y', value: 1,  baseDir: -1 },
+            'D': { axis: 'y', value: -1, baseDir: 1 },
+            'F': { axis: 'z', value: 1,  baseDir: -1 },
+            'B': { axis: 'z', value: -1, baseDir: 1 },
         };
 
-        function rotateFace(faceKey, customSpeed = null, callback = null) {
+        function rotateFace(faceKey, dirMultiplier = 1, customSpeed = null, callback = null) {
             if (isAnimating && customSpeed === null) return;
             isAnimating = true;
 
             const config = faceAxes[faceKey];
-            const direction = (isClockwise ? 1 : -1) * config.dir;
+            const direction = dirMultiplier * config.baseDir;
             const targetAngle = (Math.PI / 2) * direction;
 
-            // 筛选出属于该层的 9 个小块
             const activePieces = pieces.filter(piece => {
                 return Math.abs(piece.position[config.axis] - config.value * spacing) < 0.1;
             });
 
-            // 创建一个临时的旋转轴心对象
             const pivot = new THREE.Object3D();
             pivot.rotation.set(0, 0, 0);
             scene.add(pivot);
 
-            activePieces.forEach(piece => {
-                pivot.attach(piece); // 将方块临时附加到 pivot，保持世界空间位置
-            });
+            activePieces.forEach(piece => pivot.attach(piece));
 
-            const duration = customSpeed || 200; // 转动动画时长 (ms)
+            const duration = customSpeed || 200;
             const startTime = performance.now();
 
             function animateRotate(time) {
                 const elapsed = time - startTime;
                 const progress = Math.min(elapsed / duration, 1);
-                
-                // 平滑缓动 (ease-out)
                 const ease = 1 - Math.pow(1 - progress, 3);
                 pivot.rotation[config.axis] = targetAngle * ease;
 
                 if (progress < 1) {
                     requestAnimationFrame(animateRotate);
                 } else {
-                    // 转动完成：归位并更新坐标
                     pivot.rotation[config.axis] = targetAngle;
                     pivot.updateMatrixWorld();
                     activePieces.forEach(piece => {
                         cubeGroup.attach(piece);
-                        // 修正浮点数误差，保证坐标是精确的整数
                         piece.position.x = Math.round(piece.position.x);
                         piece.position.y = Math.round(piece.position.y);
                         piece.position.z = Math.round(piece.position.z);
@@ -284,16 +320,18 @@
             requestAnimationFrame(animateRotate);
         }
 
-        // 打乱魔方
+        // 打乱
         function shuffleCube() {
             if (isAnimating) return;
             const faces = ['U', 'D', 'L', 'R', 'F', 'B'];
-            let count = 15; // 打乱步数
+            const dirs = [1, -1];
+            let count = 18;
             
             function step() {
                 if (count <= 0) return;
                 const randomFace = faces[Math.floor(Math.random() * faces.length)];
-                rotateFace(randomFace, 60, () => {
+                const randomDir = dirs[Math.floor(Math.random() * dirs.length)];
+                rotateFace(randomFace, randomDir, 50, () => {
                     count--;
                     step();
                 });
@@ -301,39 +339,25 @@
             step();
         }
 
-        // --- 4. 事件监听与 UI 交互 ---
-        // 旋转方向切换
-        const toggleBtn = document.getElementById('toggle-dir-btn');
-        toggleBtn.addEventListener('click', () => {
-            isClockwise = !isClockwise;
-            toggleBtn.textContent = isClockwise ? '当前: 顺时针' : '当前: 逆时针';
-            toggleBtn.classList.toggle('active-toggle', !isClockwise);
-        });
-
-        // 绑定转动面按钮
+        // --- 4. 按钮事件 ---
         document.querySelectorAll('button[data-face]').forEach(btn => {
             btn.addEventListener('click', (e) => {
-                const face = e.target.getAttribute('data-face');
-                rotateFace(face);
+                const button = e.currentTarget;
+                const face = button.getAttribute('data-face');
+                const dir = parseInt(button.getAttribute('data-dir'), 10);
+                rotateFace(face, dir);
             });
         });
 
-        // 打乱与复原
         document.getElementById('shuffle-btn').addEventListener('click', shuffleCube);
         document.getElementById('reset-btn').addEventListener('click', () => {
             if (isAnimating) return;
             createCube();
         });
 
-        // 窗口缩放适配手机屏幕
-        window.addEventListener('resize', () => {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
-            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-        });
+        window.addEventListener('resize', updateViewport);
 
-        // --- 5. 渲染主循环 ---
+        // --- 5. 渲染循环 ---
         function animate() {
             requestAnimationFrame(animate);
             controls.update();
