@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>魔方小游戏</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; overflow: hidden; touch-action: none;
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; }
+  body { background: linear-gradient(160deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%); }
+  #app { position: fixed; inset: 0; touch-action: none; }
+  canvas { display: block; }
+
+  .hud { position: fixed; left: 0; right: 0; display: flex; justify-content: center;
+    gap: 10px; pointer-events: none; z-index: 10; }
+  .hud.top { top: calc(12px + env(safe-area-inset-top)); }
+  .hud.bottom { bottom: calc(16px + env(safe-area-inset-bottom)); flex-direction: column; align-items: center; }
+
+  .panel { background: rgba(255,255,255,.1); backdrop-filter: blur(8px);
+    border: 1px solid rgba(255,255,255,.15); border-radius: 12px;
+    color: #fff; padding: 8px 16px; font-size: 14px; display: flex; gap: 16px; }
+  .panel b { font-variant-numeric: tabular-nums; }
+
+  .btn { pointer-events: auto; background: rgba(255,255,255,.14); color: #fff;
+    border: 1px solid rgba(255,255,255,.25); border-radius: 999px;
+    padding: 10px 22px; font-size: 15px; cursor: pointer;
+    backdrop-filter: blur(8px); transition: transform .1s, background .2s; }
+  .btn:active { transform: scale(.94); background: rgba(255,255,255,.28); }
+
+  .tips { color: rgba(255,255,255,.55); font-size: 12px; margin-top: 10px; text-align: center; }
+
+  #win { position: fixed; inset: 0; display: none; align-items: center; justify-content: center;
+    z-index: 20; background: rgba(0,0,0,.45); }
+  #win.show { display: flex; }
+  #win .card { background: rgba(255,255,255,.12); backdrop-filter: blur(14px);
+    border: 1px solid rgba(255,255,255,.25); border-radius: 20px; padding: 30px 44px;
+    text-align: center; color: #fff; animation: pop .35s ease; }
+  #win h1 { font-size: 30px; margin-bottom: 10px; }
+  #win p { font-size: 15px; opacity: .85; margin-bottom: 20px; }
+  @keyframes pop { from { transform: scale(.7); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<div class="hud top">
+  <div class="panel">
+    <span>⏱ <b id="time">00:00</b></span>
+    <span>👣 步数 <b id="moves">0</b></span>
+  </div>
+</div>
+
+<div class="hud bottom">
+  <div class="hud" style="position:static;">
+    <button class="btn" id="btnShuffle">🔀 打乱</button>
+    <button class="btn" id="btnReset">↩️ 复原</button>
+  </div>
+  <div class="tips">在魔方上滑动旋转层 · 在空白处拖动切换视角</div>
+</div>
+
+<div id="win">
+  <div class="card">
+    <h1>🎉 恭喜完成！</h1>
+    <p id="winInfo"></p>
+    <button class="btn" id="btnAgain">再来一局</button>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function () {
+  // ================= 基础场景 =================
+  const app = document.getElementById('app');
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(40, innerWidth / innerHeight, 0.1, 100);
+  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  renderer.setSize(innerWidth, innerHeight);
+  app.appendChild(renderer.domElement);
+
+  scene.add(new THREE.AmbientLight(0xffffff, 0.75));
+  const dir = new THREE.DirectionalLight(0xffffff, 0.55);
+  dir.position.set(5, 10, 7);
+  scene.add(dir);
+
+  // ================= 视角控制（球坐标） =================
+  const view = { theta: Math.PI / 4, phi: Math.PI / 3, radius: 9 };
+  function updateCamera() {
+    view.phi = Math.max(0.15, Math.min(Math.PI - 0.15, view.phi));
+    camera.position.set(
+      view.radius * Math.sin(view.phi) * Math.sin(view.theta),
+      view.radius * Math.cos(view.phi),
+      view.radius * Math.sin(view.phi) * Math.cos(view.theta)
+    );
+    camera.lookAt(0, 0, 0);
+  }
+  updateCamera();
+
+  // ================= 构建魔方 =================
+  const CUBIE = 0.96;
+  const COLORS = {
+    px: 0xe63946, // 右 红
+    nx: 0xf77f00, // 左 橙
+    py: 0xffffff, // 上 白
+    ny: 0xffd60a, // 下 黄
+    pz: 0x2a9d3c, // 前 绿
+    nz: 0x2f6fed, // 后 蓝
+  };
+  const BLACK = 0x111111;
+
+  const cubies = [];
+  const initStates = [];
+
+  function makeMaterials(x, y, z) {
+    // BoxGeometry 面顺序: +x, -x, +y, -y, +z, -z
+    const faces = [
+      [x === 1, COLORS.px], [x === -1, COLORS.nx],
+      [y === 1, COLORS.py], [y === -1, COLORS.ny],
+      [z === 1, COLORS.pz], [z === -1, COLORS.nz],
+    ];
+    return faces.map(([outer, color]) =>
+      new THREE.MeshLambertMaterial({ color: outer ? color : BLACK })
+    );
+  }
+
+  const geo = new THREE.BoxGeometry(CUBIE, CUBIE, CUBIE);
+  for (let x = -1; x <= 1; x++)
+    for (let y = -1; y <= 1; y++)
+      for (let z = -1; z <= 1; z++) {
+        const mesh = new THREE.Mesh(geo, makeMaterials(x, y, z));
+        mesh.position.set(x, y, z);
+        scene.add(mesh);
+        cubies.push(mesh);
+        initStates.push({ pos: mesh.position.clone(), quat: mesh.quaternion.clone() });
+      }
+
+  // ================= 层旋转 =================
+  const AXES = { x: new THREE.Vector3(1, 0, 0), y: new THREE.Vector3(0, 1, 0), z: new THREE.Vector3(0, 0, 1) };
+  let pivot = null;          // 当前旋转中的 Group
+  let anim = null;           // { axisName, target, speed, layer, userMove }
+  const moveQueue = [];      // 打乱动画队列
+
+  function rotateLayer(axisName, layerIndex, dirSign, speed, userMove) {
+    if (anim) { moveQueue.push({ axisName, layerIndex, dirSign, speed, userMove }); return; }
+    const axis = AXES[axisName];
+    pivot = new THREE.Group();
+    scene.add(pivot);
+    const layer = cubies.filter(c => Math.round(c.position[axisName]) === layerIndex);
+    layer.forEach(c => pivot.attach(c));
+    anim = { axisName, axis, target: dirSign * Math.PI / 2, speed, layer, userMove, cur: 0 };
+  }
+
+  function finishRotation() {
+    // 归位取整，避免浮点误差累积
+    anim.layer.forEach(c => {
+      scene.attach(c);
+      c.position.set(Math.round(c.position.x), Math.round(c.position.y), Math.round(c.position.z));
+      const e = new THREE.Euler().setFromQuaternion(c.quaternion);
+      e.set(Math.round(e.x / (Math.PI / 2)) * Math.PI / 2,
+            Math.round(e.y / (Math.PI / 2)) * Math.PI / 2,
+            Math.round(e.z / (Math.PI / 2)) * Math.PI / 2);
+      c.quaternion.setFromEuler(e);
+    });
+    scene.remove(pivot);
+    pivot = null;
+    anim = null;
+    if (moveQueue.length) {
+      const m = moveQueue.shift();
+      rotateLayer(m.axisName, m.layerIndex, m.dirSign, m.speed, m.userMove);
+    } else {
+      checkSolved();
+    }
+  }
+
+  // ================= 游戏状态 =================
+  let moves = 0, startTime = 0, timing = false, solved = true;
+  const $time = document.getElementById('time');
+  const $moves = document.getElementById('moves');
+  const $win = document.getElementById('win');
+
+  function fmt(ms) {
+    const s = Math.floor(ms / 1000);
+    return String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
+  }
+
+  function countMove() {
+    moves++; $moves.textContent = moves;
+    if (!timing && !solved) { timing = true; startTime = Date.now(); }
+  }
+
+  function checkSolved() {
+    if (solved) return;
+    const EPS = 1e-3;
+    const ok = cubies.every((c, i) =>
+      c.position.distanceTo(initStates[i].pos) < EPS &&
+      Math.abs(c.quaternion.angleTo(initStates[i].quat)) < 0.02
+    );
+    if (ok) {
+      solved = true; timing = false;
+      document.getElementById('winInfo').textContent =
+        `用时 ${$time.textContent} · 共 ${moves} 步`;
+      $win.classList.add('show');
+    }
+  }
+
+  function shuffle() {
+    $win.classList.remove('show');
+    solved = false; timing = false; moves = 0; $moves.textContent = 0; $time.textContent = '00:00';
+    const names = ['x', 'y', 'z'];
+    let lastAxis = '';
+    for (let i = 0; i < 22; i++) {
+      let a; do { a = names[Math.floor(Math.random() * 3)]; } while (a === lastAxis);
+      lastAxis = a;
+      rotateLayer(a, [-1, 0, 1][Math.floor(Math.random() * 3)],
+        Math.random() < 0.5 ? 1 : -1, 0.85, false);
+    }
+  }
+
+  function reset() {
+    moveQueue.length = 0;
+    if (anim) finishRotation();
+    cubies.forEach((c, i) => {
+      c.position.copy(initStates[i].pos);
+      c.quaternion.copy(initStates[i].quat);
+    });
+    solved = true; timing = false; moves = 0;
+    $moves.textContent = 0; $time.textContent = '00:00';
+    $win.classList.remove('show');
+  }
+
+  document.getElementById('btnShuffle').onclick = shuffle;
+  document.getElementById('btnReset').onclick = reset;
+  document.getElementById('btnAgain').onclick = shuffle;
+
+  // ================= 交互：滑动转层 / 拖动视角 =================
+  const raycaster = new THREE.Raycaster();
+  const THRESHOLD = 22; // px，超过此距离判定为滑动
+  let pointerId = null, downXY = null, mode = null, hit = null;
+
+  function toNDC(x, y) {
+    return new THREE.Vector2((x / innerWidth) * 2 - 1, -(y / innerHeight) * 2 + 1);
+  }
+
+  function pickHit(x, y) {
+    raycaster.setFromCamera(toNDC(x, y), camera);
+    const hits = raycaster.intersectObjects(cubies);
+    return hits.length ? hits[0] : null;
+  }
+
+  function projectToScreen(p) {
+    return p.clone().project(camera);
+  }
+
+  // 根据滑动方向选择旋转轴与方向
+  function startLayerTurn(h, dragNDC) {
+    const normal = h.face.normal.clone().applyQuaternion(h.object.quaternion).round();
+    const point = h.point.clone();
+    const candidates = ['x', 'y', 'z'].filter(a =>
+      Math.abs(normal.dot(AXES[a])) < 0.5);
+
+    let best = null;
+    for (const a of candidates) {
+      // 绕轴 a 正转时，命中点的瞬时运动方向 = a × point
+      const tangent = new THREE.Vector3().crossVectors(AXES[a], point);
+      const s0 = projectToScreen(point);
+      const s1 = projectToScreen(point.clone().add(tangent.multiplyScalar(0.15)));
+      const screenDir = new THREE.Vector2(s1.x - s0.x, s1.y - s0.y).normalize();
+      const d = screenDir.dot(dragNDC.clone().normalize());
+      if (!best || Math.abs(d) > Math.abs(best.dot)) best = { axisName: a, dot: d };
+    }
+    if (!best || Math.abs(best.dot) < 0.15) return false;
+
+    // 确定层：命中块在该轴上的坐标
+    const axisKey = best.axisName;
+    const layerIndex = Math.round(h.object.position[axisKey]);
+    const dirSign = best.dot > 0 ? 1 : -1;
+    rotateLayer(axisKey, layerIndex, dirSign, 0.12, true);
+    countMove();
+    return true;
+  }
+
+  const el = renderer.domElement;
+
+  el.addEventListener('pointerdown', e => {
+    if (pointerId !== null) return;
+    pointerId = e.pointerId;
+    downXY = { x: e.clientX, y: e.clientY, lx: e.clientX, ly: e.clientY };
+    mode = null;
+    hit = pickHit(e.clientX, e.clientY);
+    el.setPointerCapture(e.pointerId);
+  });
+
+  el.addEventListener('pointermove', e => {
+    if (e.pointerId !== pointerId || !downXY) return;
+    const dx = e.clientX - downXY.x, dy = e.clientY - downY0(downXY.y, e.clientY);
+    const dist = Math.hypot(e.clientX - downXY.x, e.clientY - downXY.y);
+
+    if (mode === null && dist > THRESHOLD && !anim && !moveQueue.length) {
+      if (hit) {
+        const dragNDC = toNDC(e.clientX, e.clientY).sub(toNDC(downXY.x, downXY.y));
+        mode = startLayerTurn(hit, dragNDC) ? 'done' : 'view';
+      } else {
+        mode = 'view';
+      }
+    }
+    if (mode === 'view') {
+      const mx = e.clientX - downXY.lx, my = e.clientY - downXY.ly;
+      view.theta -= mx * 0.008;
+      view.phi -= my * 0.008;
+      updateCamera();
+    }
+    downXY.lx = e.clientX; downXY.ly = e.clientY;
+  });
+
+  function downY0(a, b) { return a; } // 保持 dx/dy 计算简洁
+
+  function endPointer(e) {
+    if (e.pointerId !== pointerId) return;
+    pointerId = null; downXY = null; mode = null; hit = null;
+  }
+  el.addEventListener('pointerup', endPointer);
+  el.addEventListener('pointercancel', endPointer);
+
+  // 双指捏合缩放
+  el.addEventListener('wheel', e => {
+    view.radius = Math.max(6, Math.min(16, view.radius + e.deltaY * 0.005));
+    updateCamera();
+  }, { passive: true });
+
+  // ================= 主循环 =================
+  const clock = new THREE.Clock();
+  function tick() {
+    requestAnimationFrame(tick);
+    const dt = Math.min(clock.getDelta(), 0.05);
+
+    if (anim) {
+      const step = anim.speed * dt * 60 * (Math.PI / 2) / 12;
+      const remain = anim.target - anim.cur;
+      const delta = Math.sign(remain) * Math.min(Math.abs(remain), Math.max(step, 0.05));
+      anim.cur += delta;
+      pivot.rotation.set(0, 0, 0);
+      pivot.rotateOnAxis(anim.axis, anim.cur);
+      if (Math.abs(anim.target - anim.cur) < 1e-4) finishRotation();
+    }
+    if (timing) $time.textContent = fmt(Date.now() - startTime);
+
+    renderer.render(scene, camera);
+  }
+  tick();
+
+  addEventListener('resize', () => {
+    camera.aspect = innerWidth / innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(innerWidth, innerHeight);
+  });
+
+  // 开局自动打乱一次
+  setTimeout(shuffle, 400);
+})();
+</script>
+</body>
+</html>
