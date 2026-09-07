@@ -85,7 +85,7 @@
   scene.add(dir);
 
   // ================= 视角控制（球坐标） =================
-  const view = { theta: Math.PI / 4, phi: Math.PI / 3, radius: 9 };
+  const view = { theta: Math.PI / 4, phi: Math.PI / 3, radius: 19 };
   function updateCamera() {
     view.phi = Math.max(0.15, Math.min(Math.PI - 0.15, view.phi));
     camera.position.set(
