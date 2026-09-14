@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>彩色珠子排序 - H5小游戏</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background: linear-gradient(135deg, #1f1c2c, #928dab);
+            color: #fff;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            overflow-x: hidden;
+        }
+
+        /* 顶部导航与状态栏 */
+        header {
+            width: 100%;
+            max-width: 800px;
+            padding: 12px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(0, 0, 0, 0.2);
+            backdrop-filter: blur(10px);
+        }
+        .stats {
+            font-size: 1.1rem;
+            font-weight: bold;
+        }
+        .stats span {
+            color: #ffd166;
+        }
+        .btn-group {
+            display: flex;
+            gap: 8px;
+        }
+        button {
+            background: #4e54c8;
+            color: white;
+            border: none;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: 0.2s;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+        }
+        button:active {
+            transform: scale(0.95);
+        }
+        button.config-btn {
+            background: #8f94fb;
+        }
+
+        /* 游戏主体容器 */
+        #game-area {
+            flex: 1;
+            width: 100%;
+            max-width: 1000px;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            align-items: flex-end;
+            gap: 15px;
+            padding: 20px 10px;
+            overflow-y: auto;
+        }
+
+        /* 试管/列的样式 */
+        .tube {
+            background: rgba(255, 255, 255, 0.08);
+            border: 3px solid rgba(255, 255, 255, 0.4);
+            border-top: none;
+            border-radius: 0 0 25px 25px;
+            display: flex;
+            flex-direction: column-reverse;
+            align-items: center;
+            position: relative;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.3), inset 0 0 15px rgba(255,255,255,0.1);
+        }
+        .tube.selected {
+            border-color: #ffd166;
+            box-shadow: 0 0 15px #ffd166;
+            transform: translateY(-8px);
+        }
+
+        /* 珠子样式 */
+        .ball {
+            border-radius: 50%;
+            margin-bottom: 2px;
+            box-shadow: inset -3px -3px 6px rgba(0,0,0,0.4), inset 3px 3px 6px rgba(255,255,255,0.4), 0 2px 4px rgba(0,0,0,0.2);
+            transition: transform 0.2s ease;
+        }
+        .tube.selected .ball.top-lift {
+            transform: translateY(-12px);
+        }
+
+        /* 弹窗与设置面板 */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(5px);
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+        }
+        .modal.active {
+            display: flex;
+        }
+        .modal-content {
+            background: #2b2d42;
+            padding: 24px;
+            border-radius: 16px;
+            width: 90%;
+            max-width: 380px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+        .modal-content h3 {
+            margin-bottom: 16px;
+            text-align: center;
+        }
+        .form-item {
+            margin-bottom: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .form-item label {
+            font-size: 0.95rem;
+        }
+        .form-item input {
+            width: 80px;
+            padding: 6px;
+            border-radius: 8px;
+            border: 1px solid #555;
+            background: #1e1f2e;
+            color: #fff;
+            text-align: center;
+            font-size: 1rem;
+        }
+        .modal-actions {
+            margin-top: 20px;
+            display: flex;
+            gap: 10px;
+        }
+        .modal-actions button {
+            flex: 1;
+            padding: 10px;
+        }
+        .win-title {
+            color: #06d6a0;
+            font-size: 1.5rem;
+            text-align: center;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="stats">步数: <span id="moveCount">0</span></div>
+        <div class="btn-group">
+            <button class="config-btn" onclick="openConfigModal()">⚙️ 设置</button>
+            <button onclick="restartGame()">🔄 重置</button>
+        </div>
+    </header>
+
+    <div id="game-area"></div>
+
+    <!-- 配置面板 -->
+    <div id="configModal" class="modal">
+        <div class="modal-content">
+            <h3>⚙️ 游戏难度配置</h3>
+            <div class="form-item">
+                <label>颜色种类数量:</label>
+                <input type="number" id="cfgColors" min="2" max="12" value="6">
+            </div>
+            <div class="form-item">
+                <label>空闲列数量:</label>
+                <input type="number" id="cfgFreeTubes" min="1" max="5" value="3">
+            </div>
+            <div class="form-item">
+                <label>每列球数(容量):</label>
+                <input type="number" id="cfgCapacity" min="3" max="16" value="12">
+            </div>
+            <div class="form-item" style="font-size:0.8rem; color:#aaa;">
+                * 总列数将自动计算为: <b id="totalColText" style="color:#ffd166">9</b> 列
+            </div>
+            <div class="modal-actions">
+                <button style="background:#6c757d;" onclick="closeModal('configModal')">取消</button>
+                <button style="background:#06d6a0;" onclick="applyConfig()">保存并新开局</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 通关面板 -->
+    <div id="winModal" class="modal">
+        <div class="modal-content" style="text-align: center;">
+            <div class="win-title">🎉 恭喜通关！</div>
+            <p style="margin: 15px 0;">总共使用了 <b id="finalMoves" style="color:#ffd166;">0</b> 步</p>
+            <button style="background:#06d6a0; width: 100%; padding: 12px;" onclick="restartGame(); closeModal('winModal');">再来一局</button>
+        </div>
+    </div>
+
+    <script>
+        // 颜色调色板 (高辨识度与渐变表现良好)
+        const COLOR_PALETTE = [
+  "#FF0000", // 纯红
+  "#00FF00", // 纯绿
+  "#0000FF", // 纯蓝
+  "#FFFF00", // 纯黄
+  "#FF00FF", // 品红
+  "#00FFFF", // 青色
+  "#000000", // 黑色
+  "#FFFFFF", // 白色
+  "#FF8000", // 橙色
+  "#8000FF", // 紫罗兰
+  "#008080", // 鸭绿色
+  "#FFC0CB", // 粉色
+  "#8B4513", // 棕色
+  "#A0A0A0", // 灰色
+  "#FF6347", // 番茄红
+  "#4B0082", // 靛蓝
+  "#98FB98", // 浅绿
+  "#800000", // 栗色
+  "#40E0D0", // 松石绿
+  "#F5F5DC", // 米色
+        ];
+
+        // 默认配置
+        let config = {
+            colors: 6,       // 颜色数
+            freeTubes: 3,    // 空闲列
+            capacity: 12     // 每列容量
+        };
+
+        let tubes = [];         // 存储各列珠子数据
+        let selectedTube = null;// 当前选中列的索引
+        let moveCount = 0;      // 步数计数器
+
+        // 初始化
+        window.onload = () => {
+            document.getElementById('cfgColors').addEventListener('input', updateTotalTubes);
+            document.getElementById('cfgFreeTubes').addEventListener('input', updateTotalTubes);
+            restartGame();
+        };
+
+        function updateTotalTubes() {
+            const colors = parseInt(document.getElementById('cfgColors').value) || 0;
+            const free = parseInt(document.getElementById('cfgFreeTubes').value) || 0;
+            document.getElementById('totalColText').innerText = colors + free;
+        }
+
+        // 开始/重置游戏
+        function restartGame() {
+            moveCount = 0;
+            selectedTube = null;
+            document.getElementById('moveCount').innerText = moveCount;
+            initTubesData();
+            render();
+        }
+
+        // 初始化球与列数据
+        function initTubesData() {
+            tubes = [];
+            let ballPool = [];
+
+            // 1. 生成打乱的球池
+            for (let c = 0; c < config.colors; c++) {
+                for (let i = 0; i < config.capacity; i++) {
+                    ballPool.push(COLOR_PALETTE[c % COLOR_PALETTE.length]);
+                }
+            }
+            shuffleArray(ballPool);
+
+            // 2. 填充有球的列
+            for (let c = 0; c < config.colors; c++) {
+                tubes.push(ballPool.splice(0, config.capacity));
+            }
+
+            // 3. 填充空闲列
+            for (let f = 0; f < config.freeTubes; f++) {
+                tubes.push([]);
+            }
+        }
+
+        function shuffleArray(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+        }
+
+        // 渲染视图
+        function render() {
+            const gameArea = document.getElementById('game-area');
+            gameArea.innerHTML = '';
+
+            // 计算响应式尺寸（适配容量和数量）
+            const totalTubes = tubes.length;
+            const screenWidth = window.innerWidth;
+            const screenHeight = window.innerHeight;
+
+            // 根据屏幕空间计算球的尺寸
+            const maxTubeHeight = Math.min(screenHeight * 0.65, 550);
+            let ballSize = Math.floor((maxTubeHeight - 30) / config.capacity);
+            ballSize = Math.max(16, Math.min(ballSize, 40)); // 限制球的尺寸在 16px - 40px
+
+            const tubeWidth = ballSize + 12;
+            const tubeHeight = ballSize * config.capacity + 15;
+
+            tubes.forEach((tube, tubeIdx) => {
+                const tubeEl = document.createElement('div');
+                tubeEl.className = `tube ${selectedTube === tubeIdx ? 'selected' : ''}`;
+                tubeEl.style.width = `${tubeWidth}px`;
+                tubeEl.style.height = `${tubeHeight}px`;
+                tubeEl.onclick = () => handleTubeClick(tubeIdx);
+
+                // 判断顶部同色球的数量（以便加抬起动画效果）
+                let liftCount = 0;
+                if (selectedTube === tubeIdx && tube.length > 0) {
+                    const topColor = tube[tube.length - 1];
+                    for (let i = tube.length - 1; i >= 0; i--) {
+                        if (tube[i] === topColor) liftCount++;
+                        else break;
+                    }
+                }
+
+                tube.forEach((color, ballIdx) => {
+                    const ballEl = document.createElement('div');
+                    ballEl.className = 'ball';
+                    ballEl.style.width = `${ballSize}px`;
+                    ballEl.style.height = `${ballSize}px`;
+                    ballEl.style.backgroundColor = color;
+
+                    // 被选中列顶部的同色球做浮空动画
+                    if (ballIdx >= tube.length - liftCount) {
+                        ballEl.classList.add('top-lift');
+                    }
+
+                    tubeEl.appendChild(ballEl);
+                });
+
+                gameArea.appendChild(tubeEl);
+            });
+        }
+
+        // 列点击事件核心交互
+        function handleTubeClick(index) {
+            if (selectedTube === null) {
+                // 选择源列 (非空才能选)
+                if (tubes[index].length > 0) {
+                    selectedTube = index;
+                    render();
+                }
+            } else if (selectedTube === index) {
+                // 点击自身，取消选中
+                selectedTube = null;
+                render();
+            } else {
+                // 尝试从 selectedTube 移动到 index
+                const src = tubes[selectedTube];
+                const dst = tubes[index];
+
+                // 目标列是否有空位
+                const space = config.capacity - dst.length;
+                if (space > 0) {
+                    const topColor = src[src.length - 1];
+
+                    // 目标列为空 或 顶部颜色一致
+                    if (dst.length === 0 || dst[dst.length - 1] === topColor) {
+                        // 计算源列顶部有几个相同颜色的珠子
+                        let matchCount = 0;
+                        for (let i = src.length - 1; i >= 0; i--) {
+                            if (src[i] === topColor) matchCount++;
+                            else break;
+                        }
+
+                        // 决定这次能搬移的球数量（取同色数量与目标空位的较小值）
+                        const moveCountActual = Math.min(matchCount, space);
+
+                        // 移动珠子
+                        for (let k = 0; k < moveCountActual; k++) {
+                            dst.push(src.pop());
+                        }
+
+                        moveCount++;
+                        document.getElementById('moveCount').innerText = moveCount;
+
+                        selectedTube = null;
+                        render();
+                        checkWin();
+                        return;
+                    }
+                }
+                
+                // 如果无法移动且目标列非空，则切换选中的源列为当前点击列
+                if (tubes[index].length > 0) {
+                    selectedTube = index;
+                } else {
+                    selectedTube = null;
+                }
+                render();
+            }
+        }
+
+        // 胜利条件检查
+        function checkWin() {
+            const isWin = tubes.every(tube => {
+                if (tube.length === 0) return true; // 空列合法
+                if (tube.length !== config.capacity) return false; // 没满不合法
+                const firstColor = tube[0];
+                return tube.every(color => color === firstColor); // 全同色合法
+            });
+
+            if (isWin) {
+                setTimeout(() => {
+                    document.getElementById('finalMoves').innerText = moveCount;
+                    document.getElementById('winModal').classList.add('active');
+                }, 200);
+            }
+        }
+
+        // 配置窗口逻辑
+        function openConfigModal() {
+            document.getElementById('cfgColors').value = config.colors;
+            document.getElementById('cfgFreeTubes').value = config.freeTubes;
+            document.getElementById('cfgCapacity').value = config.capacity;
+            updateTotalTubes();
+            document.getElementById('configModal').classList.add('active');
+        }
+
+        function closeModal(id) {
+            document.getElementById(id).classList.remove('active');
+        }
+
+        function applyConfig() {
+            const colors = Math.max(2, Math.min(12, parseInt(document.getElementById('cfgColors').value) || 6));
+            const free = Math.max(1, Math.min(5, parseInt(document.getElementById('cfgFreeTubes').value) || 3));
+            const capacity = Math.max(3, Math.min(16, parseInt(document.getElementById('cfgCapacity').value) || 12));
+
+            config.colors = colors;
+            config.freeTubes = free;
+            config.capacity = capacity;
+
+            closeModal('configModal');
+            restartGame();
+        }
+
+        // 监听窗口缩放，自动自适应
+        window.onresize = () => render();
+    </script>
+</body>
+</html>

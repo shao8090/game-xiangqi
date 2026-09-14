@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>3D 两阶魔方</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none}
+  html,body{height:100%;overflow:hidden;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif}
+  body{display:flex;flex-direction:column;background:radial-gradient(1200px 800px at 50% 15%,#2b3a67,#1a2238 60%,#10142a)}
+  #hud{display:flex;align-items:center;gap:10px;padding:12px;flex-wrap:wrap;color:#fff}
+  .btn{border:none;cursor:pointer;color:#fff;font-size:15px;padding:9px 18px;border-radius:12px;
+       background:linear-gradient(135deg,#4f6df5,#7b3ff2);box-shadow:0 4px 14px rgba(79,109,245,.4);
+       transition:transform .1s}
+  .btn:active{transform:scale(.94)}
+  .btn.gray{background:linear-gradient(135deg,#3a4358,#2a3040);box-shadow:0 4px 14px rgba(0,0,0,.35)}
+  .stat{font-size:14px;opacity:.85;margin-left:4px}
+  .stat b{font-size:16px;color:#7fe3ff}
+  #wrap{flex:1;position:relative;touch-action:none}
+  canvas{display:block}
+  #hint{position:fixed;bottom:12px;width:100%;text-align:center;font-size:12px;color:#fff;opacity:.55;pointer-events:none}
+  #toast{position:fixed;left:50%;top:16%;transform:translateX(-50%);background:rgba(0,0,0,.78);color:#fff;
+         padding:12px 24px;border-radius:14px;font-size:16px;opacity:0;pointer-events:none;transition:opacity .3s;z-index:9;
+         white-space:nowrap}
+  #toast.show{opacity:1}
+</style>
+<script src="three.min.js"></script>
+</head>
+<body>
+<div id="hud">
+  <button class="btn" id="btnShuffle">🔀 打乱</button>
+  <button class="btn gray" id="btnReset">↺ 复原</button>
+  <span class="stat">步数 <b id="moves">0</b></span>
+  <span class="stat">时间 <b id="time">00:00</b></span>
+</div>
+<div id="wrap"></div>
+<div id="hint">👆 滑动魔方表面转动一层 · 拖动空白处旋转视角 · 双指/滚轮缩放</div>
+<div id="toast"></div>
+
+<script>
+(function(){
+  /* ---------- 基础场景 ---------- */
+  const wrap = document.getElementById('wrap');
+  const renderer = new THREE.WebGLRenderer({antialias:true, alpha:true});
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio||1, 2));
+  wrap.appendChild(renderer.domElement);
+  const dom = renderer.domElement;
+
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 100);
+  scene.add(new THREE.AmbientLight(0xffffff, 0.9));
+  const dl = new THREE.DirectionalLight(0xffffff, 0.45);
+  dl.position.set(6, 10, 8);
+  scene.add(dl);
+
+  /* ---------- 构建 2x2x2 魔方（贴纸式配色） ---------- */
+  const C = {R:0xb71234, L:0xff5800, U:0xffffff, D:0xffd500, F:0x009b48, B:0x0046ad, X:0x14141c};
+  const CUBE_SIZE = 0.96;
+  const geo = new THREE.BoxGeometry(CUBE_SIZE, CUBE_SIZE, CUBE_SIZE);
+  const cubies = [];
+  const OFFSET = (CUBE_SIZE + 0.04);
+  const positions = [-OFFSET/2, OFFSET/2];
+
+  for(let x of positions) for(let y of positions) for(let z of positions){
+    const stickers = [];
+    const mat = (nx,ny,nz,col)=>{
+      if(col!==C.X) stickers.push({n:new THREE.Vector3(nx,ny,nz), c:col});
+      return new THREE.MeshLambertMaterial({color:col});
+    };
+    const xi = x > 0 ? 1 : -1;
+    const yi = y > 0 ? 1 : -1;
+    const zi = z > 0 ? 1 : -1;
+    const mats = [
+      mat( 1,0, 0, x > 0 ? C.R : C.X),
+      mat(-1,0, 0, x < 0 ? C.L : C.X),
+      mat(0, 1, 0, y > 0 ? C.U : C.X),
+      mat(0,-1, 0, y < 0 ? C.D : C.X),
+      mat(0, 0, 1, z > 0 ? C.F : C.X),
+      mat(0, 0,-1, z < 0 ? C.B : C.X),
+    ];
+    const m = new THREE.Mesh(geo, mats);
+    m.position.set(x, y, z);
+    m.userData = {init: m.position.clone(), stickers};
+    scene.add(m);
+    cubies.push(m);
+  }
+
+  /* ---------- 相机轨道 + 缩放 ---------- */
+  let RAD = 12;
+  const RAD_MIN = 3.5, RAD_MAX = 18;
+  let theta = 0.8, phi = 1.02;
+  const DEF = {theta:0.8, phi:1.02, rad:RAD};
+
+  function updCam(){
+    camera.position.setFromSphericalCoords(RAD, phi, theta);
+    camera.lookAt(0,0,0);
+  }
+  function resize(){
+    const w = wrap.clientWidth, h = wrap.clientHeight;
+    renderer.setSize(w, h);
+    camera.aspect = w/h;
+    camera.updateProjectionMatrix();
+  }
+  window.addEventListener('resize', resize);
+  resize(); updCam();
+
+  /* ---------- 状态 ---------- */
+  let anim = null, queue = null, busy = false;
+  let moveCount = 0, started = false, timing = false, tStart = 0, tEnd = 0;
+  const movesEl = document.getElementById('moves');
+  const timeEl  = document.getElementById('time');
+
+  const ray = new THREE.Raycaster();
+  const ndc = new THREE.Vector2();
+  let drag = null;
+
+  /* ---------- 旋转一层 ---------- */
+  function doMove(axis, layer, dir, dur, cb){
+    busy = true;
+    const pivot = new THREE.Group();
+    scene.add(pivot);
+    const comp = axis.x!==0 ? 'x' : (axis.y!==0 ? 'y' : 'z');
+    const layerVal = Math.round(layer / (OFFSET/2));
+    for(const c of cubies)
+      if(Math.round(c.position[comp] / (OFFSET/2)) === layerVal) pivot.attach(c);
+    anim = {pivot, comp, to: Math.PI/2*dir, t0: performance.now(), dur, cb};
+  }
+  function finish(){
+    const a = anim; anim = null;
+    a.pivot.rotation[a.comp] = a.to;
+    a.pivot.updateMatrixWorld(true);
+    const kids = a.pivot.children.slice();
+    for(const k of kids){
+      scene.attach(k);
+      k.position.x = Math.round(k.position.x / (OFFSET/2)) * (OFFSET/2);
+      k.position.y = Math.round(k.position.y / (OFFSET/2)) * (OFFSET/2);
+      k.position.z = Math.round(k.position.z / (OFFSET/2)) * (OFFSET/2);
+    }
+    scene.remove(a.pivot);
+    busy = (queue && queue.length) > 0;
+    if(a.cb) a.cb();
+  }
+
+  /* ---------- 是否已还原 ---------- */
+  function isSolved(){
+    const q0 = cubies[0].quaternion;
+    const isMatch = (qA, qB) => Math.abs(qA.dot(qB)) > 0.999;
+    return cubies.every(c => isMatch(c.quaternion, q0));
+  }
+
+  /* ========== 交互：单指转层 / 拖视角，双指缩放，滚轮缩放 ========== */
+
+  // --- 指针按下 ---
+  dom.addEventListener('pointerdown', e=>{
+    e.preventDefault();
+    dom.setPointerCapture(e.pointerId);
+    const rect = dom.getBoundingClientRect();
+    ndc.set(((e.clientX-rect.left)/rect.width)*2-1, -((e.clientY-rect.top)/rect.height)*2+1);
+    ray.setFromCamera(ndc, camera);
+    const hits = ray.intersectObjects(cubies);
+    if(hits.length && !busy){
+      const h = hits[0];
+      const n = h.face.normal.clone().transformDirection(h.object.matrixWorld);
+      n.set(Math.round(n.x), Math.round(n.y), Math.round(n.z));
+      drag = {type:'layer', cubie:h.object, n, point:h.point.clone(), sx:e.clientX, sy:e.clientY, done:false};
+    }else{
+      drag = {type:'view', sx:e.clientX, sy:e.clientY};
+    }
+  });
+
+  // --- 指针移动 ---
+  dom.addEventListener('pointermove', e=>{
+    if(!drag) return;
+    const dx = e.clientX-drag.sx, dy = e.clientY-drag.sy;
+    if(drag.type === 'view'){
+      theta -= dx*0.008;
+      phi   -= dy*0.008;
+      phi = Math.max(0.15, Math.min(Math.PI-0.15, phi));
+      drag.sx = e.clientX; drag.sy = e.clientY;
+      updCam();
+    }else if(!drag.done && Math.hypot(dx,dy) > 14){
+      drag.done = true;
+      decide(drag, dx, dy);
+      drag = null;
+    }
+  });
+  window.addEventListener('pointerup',    ()=> drag=null);
+  window.addEventListener('pointercancel',()=> drag=null);
+
+  // --- 双指捏合缩放（触摸）---
+  let pinchDist0 = 0, pinchRad0 = RAD;
+  dom.addEventListener('touchstart', e=>{
+    if(e.touches.length === 2){
+      drag = null;
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      pinchDist0 = Math.hypot(dx, dy);
+      pinchRad0  = RAD;
+    }
+  }, {passive:false});
+
+  dom.addEventListener('touchmove', e=>{
+    if(e.touches.length === 2){
+      e.preventDefault();
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      const dist = Math.hypot(dx, dy);
+      if(pinchDist0 > 0){
+        const scale = pinchDist0 / dist;
+        RAD = clamp(pinchRad0 * scale, RAD_MIN, RAD_MAX);
+        updCam();
+      }
+    }
+  }, {passive:false});
+
+  dom.addEventListener('touchend', ()=>{ pinchDist0 = 0; });
+
+  // --- 鼠标滚轮缩放（PC）---
+  dom.addEventListener('wheel', e=>{
+    e.preventDefault();
+    const factor = 1 + e.deltaY * 0.001;
+    RAD = clamp(RAD * factor, RAD_MIN, RAD_MAX);
+    updCam();
+  }, {passive:false});
+
+  function clamp(v, min, max){ return Math.max(min, Math.min(max, v)); }
+
+  // --- 滑动方向判定 ---
+  function decide(d, dx, dy){
+    const n = d.n;
+    const ts = [];
+    if(n.x===0) ts.push(new THREE.Vector3(1,0,0));
+    if(n.y===0) ts.push(new THREE.Vector3(0,1,0));
+    if(n.z===0) ts.push(new THREE.Vector3(0,0,1));
+    const dragV = new THREE.Vector2(dx, -dy).normalize();
+    let best=null, bs=0;
+    for(const t of ts){
+      const sd = scrDir(d.point, t);
+      const s = sd.dot(dragV);
+      if(Math.abs(s) > Math.abs(bs)){ bs = s; best = t.clone().multiplyScalar(Math.sign(s)); }
+    }
+    const axis = new THREE.Vector3().crossVectors(n, best);
+    const comp = axis.x!==0 ? 'x' : (axis.y!==0 ? 'y' : 'z');
+    const layer = d.cubie.position[comp];
+    if(!started){ started = true; timing = true; tStart = performance.now(); }
+    doMove(axis, layer, 1, 200, ()=>{
+      moveCount++; movesEl.textContent = moveCount;
+      if(!busy && started && isSolved()){
+        stopTime(); started = false;
+        toast('🎉 还原成功！步数 '+moveCount+'，用时 '+timeEl.textContent);
+      }
+    });
+  }
+  function scrDir(p, v){
+    const a = p.clone().project(camera);
+    const b = p.clone().add(v).project(camera);
+    return new THREE.Vector2(b.x-a.x, b.y-a.y).normalize();
+  }
+
+  /* ---------- 打乱 / 复原 ---------- */
+  document.getElementById('btnShuffle').onclick = ()=>{
+    if(busy) return;
+    queue = [];
+    const axes = [new THREE.Vector3(1,0,0), new THREE.Vector3(0,1,0), new THREE.Vector3(0,0,1)];
+    const levels = [-OFFSET/2, OFFSET/2];
+    let lastK = '';
+    while(queue.length < 12){
+      const a = axes[Math.random()*3|0];
+      const l = levels[Math.random()*2|0];
+      const dir = Math.random()<0.5 ? 1 : -1;
+      const comp = a.x!==0?'x':(a.y!==0?'y':'z');
+      const k = comp + l;
+      if(k === lastK) continue;
+      lastK = k;
+      queue.push({axis:a, layer:l, dir});
+    }
+    moveCount = 0; movesEl.textContent = 0;
+    timing = false; started = false; tEnd = 0; timeEl.textContent = '00:00';
+    runNext();
+  };
+  function runNext(){
+    if(queue && queue.length){
+      const m = queue.shift();
+      doMove(m.axis, m.layer, m.dir, 130, runNext);
+    }else{
+      queue = null; busy = false;
+      started = true; timing = true; tStart = performance.now();
+    }
+  }
+
+  document.getElementById('btnReset').onclick = ()=>{
+    if(busy){ toast('动画进行中，请稍候…'); return; }
+    for(const c of cubies){
+      c.position.copy(c.userData.init);
+      c.quaternion.identity();
+    }
+    moveCount = 0; movesEl.textContent = 0;
+    started = false; timing = false; tEnd = 0; timeEl.textContent = '00:00';
+    theta = DEF.theta; phi = DEF.phi; RAD = DEF.rad; updCam();
+    toast('↺ 已复原');
+  };
+
+  /* ---------- 计时 & 提示 ---------- */
+  function stopTime(){ timing = false; tEnd = performance.now() - tStart; timeEl.textContent = fmt(tEnd); }
+  function fmt(ms){
+    const s = Math.floor(ms/1000);
+    return String(Math.floor(s/60)).padStart(2,'0') + ':' + String(s%60).padStart(2,'0');
+  }
+  let toastTimer;
+  function toast(msg){
+    const t = document.getElementById('toast');
+    t.textContent = msg; t.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(()=> t.classList.remove('show'), 2600);
+  }
+
+  /* ---------- 渲染循环 ---------- */
+  function tick(now){
+    requestAnimationFrame(tick);
+    if(anim){
+      let k = (now - anim.t0) / anim.dur;
+      if(k > 1) k = 1;
+      const e = k<0.5 ? 2*k*k : 1 - Math.pow(-2*k+2, 2)/2;
+      anim.pivot.rotation[anim.comp] = anim.to * e;
+      if(k === 1) finish();
+    }
+    if(timing) timeEl.textContent = fmt(now - tStart);
+    renderer.render(scene, camera);
+  }
+  requestAnimationFrame(tick);
+})();
+</script>
+</body>
+</html>
