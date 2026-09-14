@@ -417,21 +417,35 @@
             if (n.x === 0) ts.push(new THREE.Vector3(1, 0, 0));
             if (n.y === 0) ts.push(new THREE.Vector3(0, 1, 0));
             if (n.z === 0) ts.push(new THREE.Vector3(0, 0, 1));
+
             const dragV = new THREE.Vector2(dx, -dy).normalize();
+
+            // 在面内两个切向中，选出屏幕投影方向与手指滑动最贴合的那个
             let best = null, bs = 0;
             for (const t of ts) {
-                const sd = scrDir(d.point, t);
-                const s = sd.dot(dragV);
-                if (Math.abs(s) > Math.abs(bs)) { bs = s; best = t.clone().multiplyScalar(Math.sign(s)); }
+                const s = scrDir(d.point, t).dot(dragV);
+                if (Math.abs(s) > Math.abs(bs)) {
+                    bs = s;
+                    best = t.clone().multiplyScalar(Math.sign(s));
+                }
             }
-            const axis = new THREE.Vector3().crossVectors(n, best);
-            const comp = axis.x !== 0 ? 'x' : (axis.y !== 0 ? 'y' : 'z');
+            if (!best) return;
+
+            // 旋转轴 a 需满足：面上点速度 a × n 与 best 同向  =>  a = n × best
+            // ⚠️ 关键修复：必须保留轴向的符号，否则部分面/方向会转反
+            const axisVec = new THREE.Vector3().crossVectors(n, best);
+
+            let comp, dir;
+            if (Math.abs(axisVec.x) > 0.5)      { comp = 'x'; dir = Math.sign(axisVec.x); }
+            else if (Math.abs(axisVec.y) > 0.5) { comp = 'y'; dir = Math.sign(axisVec.y); }
+            else                                { comp = 'z'; dir = Math.sign(axisVec.z); }
+
             const rawLayer = d.cubie.position[comp] / STEP;
             let layerCoord = Math.round(rawLayer - 0.5) + 0.5;
             layerCoord = Math.max(-1.5, Math.min(1.5, layerCoord));
 
             startTimer();
-            rotateSlice(comp, layerCoord, 1);
+            rotateSlice(comp, layerCoord, dir);
         }
 
         function scrDir(p, v) {

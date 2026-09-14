@@ -67,9 +67,6 @@
       if(col!==C.X) stickers.push({n:new THREE.Vector3(nx,ny,nz), c:col});
       return new THREE.MeshLambertMaterial({color:col});
     };
-    const xi = x > 0 ? 1 : -1;
-    const yi = y > 0 ? 1 : -1;
-    const zi = z > 0 ? 1 : -1;
     const mats = [
       mat( 1,0, 0, x > 0 ? C.R : C.X),
       mat(-1,0, 0, x < 0 ? C.L : C.X),
@@ -94,6 +91,7 @@
   function updCam(){
     camera.position.setFromSphericalCoords(RAD, phi, theta);
     camera.lookAt(0,0,0);
+    camera.updateMatrixWorld();
   }
   function resize(){
     const w = wrap.clientWidth, h = wrap.clientHeight;
@@ -123,7 +121,8 @@
     const layerVal = Math.round(layer / (OFFSET/2));
     for(const c of cubies)
       if(Math.round(c.position[comp] / (OFFSET/2)) === layerVal) pivot.attach(c);
-    anim = {pivot, comp, to: Math.PI/2*dir, t0: performance.now(), dur, cb};
+    const angle = typeof dir === 'number' && Math.abs(dir) > 0.5 ? Math.sign(dir) * Math.PI/2 : Math.PI/2 * dir;
+    anim = {pivot, comp, to: angle, t0: performance.now(), dur, cb};
   }
   function finish(){
     const a = anim; anim = null;
@@ -225,36 +224,64 @@
 
   function clamp(v, min, max){ return Math.max(min, Math.min(max, v)); }
 
-  // --- 滑动方向判定 ---
+  /* --------------------------------------------------------------
+     滑动方向判定（核心修正）
+     --------------------------------------------------------------
+     旧版按「面法线是哪个轴 + 屏幕 dx/dy 正负」硬编码方向，
+     只对正对着看的那一面成立，侧面/顶面会左右颠倒。
+
+     新思路：
+       1. 把屏幕上的拖动向量 (dx,dy) 换算到世界空间 dragDir；
+       2. 在该面的两个面内轴里，挑与 dragDir 最贴合的那个切线 t；
+       3. 旋转轴 a = n × t —— 绕 a 正向旋转时，
+          接触点速度 v = a × p = d·t，正好沿着 t 的方向，
+          也就是手指拖的方向。
+  -------------------------------------------------------------- */
   function decide(d, dx, dy){
     const n = d.n;
-    const ts = [];
-    if(n.x===0) ts.push(new THREE.Vector3(1,0,0));
-    if(n.y===0) ts.push(new THREE.Vector3(0,1,0));
-    if(n.z===0) ts.push(new THREE.Vector3(0,0,1));
-    const dragV = new THREE.Vector2(dx, -dy).normalize();
-    let best=null, bs=0;
-    for(const t of ts){
-      const sd = scrDir(d.point, t);
-      const s = sd.dot(dragV);
-      if(Math.abs(s) > Math.abs(bs)){ bs = s; best = t.clone().multiplyScalar(Math.sign(s)); }
+    const cubie = d.cubie;
+
+    // 相机在世界空间中的右 / 上方向
+    camera.updateMatrixWorld();
+    const camRight = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 0);
+    const camUp    = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 1);
+
+    // 屏幕拖动向量 → 世界空间（屏幕 y 轴向下，所以取负）
+    const dragDir = new THREE.Vector3()
+      .addScaledVector(camRight, dx)
+      .addScaledVector(camUp, -dy);
+
+    // 在面内的两个轴里，选与拖动方向最贴合的那个作为切线方向
+    const AXES = [new THREE.Vector3(1,0,0), new THREE.Vector3(0,1,0), new THREE.Vector3(0,0,1)];
+    let tangent = null, best = 0;
+    for(const e of AXES){
+      if(Math.abs(e.dot(n)) > 0.5) continue;          // 与法线同轴，不是面内方向
+      const proj = e.dot(dragDir);
+      if(Math.abs(proj) > Math.abs(best)){
+        best = proj;
+        tangent = e.clone().multiplyScalar(Math.sign(proj));
+      }
     }
-    const axis = new THREE.Vector3().crossVectors(n, best);
-    const comp = axis.x!==0 ? 'x' : (axis.y!==0 ? 'y' : 'z');
-    const layer = d.cubie.position[comp];
+    if(!tangent) return;                               // 理论上不会发生
+
+    // 旋转轴 = n × t
+    const a = new THREE.Vector3().crossVectors(n, tangent);
+    let comp, dir;
+    if(Math.abs(a.x) > 0.5){ comp = 'x'; dir = Math.sign(a.x); }
+    else if(Math.abs(a.y) > 0.5){ comp = 'y'; dir = Math.sign(a.y); }
+    else { comp = 'z'; dir = Math.sign(a.z); }
+
+    const axis  = new THREE.Vector3(comp==='x'?1:0, comp==='y'?1:0, comp==='z'?1:0);
+    const layer = cubie.position[comp];
+
     if(!started){ started = true; timing = true; tStart = performance.now(); }
-    doMove(axis, layer, 1, 200, ()=>{
+    doMove(axis, layer, dir, 200, ()=>{
       moveCount++; movesEl.textContent = moveCount;
       if(!busy && started && isSolved()){
         stopTime(); started = false;
         toast('🎉 还原成功！步数 '+moveCount+'，用时 '+timeEl.textContent);
       }
     });
-  }
-  function scrDir(p, v){
-    const a = p.clone().project(camera);
-    const b = p.clone().add(v).project(camera);
-    return new THREE.Vector2(b.x-a.x, b.y-a.y).normalize();
   }
 
   /* ---------- 打乱 / 复原 ---------- */
