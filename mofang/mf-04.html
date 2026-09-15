@@ -8,13 +8,13 @@
         *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none}
         html,body{height:100%;overflow:hidden;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif}
         body{display:flex;flex-direction:column;background:radial-gradient(1200px 800px at 50% 15%,#2b3a67,#1a2238 60%,#10142a)}
-        #hud{display:flex;align-items:center;gap:10px;padding:12px;flex-wrap:wrap;color:#fff}
-        #footer{display:flex;align-items:center;gap:10px;padding:12px;flex-wrap:wrap;color:#fff;background:rgba(0,0,0,.3);border-top:1px solid rgba(255,255,255,.1)}
-        .btn{border:none;cursor:pointer;color:#fff;font-size:15px;padding:9px 18px;border-radius:12px;background:linear-gradient(135deg,#4f6df5,#7b3ff2);box-shadow:0 4px 14px rgba(79,109,245,.4);transition:transform .1s}
+        #hud{display:flex;align-items:center;gap:8px;padding:10px 12px;flex-wrap:wrap;color:#fff}
+        #footer{display:flex;align-items:center;gap:8px;padding:10px 12px;flex-wrap:wrap;color:#fff;background:rgba(0,0,0,.3);border-top:1px solid rgba(255,255,255,.1)}
+        .btn{border:none;cursor:pointer;color:#fff;font-size:13px;padding:7px 14px;border-radius:10px;background:linear-gradient(135deg,#4f6df5,#7b3ff2);box-shadow:0 4px 14px rgba(79,109,245,.4);transition:transform .1s}
         .btn:active{transform:scale(.94)}
         .btn.gray{background:linear-gradient(135deg,#3a4358,#2a3040);box-shadow:0 4px 14px rgba(0,0,0,.35)}
-        .stat{font-size:14px;opacity:.85;margin-left:4px}
-        .stat b{font-size:16px;color:#7fe3ff}
+        .stat{font-size:12px;opacity:.85;margin-left:4px}
+        .stat b{font-size:14px;color:#7fe3ff}
         #wrap{flex:1;position:relative;touch-action:none}
         canvas{display:block}
         #hint{position:fixed;bottom:12px;width:100%;text-align:center;font-size:12px;color:#fff;opacity:.55;pointer-events:none}
@@ -46,13 +46,13 @@
         <button class="btn" id="btn-scramble">🔀 打乱</button>
         <button class="btn gray" id="btn-reset-view">↺ 视角</button>
         <button class="btn gray" id="btn-reset">↺ 复原</button>
+        <span class="stat" style="margin-left:auto">步数 <b id="steps">0</b></span>
     </div>
     <div id="wrap"></div>
     <div id="footer">
         <button class="btn" id="btn-save-snap">📸 存快照</button>
         <button class="btn gray" id="btn-list-snap">📋 快照库</button>
         <span class="stat" style="margin-left:auto">时间 <b id="timer">00:00</b></span>
-        <span class="stat">步数 <b id="steps">0</b></span>
     </div>
     <!-- <div id="hint">👆 滑动魔方表面转动一层 · 拖动空白处旋转视角</div> -->
     <div id="toast"></div>
