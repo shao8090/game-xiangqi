@@ -5,95 +5,36 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>四阶魔方 3D</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            -webkit-tap-highlight-color: transparent;
-            user-select: none;
-        }
-        html, body {
-            height: 100%;
-            overflow: hidden;
-            font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
-        }
-        body {
-            display: flex;
-            flex-direction: column;
-            background: radial-gradient(1200px 800px at 50% 15%, #2b3a67, #1a2238 60%, #10142a);
-        }
-        #hud {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            padding: 12px;
-            flex-wrap: wrap;
-            color: #fff;
-        }
-        .btn {
-            border: none;
-            cursor: pointer;
-            color: #fff;
-            font-size: 15px;
-            padding: 9px 18px;
-            border-radius: 12px;
-            background: linear-gradient(135deg, #4f6df5, #7b3ff2);
-            box-shadow: 0 4px 14px rgba(79, 109, 245, .4);
-            transition: transform .1s;
-        }
-        .btn:active {
-            transform: scale(.94);
-        }
-        .btn.gray {
-            background: linear-gradient(135deg, #3a4358, #2a3040);
-            box-shadow: 0 4px 14px rgba(0, 0, 0, .35);
-        }
-        .stat {
-            font-size: 14px;
-            opacity: .85;
-            margin-left: 4px;
-        }
-        .stat b {
-            font-size: 16px;
-            color: #7fe3ff;
-        }
-        #wrap {
-            flex: 1;
-            position: relative;
-            touch-action: none;
-        }
-        canvas {
-            display: block;
-        }
-        #hint {
-            position: fixed;
-            bottom: 12px;
-            width: 100%;
-            text-align: center;
-            font-size: 12px;
-            color: #fff;
-            opacity: .55;
-            pointer-events: none;
-        }
-        #toast {
-            position: fixed;
-            left: 50%;
-            top: 16%;
-            transform: translateX(-50%);
-            background: rgba(0, 0, 0, .78);
-            color: #fff;
-            padding: 12px 24px;
-            border-radius: 14px;
-            font-size: 16px;
-            opacity: 0;
-            pointer-events: none;
-            transition: opacity .3s;
-            z-index: 9;
-            white-space: nowrap;
-        }
-        #toast.show {
-            opacity: 1;
-        }
+        *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none}
+        html,body{height:100%;overflow:hidden;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif}
+        body{display:flex;flex-direction:column;background:radial-gradient(1200px 800px at 50% 15%,#2b3a67,#1a2238 60%,#10142a)}
+        #hud{display:flex;align-items:center;gap:10px;padding:12px;flex-wrap:wrap;color:#fff}
+        .btn{border:none;cursor:pointer;color:#fff;font-size:15px;padding:9px 18px;border-radius:12px;background:linear-gradient(135deg,#4f6df5,#7b3ff2);box-shadow:0 4px 14px rgba(79,109,245,.4);transition:transform .1s}
+        .btn:active{transform:scale(.94)}
+        .btn.gray{background:linear-gradient(135deg,#3a4358,#2a3040);box-shadow:0 4px 14px rgba(0,0,0,.35)}
+        .stat{font-size:14px;opacity:.85;margin-left:4px}
+        .stat b{font-size:16px;color:#7fe3ff}
+        #wrap{flex:1;position:relative;touch-action:none}
+        canvas{display:block}
+        #hint{position:fixed;bottom:12px;width:100%;text-align:center;font-size:12px;color:#fff;opacity:.55;pointer-events:none}
+        #toast{position:fixed;left:50%;top:16%;transform:translateX(-50%);background:rgba(0,0,0,.78);color:#fff;padding:12px 24px;border-radius:14px;font-size:16px;opacity:0;pointer-events:none;transition:opacity .3s;z-index:9;white-space:nowrap}
+        #toast.show{opacity:1}
+        #snapshot-modal{position:fixed;inset:0;background:rgba(0,0,0,.7);display:none;align-items:center;justify-content:center;z-index:100}
+        #snapshot-modal.show{display:flex}
+        .modal-box{background:#1e2436;border-radius:16px;padding:24px;width:90%;max-width:380px;color:#fff;box-shadow:0 10px 40px rgba(0,0,0,.5)}
+        .modal-box h3{margin:0 0 16px;font-size:18px}
+        .modal-box input{width:100%;padding:12px;border:1px solid #3a4358;border-radius:10px;background:#10142a;color:#fff;font-size:15px;outline:none;margin-bottom:16px}
+        .modal-box input:focus{border-color:#7b3ff2}
+        .modal-actions{display:flex;gap:10px;justify-content:flex-end}
+        .snapshot-list{max-height:300px;overflow-y:auto;margin-top:8px}
+        .snapshot-item{display:flex;align-items:center;gap:10px;padding:10px 12px;background:#10142a;border-radius:10px;margin-bottom:8px}
+        .snapshot-info{flex:1;overflow:hidden}
+        .snapshot-title{font-size:15px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .snapshot-time{font-size:12px;opacity:.5;margin-top:2px}
+        .snapshot-actions{display:flex;gap:6px}
+        .snapshot-actions button{border:none;cursor:pointer;font-size:12px;padding:6px 10px;border-radius:8px;color:#fff;background:linear-gradient(135deg,#4f6df5,#7b3ff2)}
+        .snapshot-actions button.del{background:linear-gradient(135deg,#c41e3a,#ff5800)}
+        .empty-tip{text-align:center;opacity:.5;padding:30px 0;font-size:14px}
     </style>
     <!-- Three.js -->
     <script src="three.min.js"></script>
@@ -104,11 +45,18 @@
         <button class="btn" id="btn-scramble">🔀 打乱</button>
         <button class="btn gray" id="btn-reset-view">↺ 视角</button>
         <button class="btn gray" id="btn-reset">↺ 复原</button>
+        <button class="btn" id="btn-save-snap" style="margin-left:auto">📸 存快照</button>
+        <button class="btn gray" id="btn-list-snap">📋 快照库</button>
         <span class="stat">时间 <b id="timer">00:00</b></span>
     </div>
     <div id="wrap"></div>
     <div id="hint">👆 滑动魔方表面转动一层 · 拖动空白处旋转视角</div>
     <div id="toast"></div>
+
+    <!-- 快照模态框 -->
+    <div id="snapshot-modal">
+        <div class="modal-box" id="modal-content"></div>
+    </div>
 
     <script>
         // --- 核心常量 ---
@@ -506,6 +454,153 @@
             initCube();
             toast('↺ 已复原');
         });
+
+        // ==================== 快照系统 ====================
+        const SNAPSHOT_KEY = 'xiangqi_snapshots';
+
+        function getSnapshots() {
+            try {
+                return JSON.parse(localStorage.getItem(SNAPSHOT_KEY)) || [];
+            } catch { return []; }
+        }
+
+        function saveSnapshots(list) {
+            localStorage.setItem(SNAPSHOT_KEY, JSON.stringify(list));
+        }
+
+        // 捕获当前魔方状态
+        function captureCubeState() {
+            return cubies.map(c => ({
+                pos: { x: c.position.x, y: c.position.y, z: c.position.z },
+                quat: { x: c.quaternion.x, y: c.quaternion.y, z: c.quaternion.z, w: c.quaternion.w }
+            }));
+        }
+
+        // 恢复魔方状态（直接设置，无动画）
+        function restoreCubeState(state) {
+            if (!state || state.length !== cubies.length) return false;
+            state.forEach((s, i) => {
+                cubies[i].position.set(s.pos.x, s.pos.y, s.pos.z);
+                cubies[i].quaternion.set(s.quat.x, s.quat.y, s.quat.z, s.quat.w);
+                snapCubie(cubies[i]);
+            });
+            return true;
+        }
+
+        // 保存快照
+        function saveSnapshot(title) {
+            const snaps = getSnapshots();
+            const snap = {
+                id: Date.now(),
+                title: title || `快照 ${snaps.length + 1}`,
+                time: new Date().toLocaleString('zh-CN'),
+                cube: captureCubeState()
+            };
+            snaps.unshift(snap);
+            saveSnapshots(snaps);
+            toast(`✓ 已保存"${snap.title}"`);
+        }
+
+        // 删除快照
+        function deleteSnapshot(id) {
+            const snaps = getSnapshots().filter(s => s.id !== id);
+            saveSnapshots(snaps);
+            openSnapshotList();
+        }
+
+        // 恢复快照
+        function restoreSnapshot(id) {
+            const snap = getSnapshots().find(s => s.id === id);
+            if (!snap) return;
+            if (isAnimating) { toast('动画进行中，请稍候…'); return; }
+            if (restoreCubeState(snap.cube)) {
+                toast(`✓ 已恢复"${snap.title}"`);
+                closeModal();
+            } else {
+                toast('快照数据不兼容');
+            }
+        }
+
+        // 模态框控制
+        const modal = document.getElementById('snapshot-modal');
+        const modalContent = document.getElementById('modal-content');
+
+        function openModal(html) {
+            modalContent.innerHTML = html;
+            modal.classList.add('show');
+        }
+        function closeModal() {
+            modal.classList.remove('show');
+        }
+        modal.addEventListener('click', e => {
+            if (e.target === modal) closeModal();
+        });
+
+        // 打开保存快照弹窗
+        function openSaveModal() {
+            if (isAnimating) { toast('动画进行中，请稍候…'); return; }
+            openModal(`
+                <h3>📸 保存快照</h3>
+                <input type="text" id="snap-title" placeholder="输入快照标题..." maxlength="30">
+                <div class="modal-actions">
+                    <button class="btn gray" id="modal-cancel">取消</button>
+                    <button class="btn" id="modal-save">保存</button>
+                </div>
+            `);
+            setTimeout(() => document.getElementById('snap-title').focus(), 50);
+            document.getElementById('modal-cancel').onclick = closeModal;
+            document.getElementById('modal-save').onclick = () => {
+                const title = document.getElementById('snap-title').value.trim();
+                saveSnapshot(title);
+                closeModal();
+            };
+            document.getElementById('snap-title').addEventListener('keydown', e => {
+                if (e.key === 'Enter') {
+                    const title = e.target.value.trim();
+                    saveSnapshot(title);
+                    closeModal();
+                }
+            });
+        }
+
+        // 打开快照列表弹窗
+        function openSnapshotList() {
+            const snaps = getSnapshots();
+            let listHtml = '<h3>📋 快照库</h3><div class="snapshot-list">';
+            if (snaps.length === 0) {
+                listHtml += '<div class="empty-tip">暂无快照</div>';
+            } else {
+                listHtml += snaps.map(s => `
+                    <div class="snapshot-item">
+                        <div class="snapshot-info">
+                            <div class="snapshot-title">${escapeHtml(s.title)}</div>
+                            <div class="snapshot-time">${s.time}</div>
+                        </div>
+                        <div class="snapshot-actions">
+                            <button onclick="window._restore(${s.id})">恢复</button>
+                            <button class="del" onclick="window._delete(${s.id})">删除</button>
+                        </div>
+                    </div>
+                `).join('');
+            }
+            listHtml += '</div><div class="modal-actions" style="margin-top:14px"><button class="btn gray" id="modal-close">关闭</button></div>';
+            openModal(listHtml);
+            document.getElementById('modal-close').onclick = closeModal;
+        }
+
+        function escapeHtml(str) {
+            const div = document.createElement('div');
+            div.textContent = str;
+            return div.innerHTML;
+        }
+
+        // 全局暴露给 onclick
+        window._restore = restoreSnapshot;
+        window._delete = deleteSnapshot;
+
+        // 按钮绑定
+        document.getElementById('btn-save-snap').addEventListener('click', openSaveModal);
+        document.getElementById('btn-list-snap').addEventListener('click', openSnapshotList);
 
         function render(now) {
             requestAnimationFrame(render);
