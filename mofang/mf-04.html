@@ -9,6 +9,7 @@
         html,body{height:100%;overflow:hidden;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif}
         body{display:flex;flex-direction:column;background:radial-gradient(1200px 800px at 50% 15%,#2b3a67,#1a2238 60%,#10142a)}
         #hud{display:flex;align-items:center;gap:10px;padding:12px;flex-wrap:wrap;color:#fff}
+        #footer{display:flex;align-items:center;gap:10px;padding:12px;flex-wrap:wrap;color:#fff;background:rgba(0,0,0,.3);border-top:1px solid rgba(255,255,255,.1)}
         .btn{border:none;cursor:pointer;color:#fff;font-size:15px;padding:9px 18px;border-radius:12px;background:linear-gradient(135deg,#4f6df5,#7b3ff2);box-shadow:0 4px 14px rgba(79,109,245,.4);transition:transform .1s}
         .btn:active{transform:scale(.94)}
         .btn.gray{background:linear-gradient(135deg,#3a4358,#2a3040);box-shadow:0 4px 14px rgba(0,0,0,.35)}
@@ -45,12 +46,15 @@
         <button class="btn" id="btn-scramble">🔀 打乱</button>
         <button class="btn gray" id="btn-reset-view">↺ 视角</button>
         <button class="btn gray" id="btn-reset">↺ 复原</button>
-        <button class="btn" id="btn-save-snap" style="margin-left:auto">📸 存快照</button>
-        <button class="btn gray" id="btn-list-snap">📋 快照库</button>
-        <span class="stat">时间 <b id="timer">00:00</b></span>
     </div>
     <div id="wrap"></div>
-    <div id="hint">👆 滑动魔方表面转动一层 · 拖动空白处旋转视角</div>
+    <div id="footer">
+        <button class="btn" id="btn-save-snap">📸 存快照</button>
+        <button class="btn gray" id="btn-list-snap">📋 快照库</button>
+        <span class="stat" style="margin-left:auto">时间 <b id="timer">00:00</b></span>
+        <span class="stat">步数 <b id="steps">0</b></span>
+    </div>
+    <!-- <div id="hint">👆 滑动魔方表面转动一层 · 拖动空白处旋转视角</div> -->
     <div id="toast"></div>
 
     <!-- 快照模态框 -->
@@ -259,6 +263,7 @@
             setButtonsDisabled(true);
             stopTimer();
             document.getElementById('timer').innerText = '00:00';
+            resetStats();
             toast('🔀 正在打乱...');
 
             const seq = generateScrambleSequence(24);
@@ -393,6 +398,7 @@
             layerCoord = Math.max(-1.5, Math.min(1.5, layerCoord));
 
             startTimer();
+            addStep();
             rotateSlice(comp, layerCoord, dir);
         }
 
@@ -402,9 +408,10 @@
             return new THREE.Vector2(b.x - a.x, b.y - a.y).normalize();
         }
 
-        // --- 计时器 ---
+        // --- 计时器与步数 ---
         let timeStart = 0;
         let timing = false;
+        let moveCount = 0;
 
         function startTimer() {
             if (timing) return;
@@ -414,6 +421,16 @@
 
         function stopTimer() {
             timing = false;
+        }
+
+        function resetStats() {
+            moveCount = 0;
+            document.getElementById('steps').innerText = '0';
+        }
+
+        function addStep() {
+            moveCount++;
+            document.getElementById('steps').innerText = moveCount;
         }
 
         function fmt(ms) {
@@ -446,6 +463,7 @@
             if (isAnimating) { toast('动画进行中，请稍候…'); return; }
             stopTimer();
             document.getElementById('timer').innerText = '00:00';
+            resetStats();
             theta = DEF.theta;
             phi = DEF.phi;
             RAD = DEF.rad;
@@ -514,6 +532,9 @@
             if (!snap) return;
             if (isAnimating) { toast('动画进行中，请稍候…'); return; }
             if (restoreCubeState(snap.cube)) {
+                stopTimer();
+                document.getElementById('timer').innerText = '00:00';
+                resetStats();
                 toast(`✓ 已恢复"${snap.title}"`);
                 closeModal();
             } else {
