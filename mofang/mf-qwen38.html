@@ -84,8 +84,8 @@
   /* ---------- 相机轨道 + 缩放 ---------- */
   let RAD = 20;
   const RAD_MIN = 4.5, RAD_MAX = 22;   // 缩放范围
-  let theta = 0.8, phi = 1.02;
-  const DEF = {theta:0.8, phi:1.02, rad:RAD};
+  let theta = 0.8, phi = 0.82;
+  const DEF = {theta:0.8, phi:0.82, rad:RAD};
 
   function updCam(){
     camera.position.setFromSphericalCoords(RAD, phi, theta);
