@@ -2,7 +2,9 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>游戏合集</title>
 <style>
   *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
@@ -14,62 +16,230 @@
     --accent2: #6c8ce0;
     --text: #e8dcc8;
     --text-muted: #8a7d6b;
+    --radius: 12px;
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
   }
+  html { font-size: 16px; -webkit-text-size-adjust: 100%; }
   body {
-    font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", "Helvetica Neue", sans-serif;
     background: var(--bg);
     background-image:
       radial-gradient(ellipse at 20% 10%, rgba(139,100,30,0.08) 0%, transparent 50%),
       radial-gradient(ellipse at 80% 80%, rgba(60,80,160,0.06) 0%, transparent 45%);
     color: var(--text);
     min-height: 100vh;
+    min-height: 100dvh;
     display: flex;
     flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: 24px;
+    padding: 16px 16px calc(16px + var(--safe-bottom));
+    -webkit-tap-highlight-color: transparent;
+    -webkit-font-smoothing: antialiased;
   }
-  .orb { position: fixed; border-radius: 50%; filter: blur(70px); opacity: 0.18; pointer-events: none; z-index: 0; }
-  .orb1 { width: 320px; height: 320px; background: #c5a55a; top: -60px; left: -60px; }
-  .orb2 { width: 280px; height: 280px; background: #6c8ce0; bottom: -50px; right: -40px; }
 
-  .header { text-align: center; margin-bottom: 36px; z-index: 1; }
+  /* 背景光晕 */
+  .orb { position: fixed; border-radius: 50%; filter: blur(70px); opacity: 0.15; pointer-events: none; z-index: 0; }
+  .orb1 { width: 200px; height: 200px; background: #c5a55a; top: -40px; left: -40px; }
+  .orb2 { width: 180px; height: 180px; background: #6c8ce0; bottom: -30px; right: -30px; }
+
+  /* 头部 */
+  .header {
+    text-align: center;
+    padding: 24px 0 20px;
+    z-index: 1;
+  }
   .header h1 {
-    font-size: 2.2rem; font-weight: 900; letter-spacing: 0.15em;
+    font-size: 1.6rem;
+    font-weight: 900;
+    letter-spacing: 0.12em;
     background: linear-gradient(135deg, var(--accent) 0%, #ffd76e 50%, var(--accent) 100%);
-    -webkit-background-clip: text; background-clip: text; color: transparent;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    line-height: 1.3;
   }
-  .header p { color: var(--text-muted); font-size: 0.95rem; margin-top: 6px; letter-spacing: 0.1em; }
+  .header p {
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    margin-top: 6px;
+    letter-spacing: 0.08em;
+  }
 
+  /* 游戏网格 - 移动端单列 */
   .grid {
-    z-index: 1; display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-    gap: 20px; max-width: 640px; width: 100%;
+    z-index: 1;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
+    width: 100%;
+    max-width: 480px;
+    margin: 0 auto;
+    flex: 1;
   }
+
+  /* 卡片 */
   .card {
-    display: block; text-decoration: none; color: inherit;
-    background: var(--surface); border: 1px solid rgba(255,255,255,0.06);
-    border-radius: 16px; padding: 28px 24px;
-    transition: all 0.3s ease; cursor: pointer;
-    position: relative; overflow: hidden;
+    display: flex;
+    align-items: center;
+    text-decoration: none;
+    color: inherit;
+    background: var(--surface);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: var(--radius);
+    padding: 16px;
+    transition: all 0.2s ease;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    min-height: 80px;
+    -webkit-user-select: none;
+    user-select: none;
   }
   .card::before {
-    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
-    background: var(--card-color, var(--accent)); opacity: 0.6;
-    transition: opacity 0.3s;
+    content: '';
+    position: absolute;
+    top: 0; left: 0; bottom: 0;
+    width: 4px;
+    background: var(--card-color, var(--accent));
+    opacity: 0.6;
+    transition: opacity 0.2s;
   }
-  .card:hover { transform: translateY(-4px); border-color: var(--card-color, var(--accent)); box-shadow: 0 12px 40px rgba(0,0,0,0.4); }
-  .card:hover::before { opacity: 1; }
-  .card .icon { font-size: 2.4rem; margin-bottom: 14px; }
-  .card h2 { font-size: 1.25rem; font-weight: 700; margin-bottom: 6px; letter-spacing: 0.04em; }
-  .card .tag { font-size: 0.75rem; color: var(--card-color, var(--accent)); margin-bottom: 10px; letter-spacing: 0.08em; }
-  .card p { font-size: 0.88rem; color: var(--text-muted); line-height: 1.6; }
+  .card:active {
+    transform: scale(0.98);
+    background: var(--surface2);
+  }
+  .card:active::before { opacity: 1; }
 
-  .footer { z-index: 1; margin-top: 32px; color: var(--text-muted); font-size: 0.8rem; letter-spacing: 0.05em; }
+  .card .icon {
+    font-size: 1.8rem;
+    margin-right: 14px;
+    flex-shrink: 0;
+    width: 48px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255,255,255,0.04);
+    border-radius: 10px;
+  }
+  .card .body { flex: 1; min-width: 0; }
+  .card .body-row {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+  }
+  .card h2 {
+    font-size: 1rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .card .tag {
+    font-size: 0.65rem;
+    color: var(--card-color, var(--accent));
+    letter-spacing: 0.05em;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .card p {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    line-height: 1.5;
+    margin-top: 4px;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
 
-  @media (max-width: 480px) {
-    .header h1 { font-size: 1.7rem; }
-    .grid { grid-template-columns: 1fr; }
+  /* 箭头指示 */
+  .card::after {
+    content: '›';
+    position: absolute;
+    right: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 1.4rem;
+    color: var(--text-muted);
+    opacity: 0.5;
+  }
+
+  /* 底部 */
+  .footer {
+    z-index: 1;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 0.7rem;
+    letter-spacing: 0.05em;
+    padding: 16px 0 8px;
+  }
+
+  /* 平板端 (600px+) */
+  @media (min-width: 600px) {
+    body { padding: 24px 24px calc(24px + var(--safe-bottom)); }
+    .header { padding: 32px 0 28px; }
+    .header h1 { font-size: 2rem; }
+    .header p { font-size: 0.9rem; }
+    .grid {
+      grid-template-columns: repeat(2, 1fr);
+      gap: 16px;
+      max-width: 600px;
+    }
+    .card { padding: 18px; }
+    .card .icon { font-size: 2rem; width: 52px; height: 52px; }
+    .card h2 { font-size: 1.1rem; }
+    .card p { font-size: 0.8rem; }
+    .footer { font-size: 0.8rem; padding: 20px 0 8px; }
+  }
+
+  /* PC端 (1024px+) */
+  @media (min-width: 1024px) {
+    body {
+      align-items: center;
+      justify-content: center;
+      padding: 32px;
+    }
+    .header { padding: 28px 0 32px; }
+    .header h1 { font-size: 2.4rem; }
+    .grid {
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 18px;
+      max-width: 720px;
+    }
+    .card {
+      flex-direction: column;
+      align-items: flex-start;
+      padding: 24px 20px;
+      min-height: auto;
+    }
+    .card::before {
+      width: auto;
+      height: 3px;
+      top: 0; left: 0; right: 0; bottom: auto;
+    }
+    .card::after { display: none; }
+    .card .icon {
+      font-size: 2.2rem;
+      margin-right: 0;
+      margin-bottom: 12px;
+      width: auto; height: auto;
+      background: none;
+      border-radius: 0;
+    }
+    .card .body { width: 100%; }
+    .card:hover {
+      transform: translateY(-4px);
+      border-color: var(--card-color, var(--accent));
+      box-shadow: 0 12px 40px rgba(0,0,0,0.4);
+    }
+    .card:hover::before { opacity: 1; }
+    .card:active { transform: translateY(-2px); }
+    .card h2 { font-size: 1.2rem; }
+    .card .tag { font-size: 0.72rem; }
+    .card p { font-size: 0.85rem; }
+    .orb1 { width: 320px; height: 320px; top: -60px; left: -60px; }
+    .orb2 { width: 280px; height: 280px; bottom: -50px; right: -40px; }
   }
 </style>
 </head>
@@ -83,69 +253,103 @@
 </div>
 
 <div class="grid">
-  <!-- <a class="card" href="001.html" style="--card-color: #c43030;">
-    <div class="icon">♟</div>
-    <h2>中国象棋</h2>
-    <div class="tag">经典版</div>
-    <p>原版中国象棋，双人对战或开启 AI 挑战，附带多算法难度配置。</p>
-  </a> -->
-  
   <a class="card" href="xiangqi/xiaomi.html" style="--card-color: #c5a55a;">
     <div class="icon">♟</div>
-    <h2>中国象棋 · AI</h2>
-    <div class="tag">单机对弈</div>
-    <p>与 AI 对弈的中国象棋，支持简单/中等/困难三档难度，悔棋功能。</p>
+    <div class="body">
+      <div class="body-row">
+        <h2>中国象棋 · AI</h2>
+        <span class="tag">单机对弈</span>
+      </div>
+      <p>与 AI 对弈的中国象棋，支持简单/中等/困难三档难度，悔棋功能。</p>
+    </div>
   </a>
-
 
   <a class="card" href="ccz-01.html" style="--card-color: #FFD60A;">
     <div class="icon">⬤</div>
-    <h2>彩珠排序</h2>
-    <div class="tag">益智 · 极简</div>
-    <p>将同色珠子归入同一管中通关，4 至 6 种颜色三种难度，极简暗色风格。</p>
+    <div class="body">
+      <div class="body-row">
+        <h2>彩珠排序</h2>
+        <span class="tag">益智 · 极简</span>
+      </div>
+      <p>将同色珠子归入同一管中通关，4 至 6 种颜色三种难度，极简暗色风格。</p>
+    </div>
   </a>
- 
+
   <a class="card" href="sz-ds.html" style="--card-color: #ffd76e;">
     <div class="icon">⬤</div>
-    <h2>数字归位 </h2>
-    <div class="tag">deepseek</div>
-    <p>数字归位 </p>
-  </a> 
+    <div class="body">
+      <div class="body-row">
+        <h2>数字归位</h2>
+        <span class="tag">deepseek</span>
+      </div>
+      <p>数字归位</p>
+    </div>
+  </a>
+
   <a class="card" href="zhipai-02.html" style="--card-color: #ffd76e;">
     <div class="icon">⬤</div>
-    <h2>蜘蛛纸牌 2 </h2>
-    <div class="tag">gemini-3.7-flash</div>
-    <p>蜘蛛纸牌 </p>
+    <div class="body">
+      <div class="body-row">
+        <h2>蜘蛛纸牌 2</h2>
+        <span class="tag">gemini-3.7-flash</span>
+      </div>
+      <p>蜘蛛纸牌</p>
+    </div>
   </a>
+
   <a class="card" href="saolei-01.html" style="--card-color: #ffd76e;">
     <div class="icon">⬤</div>
-    <h2>扫雷 </h2>
-    <div class="tag">gemini-3.7-flash</div>
-    <p>扫雷 </p>
+    <div class="body">
+      <div class="body-row">
+        <h2>扫雷</h2>
+        <span class="tag">gemini-3.7-flash</span>
+      </div>
+      <p>扫雷</p>
+    </div>
   </a>
+
   <a class="card" href="mofang/mf-qwen38.html" style="--card-color: #ffd76e;">
     <div class="icon">⬤</div>
-    <h2>魔方 </h2>
-    <div class="tag">qwen-3.8-max</div>
-    <p>魔方 </p>
+    <div class="body">
+      <div class="body-row">
+        <h2>魔方</h2>
+        <span class="tag">qwen-3.8-max</span>
+      </div>
+      <p>魔方</p>
+    </div>
   </a>
+
   <a class="card" href="mofang/mf-002.html" style="--card-color: #ffd76e;">
     <div class="icon">⬤</div>
-    <h2>二阶魔方 </h2>
-    <div class="tag">qwen-3.8-max</div>
-    <p>二阶魔方 </p>
+    <div class="body">
+      <div class="body-row">
+        <h2>二阶魔方</h2>
+        <span class="tag">qwen-3.8-max</span>
+      </div>
+      <p>二阶魔方</p>
+    </div>
   </a>
+
   <a class="card" href="mofang/mf-04.html" style="--card-color: #ffd76e;">
     <div class="icon">⬤</div>
-    <h2>四阶魔方 </h2>
-    <div class="tag">gemini-3.8-flash</div>
-    <p>四阶魔方 </p>
+    <div class="body">
+      <div class="body-row">
+        <h2>四阶魔方</h2>
+        <span class="tag">gemini-3.8-flash</span>
+      </div>
+      <p>四阶魔方</p>
+    </div>
   </a>
+
   <a class="card" href="agnes-image-2.1.html" style="--card-color: #ffd76e;">
     <div class="icon">⬤</div>
-    <h2>agnes-image-2.1 </h2>
-    <div class="tag">agnes-image-2.1</div>
-    <p> </p>
+    <div class="body">
+      <div class="body-row">
+        <h2>agnes-image-2.1</h2>
+        <span class="tag">agnes-image-2.1</span>
+      </div>
+      <p></p>
+    </div>
   </a>
 </div>
 
