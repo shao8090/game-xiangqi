@@ -16,6 +16,8 @@
   .btn.gray{background:linear-gradient(135deg,#3a4358,#2a3040);box-shadow:0 4px 14px rgba(0,0,0,.35)}
   .stat{font-size:14px;opacity:.85;margin-left:4px}
   .stat b{font-size:16px;color:#7fe3ff}
+  #footer{position:fixed;bottom:36px;width:100%;text-align:center;color:#fff;font-size:14px;opacity:.85;pointer-events:none}
+  #footer b{font-size:16px;color:#7fe3ff}
   #wrap{flex:1;position:relative;touch-action:none}
   canvas{display:block}
   #hint{position:fixed;bottom:12px;width:100%;text-align:center;font-size:12px;color:#fff;opacity:.55;pointer-events:none}
@@ -30,9 +32,9 @@
   <button class="btn" id="btnShuffle">🔀 打乱</button>
   <button class="btn gray" id="btnReset">↺ 复原</button>
   <span class="stat">步数 <b id="moves">0</b></span>
-  <span class="stat">时间 <b id="time">00:00</b></span>
 </div>
 <div id="wrap"></div>
+<div id="footer">时间 <b id="time">00:00</b></div>
 <div id="hint">👆 滑动魔方表面转动一层 · 拖动空白处旋转视角</div>
 <div id="toast"></div>
 
