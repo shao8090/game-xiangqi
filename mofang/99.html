@@ -1,0 +1,1381 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>魔方填充颜色</title>
+<style>
+  *{box-sizing:border-box;}
+  html,body{height:100%;margin:0;}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+    background:#eef1f6;color:#1d1f23;overflow:hidden;font-size:13px;
+    -webkit-font-smoothing:antialiased;
+  }
+  .app{height:100vh;display:flex;gap:10px;padding:10px;}
+
+  /* ---------- 通用面板 ---------- */
+  .panel{
+    background:#fff;border-radius:14px;border:1px solid #e6e9f0;
+    box-shadow:0 2px 10px rgba(20,30,60,.045);
+    display:flex;flex-direction:column;min-height:0;overflow:hidden;
+  }
+  .panel-head{
+    display:flex;align-items:center;justify-content:space-between;gap:6px;
+    padding:10px 10px 9px;border-bottom:1px solid #eef1f6;flex:0 0 auto;
+  }
+  .panel-title{font-size:12px;font-weight:600;color:#5b6478;letter-spacing:.5px;white-space:nowrap;}
+
+  .icon-btn{
+    width:24px;height:24px;border-radius:7px;border:1px solid #dfe4ee;background:#fff;
+    color:#39415a;cursor:pointer;font-size:14px;line-height:1;display:flex;
+    align-items:center;justify-content:center;padding:0;transition:.15s;flex:0 0 auto;
+  }
+  .icon-btn:hover{background:#f3f6fd;border-color:#c9d2e4;color:#2563eb;}
+
+  .btn-mini{
+    font-size:11px;padding:4px 8px;border-radius:7px;border:1px solid #dfe4ee;
+    background:#fff;color:#39415a;cursor:pointer;transition:.15s;font-weight:500;
+    white-space:nowrap;font-family:inherit;
+  }
+  .btn-mini:hover{background:#f5f7fc;border-color:#c9d2e4;}
+  .btn-mini.primary{background:#2563eb;border-color:#2563eb;color:#fff;}
+  .btn-mini.primary:hover{background:#1d4ed8;border-color:#1d4ed8;}
+  .btn-mini.danger{color:#d92d20;}
+  .btn-mini.danger:hover{background:#fef3f2;border-color:#fecdca;}
+
+  /* ---------- 左：分组 ---------- */
+  .groups-panel{flex:10 1 0;min-width:104px;}
+  .group-list{flex:1 1 auto;overflow-y:auto;padding:8px 6px;display:flex;flex-direction:column;gap:2px;}
+  .group-item{
+    display:flex;align-items:center;gap:5px;padding:7px 7px;border-radius:9px;
+    cursor:pointer;font-size:12px;color:#3b4252;transition:.15s;position:relative;
+  }
+  .group-item:hover{background:#f3f5fa;}
+  .group-item.active{background:#e8efff;color:#1d4ed8;font-weight:600;}
+  .group-item .gname{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .group-item .gcount{
+    font-size:10px;color:#9aa3b5;background:#f1f4fa;border-radius:6px;padding:1px 5px;
+  }
+  .group-item.active .gcount{background:#d6e2ff;color:#3b63c9;}
+  .group-item .gdel{
+    border:0;background:transparent;color:#b8c0d0;cursor:pointer;font-size:13px;
+    line-height:1;padding:0 2px;opacity:0;transition:.15s;
+  }
+  .group-item:hover .gdel{opacity:1;}
+  .group-item .gdel:hover{color:#e5484d;}
+  .group-item .gexp{
+    border:0;background:transparent;color:#b8c0d0;cursor:pointer;font-size:13px;
+    line-height:1;padding:0 2px;opacity:0;transition:.15s;
+  }
+  .group-item:hover .gexp{opacity:1;}
+  .group-item .gexp:hover{color:#3b63c9;}
+
+  /* ---------- 步骤列表 ---------- */
+  .steps-panel{flex:20 1 0;min-width:186px;}
+  .step-list{flex:1 1 auto;overflow-y:auto;padding:8px;display:flex;flex-direction:column;gap:7px;}
+  .step{
+    display:flex;gap:8px;padding:7px;border-radius:10px;border:1px solid #edf0f6;
+    background:#fcfdff;transition:.15s;
+  }
+  .step:hover{border-color:#d8e0f0;background:#fff;box-shadow:0 2px 8px rgba(20,30,60,.05);}
+  .step .thumb{
+    width:150px;height:150px;flex:0 0 150px;border-radius:8px;object-fit:cover;
+    background:#fff;border:1px solid #e9edf5;
+  }
+  .step-info{flex:1;min-width:0;display:flex;flex-direction:column;justify-content:space-between;gap:6px;}
+  .step-name{
+    font-size:12px;font-weight:600;color:#2b3348;overflow:hidden;text-overflow:ellipsis;
+    white-space:nowrap;cursor:text;
+  }
+  .step-actions{display:flex;gap:5px;}
+  .empty{
+    color:#a5adbe;font-size:11.5px;text-align:center;line-height:1.9;padding:26px 8px;
+  }
+
+  /* ---------- 魔方区域 ---------- */
+  .cube-area{
+    flex:70 1 0;min-width:0;background:#fff;border-radius:14px;
+    border:1px solid #e6e9f0;box-shadow:0 2px 10px rgba(20,30,60,.045);
+    display:flex;flex-direction:column;overflow:hidden;
+  }
+  .cube-top{
+    flex:0 0 auto;display:flex;justify-content:center;align-items:center;
+    padding:10px 12px;border-bottom:1px solid #eef1f6;
+  }
+  .segmented{display:inline-flex;background:#f1f4fa;border-radius:11px;padding:3px;gap:2px;}
+  .segmented button{
+    border:0;background:transparent;padding:6px 20px;border-radius:8px;font-size:13px;
+    color:#5b6478;cursor:pointer;font-weight:500;transition:.16s;font-family:inherit;
+  }
+  .segmented button:hover{color:#1d4ed8;}
+  .segmented button.active{
+    background:#fff;color:#1d4ed8;font-weight:600;box-shadow:0 1px 4px rgba(20,30,60,.13);
+  }
+
+  .cube-body{flex:1 1 auto;display:flex;min-height:0;}
+  .stage{flex:1 1 auto;min-width:0;position:relative;overflow:hidden;}
+  .stage canvas{display:block;width:100%;height:100%;touch-action:none;cursor:grab;}
+  .stage canvas:active{cursor:grabbing;}
+  .arrow-canvas{
+    position:absolute;top:0;left:0;width:100%;height:100%;
+    pointer-events:none;z-index:10;
+  }
+
+  .palette{
+    flex:0 0 62px;display:flex;flex-direction:column;align-items:center;
+    justify-content:center;gap:11px;padding:12px 0;border-left:1px solid #eef1f6;
+    background:#fcfdff;
+  }
+  .swatch{
+    width:32px;height:32px;border-radius:50%;border:2px solid #fff;cursor:pointer;
+    box-shadow:0 0 0 1px rgba(20,30,60,.14),0 2px 6px rgba(20,30,60,.09);
+    transition:transform .15s,box-shadow .15s;padding:0;
+  }
+  .swatch:hover{transform:scale(1.09);}
+  .swatch.active{
+    transform:scale(1.16);
+    box-shadow:0 0 0 2px #2563eb,0 3px 10px rgba(37,99,235,.35);
+  }
+
+  .cube-bottom{
+    flex:0 0 auto;display:flex;flex-wrap:wrap;gap:8px;padding:12px;
+    border-top:1px solid #eef1f6;justify-content:center;background:#fcfdff;
+  }
+  .tool-btn{
+    font-size:12.5px;padding:8px 15px;border-radius:9px;border:1px solid #dfe4ee;
+    background:#fff;color:#39415a;cursor:pointer;transition:.15s;font-weight:500;
+    font-family:inherit;white-space:nowrap;
+  }
+  .tool-btn:hover{background:#f5f7fc;border-color:#c9d2e4;color:#1d4ed8;}
+  .tool-btn:active{transform:translateY(1px);}
+  .tool-btn.active{
+    background:#7b3fe4;border-color:#7b3fe4;color:#fff;
+    box-shadow:0 4px 12px rgba(123,63,228,.3);
+  }
+  .tool-btn.active:hover{background:#6a30d4;border-color:#6a30d4;color:#fff;}
+
+  /* 滚动条 */
+  ::-webkit-scrollbar{width:7px;height:7px;}
+  ::-webkit-scrollbar-thumb{background:#d7deea;border-radius:4px;}
+  ::-webkit-scrollbar-thumb:hover{background:#c2cbd9;}
+  ::-webkit-scrollbar-track{background:transparent;}
+</style>
+</head>
+<body>
+
+<div class="app">
+  <!-- 左侧：分组 -->
+  <aside class="panel groups-panel">
+    <div class="panel-head">
+      <span class="panel-title">分组</span>
+      <div style="display:flex;gap:4px;">
+        <button class="icon-btn" id="exportAllBtn" title="导出全部分组为压缩包">↓</button>
+        <button class="icon-btn" id="addGroupBtn" title="新增分组">＋</button>
+      </div>
+    </div>
+    <div class="group-list" id="groupList"></div>
+  </aside>
+
+  <!-- 步骤列表 -->
+  <section class="panel steps-panel">
+    <div class="panel-head">
+      <span class="panel-title">步骤</span>
+      <button class="btn-mini primary" id="addStepBtn" title="将当前魔方视图保存为图片">＋ 新增</button>
+    </div>
+    <div class="step-list" id="stepList"></div>
+  </section>
+
+  <!-- 魔方区域 -->
+  <main class="cube-area">
+    <header class="cube-top">
+      <div class="segmented" id="sizeSeg">
+        <button data-size="3" class="active">三阶</button>
+        <button data-size="4">四阶</button>
+        <button data-size="5">五阶</button>
+      </div>
+    </header>
+
+    <div class="cube-body">
+      <div class="stage" id="stage">
+        <canvas id="arrowCanvas" class="arrow-canvas"></canvas>
+      </div>
+      <aside class="palette" id="palette"></aside>
+    </div>
+
+    <footer class="cube-bottom">
+      <button class="tool-btn" data-act="home">主视角</button>
+      <button class="tool-btn" data-act="clear">清空颜色</button>
+      <button class="tool-btn" data-act="undoFill">撤销上步填色</button>
+      <button class="tool-btn" data-act="arrow">画箭头</button>
+      <button class="tool-btn" data-act="undoArrow">撤销箭头</button>
+      <button class="tool-btn" data-act="reset">还原</button>
+      <button class="tool-btn" data-act="random">随机填色</button>
+    </footer>
+  </main>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.150.1/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  if (typeof THREE === 'undefined') {
+    document.body.innerHTML =
+      '<div style="padding:48px;font-family:sans-serif;color:#444">' +
+      'Three.js 加载失败，请检查网络后刷新页面。</div>';
+    return;
+  }
+
+  /* =========================================================
+     常量 / 状态
+     ========================================================= */
+  const FACE_NORMALS = [
+    new THREE.Vector3(1, 0, 0),   // 0 +X 右
+    new THREE.Vector3(-1, 0, 0),  // 1 -X 左
+    new THREE.Vector3(0, 1, 0),   // 2 +Y 上
+    new THREE.Vector3(0, -1, 0),  // 3 -Y 下
+    new THREE.Vector3(0, 0, 1),   // 4 +Z 前
+    new THREE.Vector3(0, 0, -1)   // 5 -Z 后
+  ];
+  const FACE_DEFAULT = ['#C41E3A', '#FF5800', '#FFFFFF', '#FFD500', '#009E60', '#0051BA'];
+  const PALETTE = ['#FFFFFF', '#FFD500', '#C41E3A', '#FF5800', '#0051BA', '#009E60', '#9AA0A6'];
+  const FILL_DEFAULT_COLORS = false;  // true=默认填充颜色, false=默认不填充（透明）
+  const ARROW_COLOR = 0x7b3fe4;
+
+  let N = 3;
+  let colors = [];          // colors[face][idx]
+  let stickers = [];        // 全部贴纸 mesh
+  let stickerMap = [];      // stickerMap[face][idx] = mesh
+  let arrows = [];          // {a,b,obj}
+  let undoFillStack = [];
+  let currentColor = '#FFD500';
+  let mode = 'fill';
+  let arrowStart = null;    // {face,row,col}
+  let highlightedMesh = null;
+
+  // 2D 箭头画布相关
+  let arrowCanvas, arrowCtx;
+  let arrows2D = [];          // [{x1,y1,x2,y2}]
+  let isDrawingArrow = false;
+  let arrowStartPoint = null;
+  let arrowCurrentPoint = null;
+
+  let scene, camera, renderer, cubeGroup, raycaster;
+  let sharedStickerGeo = null, sharedBoxGeo = null, baseMat = null;
+  let cameraTheta = 0.9, cameraPhi = 1.05, cameraRAD = 0;
+  const CAM_MIN = 2.5, CAM_MAX = 22;
+  const CAM_ZOOM = 0.6;  // 默认缩放比率，越大越远（越小），越小越近（越大）
+  const CAM_DEF = { theta: 0.9, phi: 1.05 };
+  const stage = document.getElementById('stage');
+
+  /* =========================================================
+     Three.js 初始化
+     ========================================================= */
+  function initThree() {
+    renderer = new THREE.WebGLRenderer({
+      antialias: true,
+      alpha: true,
+      preserveDrawingBuffer: true
+    });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.setClearColor(0xffffff, 0);
+    stage.appendChild(renderer.domElement);
+
+    scene = new THREE.Scene();
+    camera = new THREE.PerspectiveCamera(40, 1, 0.1, 500);
+    cubeGroup = new THREE.Group();
+    scene.add(cubeGroup);
+    raycaster = new THREE.Raycaster();
+
+    // 共享几何体
+    sharedStickerGeo = makeRoundedSquare(0.94, 0.12);
+    sharedBoxGeo = new THREE.BoxGeometry(1, 1, 1);
+    baseMat = new THREE.MeshBasicMaterial({ color: 0x16181d });
+
+    stage.addEventListener('wheel', onWheel, { passive: false });
+
+    bindPointer();
+    animate();
+  }
+
+  function makeRoundedSquare(size, radius) {
+    const s = size / 2;
+    const r = Math.min(radius, s * 0.9);
+    const shape = new THREE.Shape();
+    shape.moveTo(-s + r, -s);
+    shape.lineTo(s - r, -s);
+    shape.quadraticCurveTo(s, -s, s, -s + r);
+    shape.lineTo(s, s - r);
+    shape.quadraticCurveTo(s, s, s - r, s);
+    shape.lineTo(-s + r, s);
+    shape.quadraticCurveTo(-s, s, -s, s - r);
+    shape.lineTo(-s, -s + r);
+    shape.quadraticCurveTo(-s, -s, -s + r, -s);
+    return new THREE.ShapeGeometry(shape, 6);
+  }
+
+  /* =========================================================
+     坐标计算
+     ========================================================= */
+  function cellLocalPos(face, row, col, n) {
+    const h = n / 2;
+    const lx = col - (n - 1) / 2;
+    const ly = (n - 1) / 2 - row;
+    switch (face) {
+      case 0: return new THREE.Vector3(h, ly, -lx);   // +X
+      case 1: return new THREE.Vector3(-h, ly, lx);   // -X
+      case 2: return new THREE.Vector3(lx, h, -ly);   // +Y
+      case 3: return new THREE.Vector3(lx, -h, ly);   // -Y
+      case 4: return new THREE.Vector3(lx, ly, h);    // +Z
+      default: return new THREE.Vector3(-lx, ly, -h); // -Z
+    }
+  }
+
+  function applyFaceRotation(mesh, face) {
+    const q = new THREE.Quaternion();
+    const Y = new THREE.Vector3(0, 1, 0);
+    const X = new THREE.Vector3(1, 0, 0);
+    if (face === 0) q.setFromAxisAngle(Y, Math.PI / 2);
+    else if (face === 1) q.setFromAxisAngle(Y, -Math.PI / 2);
+    else if (face === 2) q.setFromAxisAngle(X, -Math.PI / 2);
+    else if (face === 3) q.setFromAxisAngle(X, Math.PI / 2);
+    else if (face === 5) q.setFromAxisAngle(Y, Math.PI);
+    mesh.quaternion.copy(q);
+  }
+
+  /* =========================================================
+     构建魔方
+     ========================================================= */
+  function initColors() {
+    colors = [];
+    for (let f = 0; f < 6; f++) {
+      colors.push(new Array(N * N).fill(FILL_DEFAULT_COLORS ? FACE_DEFAULT[f] : ''));
+    }
+  }
+
+  function buildCube() {
+    cubeGroup.traverse(function (o) {
+      if (o.isMesh && o.material && o.material !== baseMat) {
+        o.material.dispose();
+      }
+    });
+    while (cubeGroup.children.length) cubeGroup.remove(cubeGroup.children[0]);
+
+    stickers = [];
+    stickerMap = [];
+
+    const base = new THREE.Mesh(sharedBoxGeo, baseMat);
+    base.scale.set(N, N, N);
+    cubeGroup.add(base);
+
+    for (let f = 0; f < 6; f++) {
+      stickerMap[f] = [];
+      for (let r = 0; r < N; r++) {
+        for (let c = 0; c < N; c++) {
+          const idx = r * N + c;
+          const mat = new THREE.MeshBasicMaterial({ color: new THREE.Color(colors[f][idx]) });
+          const mesh = new THREE.Mesh(sharedStickerGeo, mat);
+
+          const pos = cellLocalPos(f, r, c, N);
+          const nrm = FACE_NORMALS[f];
+          mesh.position.copy(pos).add(nrm.clone().multiplyScalar(0.014));
+          applyFaceRotation(mesh, f);
+
+          mesh.userData = { face: f, row: r, col: c, idx: idx };
+          cubeGroup.add(mesh);
+          stickerMap[f][idx] = mesh;
+          stickers.push(mesh);
+        }
+      }
+    }
+  }
+
+  function applyColorsToMeshes() {
+    for (let f = 0; f < 6; f++) {
+      for (let i = 0; i < N * N; i++) {
+        if (stickerMap[f] && stickerMap[f][i]) {
+          const c = colors[f][i];
+          stickerMap[f][i].material.color.set(c || '#e8eaed');  // 空白显示浅灰
+          stickerMap[f][i].material.opacity = c ? 1 : 0.35;
+          stickerMap[f][i].material.transparent = !c;
+        }
+      }
+    }
+  }
+
+  /* =========================================================
+     相机 / 渲染
+     ========================================================= */
+  function updateCamera() {
+    if (cameraRAD === 0) {
+      const aspect = camera.aspect || 1;
+      cameraRAD = N * 3.0 / CAM_ZOOM;
+      if (aspect < 1) cameraRAD /= Math.max(aspect, 0.45);
+    }
+    camera.position.setFromSphericalCoords(cameraRAD, cameraPhi, cameraTheta);
+    camera.lookAt(0, 0, 0);
+    camera.updateProjectionMatrix();
+  }
+
+  function onResize() {
+    const w = stage.clientWidth;
+    const h = stage.clientHeight;
+    if (!w || !h) return;
+    renderer.setSize(w, h, false);
+    camera.aspect = w / h;
+    updateCamera();
+  }
+
+  function onWheel(e) {
+    e.preventDefault();
+    const delta = e.deltaY > 0 ? 1.1 : 0.9;
+    cameraRAD = Math.min(CAM_MAX, Math.max(CAM_MIN, cameraRAD * delta));
+    updateCamera();
+  }
+
+  function animate() {
+    requestAnimationFrame(animate);
+    renderer.render(scene, camera);
+  }
+
+  /* =========================================================
+     2D 箭头画布
+     ========================================================= */
+  function initArrowCanvas() {
+    arrowCanvas = document.getElementById('arrowCanvas');
+    arrowCtx = arrowCanvas.getContext('2d');
+    resizeArrowCanvas();
+    bindArrowCanvas();
+  }
+
+  function resizeArrowCanvas() {
+    if (!arrowCanvas) return;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const w = stage.clientWidth;
+    const h = stage.clientHeight;
+    arrowCanvas.width = w * dpr;
+    arrowCanvas.height = h * dpr;
+    arrowCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    redrawArrows2D();
+  }
+
+  function drawArrow2D(ctx, x1, y1, x2, y2) {
+    const headLen = 14;
+    const angle = Math.atan2(y2 - y1, x2 - x1);
+    const color = '#dc2626';
+
+    // 画线
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 6;
+    ctx.lineCap = 'round';
+    ctx.stroke();
+
+    // 画箭头头部（填充三角形）
+    ctx.beginPath();
+    ctx.moveTo(x2, y2);
+    ctx.lineTo(
+      x2 - headLen * Math.cos(angle - Math.PI / 6),
+      y2 - headLen * Math.sin(angle - Math.PI / 6)
+    );
+    ctx.lineTo(
+      x2 - headLen * Math.cos(angle + Math.PI / 6),
+      y2 - headLen * Math.sin(angle + Math.PI / 6)
+    );
+    ctx.closePath();
+    ctx.fillStyle = color;
+    ctx.fill();
+  }
+
+  function redrawArrows2D() {
+    if (!arrowCtx) return;
+    const w = stage.clientWidth;
+    const h = stage.clientHeight;
+    arrowCtx.clearRect(0, 0, w, h);
+
+    arrows2D.forEach(function (a) {
+      drawArrow2D(arrowCtx, a.x1, a.y1, a.x2, a.y2);
+    });
+
+    // 画当前正在拖拽的箭头
+    if (isDrawingArrow && arrowStartPoint && arrowCurrentPoint) {
+      drawArrow2D(arrowCtx, arrowStartPoint.x, arrowStartPoint.y, arrowCurrentPoint.x, arrowCurrentPoint.y);
+    }
+  }
+
+  function bindArrowCanvas() {
+    arrowCanvas.addEventListener('pointerdown', function (e) {
+      if (mode !== 'arrow') return;
+      isDrawingArrow = true;
+      const rect = arrowCanvas.getBoundingClientRect();
+      arrowStartPoint = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+      arrowCurrentPoint = { x: arrowStartPoint.x, y: arrowStartPoint.y };
+      try { arrowCanvas.setPointerCapture(e.pointerId); } catch (err) {}
+    });
+
+    arrowCanvas.addEventListener('pointermove', function (e) {
+      if (!isDrawingArrow) return;
+      const rect = arrowCanvas.getBoundingClientRect();
+      arrowCurrentPoint = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+      redrawArrows2D();
+    });
+
+    function endDraw(e) {
+      if (!isDrawingArrow) return;
+      isDrawingArrow = false;
+      try { arrowCanvas.releasePointerCapture(e.pointerId); } catch (err) {}
+
+      if (arrowStartPoint && arrowCurrentPoint) {
+        const dx = arrowCurrentPoint.x - arrowStartPoint.x;
+        const dy = arrowCurrentPoint.y - arrowStartPoint.y;
+        if (dx * dx + dy * dy > 25) {
+          arrows2D.push({
+            x1: arrowStartPoint.x,
+            y1: arrowStartPoint.y,
+            x2: arrowCurrentPoint.x,
+            y2: arrowCurrentPoint.y
+          });
+        }
+      }
+
+      arrowStartPoint = null;
+      arrowCurrentPoint = null;
+      redrawArrows2D();
+    }
+
+    arrowCanvas.addEventListener('pointerup', endDraw);
+    arrowCanvas.addEventListener('pointercancel', endDraw);
+  }
+
+  /* =========================================================
+     指针交互
+     ========================================================= */
+  let isDragging = false, dragMoved = false, lastX = 0, lastY = 0;
+
+  function bindPointer() {
+    const el = renderer.domElement;
+
+    el.addEventListener('pointerdown', function (e) {
+      // 箭头模式下不旋转，由 arrowCanvas 处理
+      if (mode === 'arrow') return;
+      if (e.button !== 0 && e.pointerType === 'mouse') return;
+      isDragging = true;
+      dragMoved = false;
+      lastX = e.clientX;
+      lastY = e.clientY;
+      try { el.setPointerCapture(e.pointerId); } catch (err) {}
+    });
+
+    el.addEventListener('pointermove', function (e) {
+      if (!isDragging || mode === 'arrow') return;
+      const dx = e.clientX - lastX;
+      const dy = e.clientY - lastY;
+      lastX = e.clientX;
+      lastY = e.clientY;
+      if (Math.abs(dx) + Math.abs(dy) > 1) dragMoved = true;
+
+      cameraTheta -= dx * 0.008;
+      cameraPhi -= dy * 0.008;
+      cameraPhi = Math.max(0.15, Math.min(Math.PI - 0.15, cameraPhi));
+      updateCamera();
+    });
+
+    function endDrag(e) {
+      if (!isDragging) return;
+      isDragging = false;
+      try { el.releasePointerCapture(e.pointerId); } catch (err) {}
+      if (!dragMoved && mode !== 'arrow') handleStageClick(e.clientX, e.clientY);
+    }
+    el.addEventListener('pointerup', endDrag);
+    el.addEventListener('pointercancel', function (e) {
+      isDragging = false;
+      try { el.releasePointerCapture(e.pointerId); } catch (err) {}
+    });
+    el.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+  }
+
+  function handleStageClick(clientX, clientY) {
+    const rect = renderer.domElement.getBoundingClientRect();
+    const ndc = new THREE.Vector2(
+      ((clientX - rect.left) / rect.width) * 2 - 1,
+      -((clientY - rect.top) / rect.height) * 2 + 1
+    );
+    raycaster.setFromCamera(ndc, camera);
+    const hits = raycaster.intersectObjects(stickers, false);
+
+    // 点空白：画箭头模式下取消已选起点
+    if (!hits.length) {
+      if (mode === 'arrow') clearArrowHighlight();
+      return;
+    }
+
+    const mesh = hits[0].object;
+    const ud = mesh.userData;
+
+    if (mode === 'fill') {
+      paint(ud.face, ud.idx, currentColor);
+    } else {
+      handleArrowClick(ud, mesh);
+    }
+  }
+
+  /* ---------- 画箭头（已修复） ---------- */
+  function handleArrowClick(ud, mesh) {
+    // ① 第一次点击：记录起点并高亮
+    if (!arrowStart) {
+      arrowStart = { face: ud.face, row: ud.row, col: ud.col };
+      highlightedMesh = mesh;
+      mesh.scale.set(1.16, 1.16, 1.16);
+      return;
+    }
+
+    // ② 第二次点击：先取出起点快照，再清空高亮（清空会把 arrowStart 置 null）
+    const start = arrowStart;
+    const isSame = (start.face === ud.face && start.row === ud.row && start.col === ud.col);
+
+    clearArrowHighlight();
+
+    // 两次点同一格 → 视为取消
+    if (isSame) return;
+
+    addArrow(start, { face: ud.face, row: ud.row, col: ud.col });
+  }
+
+  function clearArrowHighlight() {
+    if (highlightedMesh) {
+      highlightedMesh.scale.set(1, 1, 1);
+      highlightedMesh = null;
+    }
+    arrowStart = null;
+  }
+
+  /* =========================================================
+     填色 / 撤销
+     ========================================================= */
+  function paint(face, idx, color) {
+    const prev = colors[face][idx];
+    if (prev === color) return;
+    undoFillStack.push({ face: face, idx: idx, prev: prev });
+    colors[face][idx] = color;
+    stickerMap[face][idx].material.color.set(color);
+  }
+
+  function undoFill() {
+    const last = undoFillStack.pop();
+    if (!last) return;
+    colors[last.face][last.idx] = last.prev;
+    if (stickerMap[last.face] && stickerMap[last.face][last.idx]) {
+      stickerMap[last.face][last.idx].material.color.set(last.prev);
+    }
+  }
+
+  /* =========================================================
+     箭头构建
+     ========================================================= */
+  function addArrow(a, b) {
+    const obj = buildArrowObject(a, b);
+    if (!obj) return;
+    cubeGroup.add(obj);
+    arrows.push({
+      a: { face: a.face, row: a.row, col: a.col },
+      b: { face: b.face, row: b.row, col: b.col },
+      obj: obj
+    });
+  }
+
+  function buildArrowObject(a, b) {
+    const p1 = cellLocalPos(a.face, a.row, a.col, N);
+    const p2 = cellLocalPos(b.face, b.row, b.col, N);
+    const n1 = FACE_NORMALS[a.face];
+    const n2 = FACE_NORMALS[b.face];
+
+    // 起点 / 终点抬离表面
+    const start = p1.clone().add(n1.clone().multiplyScalar(0.18));
+    const end = p2.clone().add(n2.clone().multiplyScalar(0.18));
+
+    // 弧线外凸方向：两法线平均
+    let nAvg = n1.clone().add(n2);
+    if (nAvg.lengthSq() < 1e-6) {
+      // 两个面正好相对（如 +X 与 -X），法线和为零向量，改用垂直方向
+      nAvg = new THREE.Vector3().crossVectors(n1, new THREE.Vector3(0, 1, 0));
+      if (nAvg.lengthSq() < 1e-6) {
+        nAvg = new THREE.Vector3().crossVectors(n1, new THREE.Vector3(1, 0, 0));
+      }
+    }
+    nAvg.normalize();
+
+    const dist = start.distanceTo(end);
+    if (dist < 1e-4) return null;   // 退化：两点重合
+    const bulge = Math.max(0.35, dist * 0.25);
+
+    const mid = start.clone().add(end).multiplyScalar(0.5)
+      .add(nAvg.clone().multiplyScalar(bulge));
+
+    const curve = new THREE.CatmullRomCurve3([start, mid, end]);
+    const mat = new THREE.MeshBasicMaterial({ color: ARROW_COLOR });
+
+    const group = new THREE.Group();
+
+    const tubeGeo = new THREE.TubeGeometry(curve, 48, 0.042, 8, false);
+    group.add(new THREE.Mesh(tubeGeo, mat));
+
+    // 箭头锥体
+    const tangent = curve.getTangent(1).normalize();
+    const coneGeo = new THREE.ConeGeometry(0.12, 0.32, 16);
+    const cone = new THREE.Mesh(coneGeo, mat);
+    cone.position.copy(end).add(tangent.clone().multiplyScalar(-0.16));
+    cone.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), tangent);
+    group.add(cone);
+
+    // 起点小球，便于看清方向
+    const dotGeo = new THREE.SphereGeometry(0.07, 12, 10);
+    const dot = new THREE.Mesh(dotGeo, mat);
+    dot.position.copy(start);
+    group.add(dot);
+
+    return group;
+  }
+
+  function disposeArrowObj(obj) {
+    obj.traverse(function (o) {
+      if (o.isMesh) {
+        if (o.geometry) o.geometry.dispose();
+        if (o.material) o.material.dispose();
+      }
+    });
+  }
+
+  function clearArrows() {
+    arrows2D = [];
+    redrawArrows2D();
+    arrows.forEach(function (x) {
+      cubeGroup.remove(x.obj);
+      disposeArrowObj(x.obj);
+    });
+    arrows = [];
+    clearArrowHighlight();
+  }
+
+  function undoArrow() {
+    if (arrows2D.length > 0) {
+      arrows2D.pop();
+      redrawArrows2D();
+      return;
+    }
+    const last = arrows.pop();
+    if (!last) return;
+    cubeGroup.remove(last.obj);
+    disposeArrowObj(last.obj);
+    clearArrowHighlight();
+  }
+
+  /* =========================================================
+     颜色操作
+     ========================================================= */
+  function resetColors() {
+    initColors();
+    applyColorsToMeshes();
+    undoFillStack = [];
+  }
+
+  function clearColors() {
+    for (let f = 0; f < 6; f++) {
+      for (let i = 0; i < N * N; i++) colors[f][i] = '#FFFFFF';
+    }
+    applyColorsToMeshes();
+    undoFillStack = [];
+  }
+
+  function randomColors() {
+    for (let f = 0; f < 6; f++) {
+      for (let i = 0; i < N * N; i++) {
+        colors[f][i] = PALETTE[Math.floor(Math.random() * 6)];
+      }
+    }
+    applyColorsToMeshes();
+    undoFillStack = [];
+  }
+
+  /* =========================================================
+     尺寸切换
+     ========================================================= */
+  function updateSizeButtons() {
+    document.querySelectorAll('#sizeSeg button').forEach(function (b) {
+      b.classList.toggle('active', parseInt(b.dataset.size, 10) === N);
+    });
+  }
+
+  function setSize(n) {
+    if (n === N) return;
+    clearArrowHighlight();   // 先清掉旧的贴纸高亮引用
+    N = n;
+    initColors();
+    buildCube();
+    cameraRAD = 0;
+    updateCamera();
+    clearArrows();
+    undoFillStack = [];
+    updateSizeButtons();
+  }
+
+  /* =========================================================
+     状态快照
+     ========================================================= */
+  function captureState() {
+    return {
+      N: N,
+      colors: colors.map(function (a) { return a.slice(); }),
+      arrows2D: arrows2D.map(function (a) {
+        return { x1: a.x1, y1: a.y1, x2: a.x2, y2: a.y2 };
+      }),
+      cam: { theta: cameraTheta, phi: cameraPhi, rad: cameraRAD }
+    };
+  }
+
+  function applyState(s) {
+    if (!s) return;
+    clearArrowHighlight();
+    const needRebuild = (s.N !== N);
+    N = s.N;
+    colors = s.colors.map(function (a) { return a.slice(); });
+
+    if (needRebuild) {
+      buildCube();
+      cameraRAD = 0;
+      updateCamera();
+    } else {
+      applyColorsToMeshes();
+    }
+
+    // 清空3D箭头（兼容旧数据）
+    arrows.forEach(function (x) {
+      cubeGroup.remove(x.obj);
+      disposeArrowObj(x.obj);
+    });
+    arrows = [];
+
+    // 恢复2D箭头
+    arrows2D = (s.arrows2D || []).map(function (a) {
+      return { x1: a.x1, y1: a.y1, x2: a.x2, y2: a.y2 };
+    });
+    redrawArrows2D();
+
+    undoFillStack = [];
+    if (s.cam) {
+      cameraTheta = s.cam.theta;
+      cameraPhi = s.cam.phi;
+      cameraRAD = s.cam.rad || 0;
+      updateCamera();
+    }
+
+    updateSizeButtons();
+  }
+
+  /* =========================================================
+     分组 / 步骤
+     ========================================================= */
+  let uidSeed = 1;
+  function uid() { return 'id' + (uidSeed++) + '_' + Date.now().toString(36); }
+
+  let groups = [{ id: uid(), name: '默认分组', steps: [] }];
+  let activeGroupId = groups[0].id;
+
+  const STORAGE_KEY = 'xiangqi_steps_v1';
+
+  function saveGroups() {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        groups: groups,
+        activeGroupId: activeGroupId,
+        uidSeed: uidSeed
+      }));
+    } catch (e) {}
+  }
+
+  function loadGroups() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return false;
+      const data = JSON.parse(raw);
+      if (data.groups && data.groups.length > 0) {
+        groups = data.groups;
+        activeGroupId = data.activeGroupId || groups[0].id;
+        uidSeed = data.uidSeed || uidSeed;
+        return true;
+      }
+    } catch (e) {}
+    return false;
+  }
+
+  function getActiveGroup() {
+    let g = groups.find(function (x) { return x.id === activeGroupId; });
+    if (!g) {
+      g = groups[0];
+      activeGroupId = g.id;
+    }
+    return g;
+  }
+
+  function renderGroups() {
+    const list = document.getElementById('groupList');
+    list.innerHTML = '';
+    groups.forEach(function (g) {
+      const el = document.createElement('div');
+      el.className = 'group-item' + (g.id === activeGroupId ? ' active' : '');
+      el.innerHTML =
+        '<span class="gname"></span>' +
+        '<span class="gcount">' + g.steps.length + '</span>' +
+        '<button class="gexp" title="导出该分组">↓</button>' +
+        '<button class="gdel" title="删除分组">×</button>';
+      el.querySelector('.gname').textContent = g.name;
+
+      el.addEventListener('click', function (e) {
+        if (e.target.classList.contains('gdel')) return;
+        activeGroupId = g.id;
+        renderGroups();
+        renderSteps();
+      });
+
+      el.querySelector('.gname').addEventListener('dblclick', function (e) {
+        e.stopPropagation();
+        const nv = window.prompt('重命名分组', g.name);
+        if (nv !== null && nv.trim()) {
+          g.name = nv.trim();
+          renderGroups();
+          saveGroups();
+        }
+      });
+
+      el.querySelector('.gexp').addEventListener('click', function (e) {
+        e.stopPropagation();
+        exportGroup(g);
+      });
+
+      el.querySelector('.gdel').addEventListener('click', function (e) {
+        e.stopPropagation();
+        if (groups.length <= 1) {
+          window.alert('至少保留一个分组');
+          return;
+        }
+        if (!window.confirm('确定删除分组「' + g.name + '」及其所有步骤？')) return;
+        groups = groups.filter(function (x) { return x.id !== g.id; });
+        if (activeGroupId === g.id) activeGroupId = groups[0].id;
+        renderGroups();
+        renderSteps();
+        saveGroups();
+      });
+
+      list.appendChild(el);
+    });
+  }
+
+  function makeThumb() {
+    const src = renderer.domElement;
+    const w = 220;
+    const h = Math.max(1, Math.round(w * src.height / src.width));
+    const c = document.createElement('canvas');
+    c.width = w;
+    c.height = h;
+    const ctx = c.getContext('2d');
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, w, h);
+    ctx.drawImage(src, 0, 0, w, h);
+
+    // 叠加箭头
+    const stageW = stage.clientWidth;
+    const stageH = stage.clientHeight;
+    if (stageW > 0 && stageH > 0) {
+      const sx = w / stageW;
+      const sy = h / stageH;
+      arrows2D.forEach(function (a) {
+        drawArrow2D(ctx, a.x1 * sx, a.y1 * sy, a.x2 * sx, a.y2 * sy);
+      });
+    }
+
+    return c.toDataURL('image/png');
+  }
+
+  function addStep() {
+    const g = getActiveGroup();
+    renderer.render(scene, camera);
+    let thumb = '';
+    try { thumb = makeThumb(); } catch (err) { thumb = ''; }
+
+    const step = {
+      id: uid(),
+      name: '步骤 ' + (g.steps.length + 1),
+      thumb: thumb,
+      state: captureState()
+    };
+    g.steps.push(step);
+    renderGroups();
+    renderSteps();
+    saveGroups();
+
+    const list = document.getElementById('stepList');
+    if (list.lastElementChild) {
+      list.lastElementChild.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
+  }
+
+  // 导出分组为PNG压缩包
+  function captureCubeImage(state, width, height) {
+    // 保存当前状态
+    const origN = N;
+    const origColors = colors.map(function (a) { return a.slice(); });
+    const origArrows = arrows2D.map(function (a) { return Object.assign({}, a); });
+    const origTheta = cameraTheta;
+    const origPhi = cameraPhi;
+    const origRAD = cameraRAD;
+
+    // 应用步骤状态
+    if (state.N !== N) {
+      N = state.N;
+      initColors();
+      colors = state.colors.map(function (a) { return a.slice(); });
+      buildCube();
+    } else {
+      colors = state.colors.map(function (a) { return a.slice(); });
+      applyColorsToMeshes();
+    }
+    arrows2D = (state.arrows2D || []).map(function (a) { return Object.assign({}, a); });
+    if (state.cam) {
+      cameraTheta = state.cam.theta;
+      cameraPhi = state.cam.phi;
+      cameraRAD = state.cam.rad || 0;
+    }
+    updateCamera();
+
+    // 设置渲染尺寸
+    const origW = renderer.domElement.width;
+    const origH = renderer.domElement.height;
+    renderer.setSize(width, height, false);
+    camera.aspect = width / height;
+    camera.updateProjectionMatrix();
+    renderer.render(scene, camera);
+
+    // 绘制箭头到临时canvas
+    const tmpCanvas = document.createElement('canvas');
+    tmpCanvas.width = width;
+    tmpCanvas.height = height;
+    const tmpCtx = tmpCanvas.getContext('2d');
+    tmpCtx.drawImage(renderer.domElement, 0, 0, width, height);
+
+    // 叠加箭头
+    if (arrows2D.length > 0) {
+      const stageW = stage.clientWidth;
+      const stageH = stage.clientHeight;
+      arrows2D.forEach(function (a) {
+        const x1 = a.x1 * width / stageW;
+        const y1 = a.y1 * height / stageH;
+        const x2 = a.x2 * width / stageW;
+        const y2 = a.y2 * height / stageH;
+        drawArrow2D(tmpCtx, x1, y1, x2, y2);
+      });
+    }
+
+    // 获取图片数据
+    const dataURL = tmpCanvas.toDataURL('image/png');
+
+    // 恢复状态
+    renderer.setSize(origW / (window.devicePixelRatio || 1), origH / (window.devicePixelRatio || 1), false);
+    camera.aspect = origW / origH;
+    camera.updateProjectionMatrix();
+    N = origN;
+    colors = origColors;
+    arrows2D = origArrows;
+    cameraTheta = origTheta;
+    cameraPhi = origPhi;
+    cameraRAD = origRAD;
+    buildCube();
+    applyColorsToMeshes();
+    redrawArrows2D();
+    updateCamera();
+
+    return dataURL;
+  }
+
+  function dataURLtoBlob(dataURL) {
+    const parts = dataURL.split(',');
+    const mime = parts[0].match(/:(.*?);/)[1];
+    const bstr = atob(parts[1]);
+    const u8arr = new Uint8Array(bstr.length);
+    for (let i = 0; i < bstr.length; i++) {
+      u8arr[i] = bstr.charCodeAt(i);
+    }
+    return new Blob([u8arr], { type: mime });
+  }
+
+  function exportGroup(group) {
+    if (!group.steps.length) {
+      window.alert('该分组没有步骤');
+      return;
+    }
+    if (typeof JSZip === 'undefined') {
+      window.alert('JSZip 库加载失败，请检查网络');
+      return;
+    }
+
+    const zip = new JSZip();
+    const folder = zip.folder(group.name);
+
+    group.steps.forEach(function (step, idx) {
+      const imgData = captureCubeImage(step.state, 600, 600);
+      const blob = dataURLtoBlob(imgData);
+      folder.file((idx + 1) + '_' + step.name + '.png', blob);
+    });
+
+    zip.generateAsync({ type: 'blob' }).then(function (blob) {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = group.name + '.zip';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    });
+  }
+
+  function exportAllGroups() {
+    if (!groups.length) return;
+    if (typeof JSZip === 'undefined') {
+      window.alert('JSZip 库加载失败，请检查网络');
+      return;
+    }
+
+    const zip = new JSZip();
+    groups.forEach(function (group) {
+      if (!group.steps.length) return;
+      const folder = zip.folder(group.name);
+      group.steps.forEach(function (step, idx) {
+        const imgData = captureCubeImage(step.state, 600, 600);
+        const blob = dataURLtoBlob(imgData);
+        folder.file((idx + 1) + '_' + step.name + '.png', blob);
+      });
+    });
+
+    zip.generateAsync({ type: 'blob' }).then(function (blob) {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = '所有分组.zip';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    });
+  }
+
+  function renderSteps() {
+    const g = getActiveGroup();
+    const list = document.getElementById('stepList');
+    list.innerHTML = '';
+
+    if (!g.steps.length) {
+      const empty = document.createElement('div');
+      empty.className = 'empty';
+      empty.innerHTML = '暂无步骤<br>点击「＋ 新增」<br>保存当前魔方视图';
+      list.appendChild(empty);
+      return;
+    }
+
+    g.steps.forEach(function (step) {
+      const el = document.createElement('div');
+      el.className = 'step';
+
+      const img = document.createElement('img');
+      img.className = 'thumb';
+      img.alt = '';
+      if (step.thumb) img.src = step.thumb;
+
+      const info = document.createElement('div');
+      info.className = 'step-info';
+
+      const name = document.createElement('div');
+      name.className = 'step-name';
+      name.textContent = step.name;
+      name.title = '双击重命名';
+      name.addEventListener('dblclick', function () {
+        const nv = window.prompt('重命名步骤', step.name);
+        if (nv !== null && nv.trim()) {
+          step.name = nv.trim();
+          renderSteps();
+          saveGroups();
+        }
+      });
+
+      const actions = document.createElement('div');
+      actions.className = 'step-actions';
+
+      const restoreBtn = document.createElement('button');
+      restoreBtn.className = 'btn-mini';
+      restoreBtn.textContent = '还原';
+      restoreBtn.title = '把魔方还原到此步骤状态';
+      restoreBtn.addEventListener('click', function () {
+        applyState(step.state);
+      });
+
+      const delBtn = document.createElement('button');
+      delBtn.className = 'btn-mini danger';
+      delBtn.textContent = '删除';
+      delBtn.addEventListener('click', function () {
+        g.steps = g.steps.filter(function (s) { return s.id !== step.id; });
+        renderGroups();
+        renderSteps();
+        saveGroups();
+      });
+
+      actions.appendChild(restoreBtn);
+      actions.appendChild(delBtn);
+      info.appendChild(name);
+      info.appendChild(actions);
+      el.appendChild(img);
+      el.appendChild(info);
+      list.appendChild(el);
+    });
+  }
+
+  /* =========================================================
+     调色板
+     ========================================================= */
+  function renderPalette() {
+    const pal = document.getElementById('palette');
+    pal.innerHTML = '';
+    PALETTE.forEach(function (c) {
+      const b = document.createElement('button');
+      b.className = 'swatch' + (c === currentColor ? ' active' : '');
+      b.style.background = c;
+      b.title = c;
+      b.addEventListener('click', function () {
+        currentColor = c;
+        if (mode !== 'fill') setMode('fill');
+        renderPalette();
+      });
+      pal.appendChild(b);
+    });
+  }
+
+  /* =========================================================
+     模式
+     ========================================================= */
+  function setMode(m) {
+    mode = m;
+    if (m === 'fill') clearArrowHighlight();
+
+    // 切换箭头画布的事件接收
+    if (arrowCanvas) {
+      arrowCanvas.style.pointerEvents = (m === 'arrow') ? 'auto' : 'none';
+    }
+
+    document.querySelectorAll('.tool-btn').forEach(function (b) {
+      if (b.dataset.act === 'arrow') b.classList.toggle('active', m === 'arrow');
+    });
+    renderer.domElement.style.cursor = (m === 'arrow') ? 'crosshair' : 'grab';
+  }
+
+  /* =========================================================
+     底部按钮
+     ========================================================= */
+  function bindBottomBar() {
+    document.querySelector('.cube-bottom').addEventListener('click', function (e) {
+      const btn = e.target.closest('.tool-btn');
+      if (!btn) return;
+      const act = btn.dataset.act;
+      switch (act) {
+        case 'home':
+          cameraTheta = CAM_DEF.theta;
+          cameraPhi = CAM_DEF.phi;
+          updateCamera();
+          break;
+        case 'clear':
+          clearColors();
+          break;
+        case 'undoFill':
+          undoFill();
+          break;
+        case 'arrow':
+          setMode(mode === 'arrow' ? 'fill' : 'arrow');
+          break;
+        case 'undoArrow':
+          undoArrow();
+          break;
+        case 'reset':
+          resetColors();
+          break;
+        case 'random':
+          randomColors();
+          break;
+      }
+    });
+  }
+
+  /* =========================================================
+     启动
+     ========================================================= */
+  function init() {
+    initThree();
+    initArrowCanvas();
+    initColors();
+    buildCube();
+
+    requestAnimationFrame(function () {
+      onResize();
+      resizeArrowCanvas();
+      updateCamera();
+    });
+
+    const ro = new ResizeObserver(function () {
+      onResize();
+      resizeArrowCanvas();
+    });
+    ro.observe(stage);
+    window.addEventListener('resize', function () {
+      onResize();
+      resizeArrowCanvas();
+    });
+
+    renderPalette();
+    bindBottomBar();
+
+    // 阶数切换
+    document.getElementById('sizeSeg').addEventListener('click', function (e) {
+      const b = e.target.closest('button');
+      if (!b) return;
+      setSize(parseInt(b.dataset.size, 10));
+    });
+
+    // 分组 / 步骤
+    document.getElementById('addGroupBtn').addEventListener('click', function () {
+      const g = { id: uid(), name: '分组 ' + (groups.length + 1), steps: [] };
+      groups.push(g);
+      activeGroupId = g.id;
+      renderGroups();
+      renderSteps();
+      saveGroups();
+    });
+    document.getElementById('addStepBtn').addEventListener('click', addStep);
+    document.getElementById('exportAllBtn').addEventListener('click', function () {
+      exportAllGroups();
+    });
+
+    loadGroups();
+    renderGroups();
+    renderSteps();
+    updateSizeButtons();
+    setMode('fill');
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+})();
+</script>
+</body>
+</html>
