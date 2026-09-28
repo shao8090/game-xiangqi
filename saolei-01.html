@@ -155,9 +155,9 @@
     <div class="header">
         <!-- 5个等级选择 -->
         <select id="levelSelect" class="level-select" onchange="changeLevel()">
-            <option value="1" selected>1. 新手入门 (8x8 - 8雷)</option>
+            <option value="1">1. 新手入门 (8x8 - 8雷)</option>
             <option value="2">2. 初级训练 (10x10 - 15雷)</option>
-            <option value="3" >3. 中级挑战 (12x14 - 30雷)</option>
+            <option value="3" selected>3. 中级挑战 (12x14 - 30雷)</option>
             <option value="4">4. 高级进阶 (14x18 - 50雷)</option>
             <option value="5">5. 地狱大师 (16x22 - 75雷)</option>
         </select>
@@ -443,10 +443,31 @@
             }
         }
 
+        // 仅调整已有单元格大小，不重置游戏状态
+        function resizeCells() {
+            const board = document.getElementById('board');
+            if (!board.children.length || !grid.length) return;
+
+            const containerWidth = Math.min(window.innerWidth - 30, 440);
+            const cellSize = Math.floor(containerWidth / cols);
+
+            board.style.gridTemplateColumns = `repeat(${cols}, ${cellSize}px)`;
+            board.style.gridTemplateRows = `repeat(${rows}, ${cellSize}px)`;
+
+            for (let r = 0; r < rows; r++) {
+                for (let c = 0; c < cols; c++) {
+                    const cell = grid[r][c].element;
+                    cell.style.width = `${cellSize}px`;
+                    cell.style.height = `${cellSize}px`;
+                    cell.style.fontSize = `${Math.floor(cellSize * 0.55)}px`;
+                }
+            }
+        }
+
         // 初始化加载
         window.onload = initGame;
-        // 旋转屏幕时重绘以自适应
-        window.onresize = () => createGrid();
+        // 旋转屏幕时仅调整单元格大小，避免重置游戏
+        window.onresize = () => resizeCells();
     </script>
 </body>
 </html>
