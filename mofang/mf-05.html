@@ -13,6 +13,10 @@
         .btn{border:none;cursor:pointer;color:#fff;font-size:13px;padding:7px 14px;border-radius:10px;background:linear-gradient(135deg,#4f6df5,#7b3ff2);box-shadow:0 4px 14px rgba(79,109,245,.4);transition:transform .1s}
         .btn:active{transform:scale(.94)}
         .btn.gray{background:linear-gradient(135deg,#3a4358,#2a3040);box-shadow:0 4px 14px rgba(0,0,0,.35)}
+        .btn:disabled{opacity:.38;cursor:not-allowed;box-shadow:none}
+        .btn:disabled:active{transform:none}
+        .btn.recording{background:linear-gradient(135deg,#e63946,#ff5800);box-shadow:0 4px 14px rgba(230,57,70,.5);animation:pulse 1.2s infinite}
+        @keyframes pulse{0%,100%{opacity:1}50%{opacity:.6}}
         .stat{font-size:12px;opacity:.85;margin-left:4px}
         .stat b{font-size:14px;color:#7fe3ff}
         #wrap{flex:1;position:relative;touch-action:none}
@@ -36,6 +40,7 @@
         .snapshot-actions button{border:none;cursor:pointer;font-size:12px;padding:6px 10px;border-radius:8px;color:#fff;background:linear-gradient(135deg,#4f6df5,#7b3ff2)}
         .snapshot-actions button.del{background:linear-gradient(135deg,#c41e3a,#ff5800)}
         .empty-tip{text-align:center;opacity:.5;padding:30px 0;font-size:14px}
+        .notation-box{background:#10142a;border-radius:10px;padding:10px 12px;font-size:13px;line-height:1.7;max-height:110px;overflow-y:auto;word-break:break-all;color:#7fe3ff;font-family:ui-monospace,Menlo,Consolas,monospace;margin-bottom:16px}
     </style>
     <!-- Three.js -->
     <script src="three.min.js"></script>
@@ -46,12 +51,17 @@
         <button class="btn" id="btn-scramble">🔀 打乱</button>
         <button class="btn gray" id="btn-reset-view">↺ 视角</button>
         <button class="btn gray" id="btn-reset">↺ 复原</button>
+        <button class="btn gray" id="btn-undo">◀ 上一步</button>
+        <button class="btn gray" id="btn-redo">下一步 ▶</button>
         <span class="stat" style="margin-left:auto">步数 <b id="steps">0</b></span>
     </div>
     <div id="wrap"></div>
     <div id="footer">
         <button class="btn" id="btn-save-snap">📸 存快照</button>
         <button class="btn gray" id="btn-list-snap">📋 快照库</button>
+        <button class="btn" id="btn-record">⏺ 开始记录</button>
+        <button class="btn gray" id="btn-save-formula">💾 存公式</button>
+        <button class="btn gray" id="btn-formula-lib">📜 公式库</button>
         <span class="stat" style="margin-left:auto">时间 <b id="timer">00:00</b></span>
     </div>
     <!-- <div id="hint">👆 滑动魔方表面转动一层 · 拖动空白处旋转视角</div> -->
@@ -128,7 +138,7 @@
             });
         }
 
-        // 初始化 4x4x4 方块
+        // 初始化 5x5x5 方块
         function initCube() {
             while (cubeGroup.children.length > 0) {
                 cubeGroup.remove(cubeGroup.children[0]);
@@ -163,7 +173,7 @@
         }
         initCube();
 
-        // --- 修复关键点 1：四阶魔方半整数坐标吸附与正交化纠错 ---
+        // --- 修复关键点 1：五阶魔方整数坐标吸附与正交化纠错 ---
         function snapCoord(val) {
             const raw = val / STEP;
             // 五阶合法坐标只存在于 [-2, -1, 0, 1, 2]
@@ -213,7 +223,7 @@
                     const elapsed = time - startTime;
                     const progress = Math.min(elapsed / duration, 1);
                     const ease = 1 - Math.pow(1 - progress, 3);
-                    
+
                     rotationGroup.rotation[axis] = targetAngle * ease;
 
                     if (progress < 1) {
@@ -236,6 +246,281 @@
             });
         }
 
+        /* ==================== 步骤历史 / 动作队列 ==================== */
+        // 队列化：所有转动按顺序串行执行，避免快速点击时丢步
+        let moveQueue = Promise.resolve();
+        let queueCount = 0;
+
+        function enqueueMove(axis, layer, dir, duration = 160) {
+            queueCount++;
+            const task = moveQueue.then(() => rotateSlice(axis, layer, dir, duration));
+            moveQueue = task.catch(() => {});
+            return task.finally(() => { queueCount--; });
+        }
+
+        function isBusy() {
+            return isAnimating || queueCount > 0;
+        }
+
+        // 历史记录（用于上一步 / 下一步）
+        let history = [];        // 已执行过的所有步骤
+        let historyIndex = 0;    // 游标：history[0..historyIndex) 已应用
+
+        // 步骤记录器（用于保存公式）
+        let recording = false;
+        let recordedSteps = [];
+
+        /**
+         * 执行一步转动并登记到历史 / 记录器
+         * @param {string} axis  'x' | 'y' | 'z'
+         * @param {number} layer -2..2
+         * @param {number} dir   1 | -1 | 2 | -2
+         * @param {object} opts  { duration, track, record }
+         */
+        function performMove(axis, layer, dir, opts = {}) {
+            const { duration = 160, track = true, record = true } = opts;
+            return enqueueMove(axis, layer, dir, duration).then(() => {
+                if (track) {
+                    // 若在历史中间执行新动作，丢弃后面的“未来”
+                    if (historyIndex < history.length) history.length = historyIndex;
+                    history.push({ axis, layer, dir });
+                    historyIndex = history.length;
+                    updateHistoryUI();
+                }
+                if (record && recording) {
+                    recordedSteps.push({ axis, layer, dir });
+                    updateRecordUI();
+                }
+            });
+        }
+
+        function updateHistoryUI() {
+            const u = document.getElementById('btn-undo');
+            const r = document.getElementById('btn-redo');
+            if (u) u.disabled = historyIndex <= 0;
+            if (r) r.disabled = historyIndex >= history.length;
+        }
+
+        function clearHistory() {
+            history = [];
+            historyIndex = 0;
+            updateHistoryUI();
+        }
+
+        // 上一步：把最近一步反向转回去
+        async function undoStep() {
+            if (isBusy()) return;
+            if (historyIndex <= 0) { toast('已经是最早一步了'); return; }
+            const step = history[historyIndex - 1];
+            historyIndex--;
+            updateHistoryUI();
+            await enqueueMove(step.axis, step.layer, -step.dir, 150);
+        }
+
+        // 下一步：重放游标处的那一步
+        async function redoStep() {
+            if (isBusy()) return;
+            if (historyIndex >= history.length) { toast('已经是最新一步了'); return; }
+            const step = history[historyIndex];
+            historyIndex++;
+            updateHistoryUI();
+            await enqueueMove(step.axis, step.layer, step.dir, 150);
+        }
+
+        document.getElementById('btn-undo').addEventListener('click', undoStep);
+        document.getElementById('btn-redo').addEventListener('click', redoStep);
+
+        /* ==================== 步骤记录器 UI ==================== */
+        function updateRecordUI() {
+            const btn = document.getElementById('btn-record');
+            if (!btn) return;
+            if (recording) {
+                btn.textContent = `⏹ 停止记录 (${recordedSteps.length})`;
+                btn.classList.add('recording');
+            } else {
+                btn.textContent = '⏺ 开始记录';
+                btn.classList.remove('recording');
+            }
+        }
+
+        function toggleRecording() {
+            if (recording) {
+                recording = false;
+                updateRecordUI();
+                if (recordedSteps.length === 0) {
+                    toast('⏹ 已停止（未记录到步骤）');
+                } else {
+                    toast(`⏹ 已停止，共记录 ${recordedSteps.length} 步`);
+                }
+            } else {
+                recording = true;
+                recordedSteps = [];
+                updateRecordUI();
+                toast('⏺ 开始记录步骤，转动魔方即可');
+            }
+        }
+
+        document.getElementById('btn-record').addEventListener('click', toggleRecording);
+
+        /* ==================== 公式记号 ==================== */
+        // cw: 该层“顺时针”对应的 dir 符号（dir * cw > 0 即顺时针）
+        const NOTATION_MAP = {
+            'x,2':  { name: 'R',  cw: -1 },
+            'x,1':  { name: '2R', cw: -1 },
+            'x,0':  { name: 'M',  cw: 1  },
+            'x,-1': { name: '2L', cw: 1  },
+            'x,-2': { name: 'L',  cw: 1  },
+            'y,2':  { name: 'U',  cw: -1 },
+            'y,1':  { name: '2U', cw: -1 },
+            'y,0':  { name: 'E',  cw: 1  },
+            'y,-1': { name: '2D', cw: 1  },
+            'y,-2': { name: 'D',  cw: 1  },
+            'z,2':  { name: 'F',  cw: -1 },
+            'z,1':  { name: '2F', cw: -1 },
+            'z,0':  { name: 'S',  cw: -1 },
+            'z,-1': { name: '2B', cw: 1  },
+            'z,-2': { name: 'B',  cw: 1  }
+        };
+
+        function stepToNotation(step) {
+            const info = NOTATION_MAP[step.axis + ',' + step.layer];
+            if (!info) return step.axis + step.layer + (step.dir > 0 ? '+' : '-');
+            if (Math.abs(step.dir) === 2) return info.name + '2';
+            const clockwise = step.dir * info.cw > 0;
+            return info.name + (clockwise ? '' : "'");
+        }
+
+        /* ==================== 公式库 ==================== */
+        const FORMULA_KEY = 'formula_005';
+
+        function getFormulas() {
+            try { return JSON.parse(localStorage.getItem(FORMULA_KEY)) || []; }
+            catch { return []; }
+        }
+        function saveFormulas(list) {
+            localStorage.setItem(FORMULA_KEY, JSON.stringify(list));
+        }
+
+        function copyText(text) {
+            if (navigator.clipboard && window.isSecureContext) {
+                return navigator.clipboard.writeText(text).catch(() => fallbackCopy(text));
+            }
+            return Promise.resolve(fallbackCopy(text));
+        }
+        function fallbackCopy(text) {
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            ta.style.position = 'fixed';
+            ta.style.opacity = '0';
+            document.body.appendChild(ta);
+            ta.select();
+            try { document.execCommand('copy'); } catch (e) {}
+            document.body.removeChild(ta);
+        }
+
+        // 保存公式弹窗
+        function openSaveFormulaModal() {
+            if (recordedSteps.length === 0) {
+                toast('还没有记录到步骤，请先点「开始记录」');
+                return;
+            }
+            const notation = recordedSteps.map(stepToNotation).join(' ');
+            openModal(`
+                <h3>💾 保存公式</h3>
+                <input type="text" id="formula-title" placeholder="输入公式名称..." maxlength="30">
+                <div class="notation-box">${escapeHtml(notation)}</div>
+                <div class="modal-actions">
+                    <button class="btn gray" id="modal-cancel">取消</button>
+                    <button class="btn" id="modal-save">保存</button>
+                </div>
+            `);
+            setTimeout(() => document.getElementById('formula-title').focus(), 50);
+
+            const doSave = () => {
+                const title = document.getElementById('formula-title').value.trim();
+                saveFormula(title);
+                closeModal();
+            };
+            document.getElementById('modal-cancel').onclick = closeModal;
+            document.getElementById('modal-save').onclick = doSave;
+            document.getElementById('formula-title').addEventListener('keydown', e => {
+                if (e.key === 'Enter') doSave();
+            });
+        }
+
+        function saveFormula(title) {
+            const list = getFormulas();
+            const f = {
+                id: Date.now(),
+                title: title || `公式 ${list.length + 1}`,
+                time: new Date().toLocaleString('zh-CN'),
+                moves: recordedSteps.map(s => ({ axis: s.axis, layer: s.layer, dir: s.dir })),
+                notation: recordedSteps.map(stepToNotation).join(' ')
+            };
+            list.unshift(f);
+            saveFormulas(list);
+            toast(`✓ 已保存「${f.title}」`);
+        }
+
+        // 公式库弹窗
+        function openFormulaList() {
+            const list = getFormulas();
+            let html = '<h3>📜 公式库</h3><div class="snapshot-list">';
+            if (list.length === 0) {
+                html += '<div class="empty-tip">暂无公式</div>';
+            } else {
+                html += list.map(f => `
+                    <div class="snapshot-item">
+                        <div class="snapshot-info">
+                            <div class="snapshot-title">${escapeHtml(f.title)}</div>
+                            <div class="snapshot-time">${f.time} · ${f.moves.length} 步</div>
+                            <div class="snapshot-time" style="color:#7fe3ff;font-family:ui-monospace,Menlo,Consolas,monospace;opacity:.9">${escapeHtml(f.notation || '')}</div>
+                        </div>
+                        <div class="snapshot-actions">
+                            <button onclick="window._playFormula(${f.id})">回放</button>
+                            <button onclick="window._copyFormula(${f.id})">复制</button>
+                            <button class="del" onclick="window._deleteFormula(${f.id})">删除</button>
+                        </div>
+                    </div>
+                `).join('');
+            }
+            html += '</div><div class="modal-actions" style="margin-top:14px"><button class="btn gray" id="modal-close">关闭</button></div>';
+            openModal(html);
+            document.getElementById('modal-close').onclick = closeModal;
+        }
+
+        function deleteFormula(id) {
+            saveFormulas(getFormulas().filter(f => f.id !== id));
+            openFormulaList();
+        }
+
+        function copyFormula(id) {
+            const f = getFormulas().find(x => x.id === id);
+            if (!f) return;
+            copyText(f.notation || '').then(() => toast('✓ 公式已复制到剪贴板'));
+        }
+
+        async function playFormula(id) {
+            const f = getFormulas().find(x => x.id === id);
+            if (!f) return;
+            if (isBusy()) { toast('动画进行中，请稍候…'); return; }
+            closeModal();
+            setButtonsDisabled(true);
+            for (const m of f.moves) {
+                await performMove(m.axis, m.layer, m.dir, { duration: 150, track: true, record: false });
+            }
+            setButtonsDisabled(false);
+            toast(`✓ 已回放「${f.title}」`);
+        }
+
+        window._playFormula = playFormula;
+        window._copyFormula = copyFormula;
+        window._deleteFormula = deleteFormula;
+
+        document.getElementById('btn-save-formula').addEventListener('click', openSaveFormulaModal);
+        document.getElementById('btn-formula-lib').addEventListener('click', openFormulaList);
+
+        /* ==================== 打乱 ==================== */
         // --- 高品质 WCA 打乱算法 ---
         function generateScrambleSequence(length = 24) {
             const axes = ['x', 'y', 'z'];
@@ -260,7 +545,7 @@
         }
 
         async function runScramble() {
-            if (isAnimating) return;
+            if (isBusy()) return;
             setButtonsDisabled(true);
             stopTimer();
             document.getElementById('timer').innerText = '00:00';
@@ -270,7 +555,10 @@
             const seq = generateScrambleSequence(24);
             for (const step of seq) {
                 const duration = Math.abs(step.dir) === 2 ? 80 : 55;
-                await rotateSlice(step.axis, step.layer, step.dir, duration);
+                // 打乱过程登记进历史（可用上一步逐步回看），但不计入公式记录
+                await performMove(step.axis, step.layer, step.dir, {
+                    duration, track: true, record: false
+                });
             }
 
             toast('🔀 打乱完成！');
@@ -279,9 +567,10 @@
 
         function setButtonsDisabled(disabled) {
             document.querySelectorAll('button').forEach(b => b.disabled = disabled);
+            if (!disabled) updateHistoryUI();
         }
 
-        // --- 交互系统（触控、缩放、滑转） ---
+        /* ==================== 交互系统（触控、缩放、滑转） ==================== */
         const raycaster = new THREE.Raycaster();
         const ndc = new THREE.Vector2();
         let drag = null;
@@ -299,7 +588,7 @@
             );
             raycaster.setFromCamera(ndc, camera);
             const hits = raycaster.intersectObjects(cubies);
-            if (hits.length && !isAnimating) {
+            if (hits.length && !isBusy()) {
                 const h = hits[0];
                 const n = h.face.normal.clone().transformDirection(h.object.matrixWorld);
                 n.set(Math.round(n.x), Math.round(n.y), Math.round(n.z));
@@ -400,7 +689,8 @@
 
             startTimer();
             addStep();
-            rotateSlice(comp, layerCoord, dir);
+            // 走历史队列，并（若正在记录）写入公式记录
+            performMove(comp, layerCoord, dir, { duration: 160 });
         }
 
         function scrDir(p, v) {
@@ -461,7 +751,7 @@
         });
 
         document.getElementById('btn-reset').addEventListener('click', () => {
-            if (isAnimating) { toast('动画进行中，请稍候…'); return; }
+            if (isBusy()) { toast('动画进行中，请稍候…'); return; }
             stopTimer();
             document.getElementById('timer').innerText = '00:00';
             resetStats();
@@ -471,6 +761,7 @@
             updCam();
             cubeGroup.rotation.set(0, 0, 0);
             initCube();
+            clearHistory();
             toast('↺ 已复原');
         });
 
@@ -531,11 +822,12 @@
         function restoreSnapshot(id) {
             const snap = getSnapshots().find(s => s.id === id);
             if (!snap) return;
-            if (isAnimating) { toast('动画进行中，请稍候…'); return; }
+            if (isBusy()) { toast('动画进行中，请稍候…'); return; }
             if (restoreCubeState(snap.cube)) {
                 stopTimer();
                 document.getElementById('timer').innerText = '00:00';
                 resetStats();
+                clearHistory();   // 状态已跳变，历史作废
                 toast(`✓ 已恢复"${snap.title}"`);
                 closeModal();
             } else {
@@ -560,7 +852,7 @@
 
         // 打开保存快照弹窗
         function openSaveModal() {
-            if (isAnimating) { toast('动画进行中，请稍候…'); return; }
+            if (isBusy()) { toast('动画进行中，请稍候…'); return; }
             openModal(`
                 <h3>📸 保存快照</h3>
                 <input type="text" id="snap-title" placeholder="输入快照标题..." maxlength="30">
@@ -623,6 +915,10 @@
         // 按钮绑定
         document.getElementById('btn-save-snap').addEventListener('click', openSaveModal);
         document.getElementById('btn-list-snap').addEventListener('click', openSnapshotList);
+
+        // 初始化按钮状态
+        updateHistoryUI();
+        updateRecordUI();
 
         function render(now) {
             requestAnimationFrame(render);
