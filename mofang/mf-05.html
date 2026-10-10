@@ -8,9 +8,11 @@
         *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none}
         html,body{height:100%;overflow:hidden;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif}
         body{display:flex;flex-direction:column;background:radial-gradient(1200px 800px at 50% 15%,#2b3a67,#1a2238 60%,#10142a)}
-        #hud{display:flex;align-items:center;gap:8px;padding:10px 12px;flex-wrap:wrap;color:#fff}
-        #footer{display:flex;align-items:center;gap:8px;padding:10px 12px;flex-wrap:wrap;color:#fff;background:rgba(0,0,0,.3);border-top:1px solid rgba(255,255,255,.1)}
-        .btn{border:none;cursor:pointer;color:#fff;font-size:13px;padding:7px 14px;border-radius:10px;background:linear-gradient(135deg,#4f6df5,#7b3ff2);box-shadow:0 4px 14px rgba(79,109,245,.4);transition:transform .1s}
+        #topbar{display:flex;align-items:center;justify-content:space-between;padding:8px 12px;color:#fff;gap:8px}
+        #topbar .stat{font-size:12px;opacity:.85}
+        #topbar .stat b{font-size:14px;color:#7fe3ff}
+        #footer{    background: #ddd;display:flex;align-items:center;justify-content:center;gap:8px;padding:10px 12px;color:#fff;border-top:1px solid rgba(255,255,255,.1)}
+        .btn{border:none;cursor:pointer;color:#fff;font-size:13px;padding:7px 14px;border-radius:10px;background:linear-gradient(135deg,#4f6df5,#7b3ff2);box-shadow:0 4px 14px rgba(79,109,245,.4);transition:transform .1s;white-space:nowrap}
         .btn:active{transform:scale(.94)}
         .btn.gray{background:linear-gradient(135deg,#3a4358,#2a3040);box-shadow:0 4px 14px rgba(0,0,0,.35)}
         .btn:disabled{opacity:.38;cursor:not-allowed;box-shadow:none}
@@ -47,22 +49,26 @@
 </head>
 <body>
 
-    <div id="hud">
-        <button class="btn" id="btn-scramble">🔀 打乱</button>
-        <button class="btn gray" id="btn-reset-view">↺ 视角</button>
+    <div id="topbar">
         <button class="btn gray" id="btn-reset">↺ 复原</button>
-        <button class="btn gray" id="btn-undo">◀ 上一步</button>
-        <button class="btn gray" id="btn-redo">下一步 ▶</button>
-        <span class="stat" style="margin-left:auto">步数 <b id="steps">0</b></span>
+        <span class="stat">时间 <b id="timer">00:00</b></span>
+        <button class="btn" id="btn-scramble">🔀 打乱</button>
+    </div>
+    <div id="topbar">
+        <button class="btn gray" id="btn-list-snap">📋 快照库</button>
+        <span class="stat">步数 <b id="steps">0</b></span>
+        <button class="btn gray" id="btn-formula-lib">📜 步骤库</button>
+    </div>
+    <div id="topbar">
+        <button class="btn" id="btn-save-snap">📸 存快照</button>
+        <span></span>
+        <button class="btn" id="btn-record">⏺ 记录</button>
     </div>
     <div id="wrap"></div>
     <div id="footer">
-        <button class="btn" id="btn-save-snap">📸 存快照</button>
-        <button class="btn gray" id="btn-list-snap">📋 快照库</button>
-        <button class="btn" id="btn-record">⏺ 开始记录</button>
-        <button class="btn gray" id="btn-save-formula">💾 存公式</button>
-        <button class="btn gray" id="btn-formula-lib">📜 公式库</button>
-        <span class="stat" style="margin-left:auto">时间 <b id="timer">00:00</b></span>
+        <button class="btn gray" id="btn-undo" style="width: 100%;">◀ 上一步</button>
+        <button class="btn gray" id="btn-reset-view">↺ 视角</button>
+        <button class="btn gray" id="btn-redo" style="width: 100%;">下一步 ▶</button>
     </div>
     <!-- <div id="hint">👆 滑动魔方表面转动一层 · 拖动空白处旋转视角</div> -->
     <div id="toast"></div>
@@ -338,7 +344,7 @@
                 btn.textContent = `⏹ 停止记录 (${recordedSteps.length})`;
                 btn.classList.add('recording');
             } else {
-                btn.textContent = '⏺ 开始记录';
+                btn.textContent = '⏺ 记录';
                 btn.classList.remove('recording');
             }
         }
@@ -350,7 +356,20 @@
                 if (recordedSteps.length === 0) {
                     toast('⏹ 已停止（未记录到步骤）');
                 } else {
-                    toast(`⏹ 已停止，共记录 ${recordedSteps.length} 步`);
+                    // 停止记录并自动保存到步骤库
+                    const list = getFormulas();
+                    const notation = recordedSteps.map(stepToNotation).join(' ');
+                    const f = {
+                        id: Date.now(),
+                        title: `公式 ${list.length + 1}`,
+                        time: new Date().toLocaleString('zh-CN'),
+                        moves: recordedSteps.map(s => ({ axis: s.axis, layer: s.layer, dir: s.dir })),
+                        notation
+                    };
+                    list.unshift(f);
+                    saveFormulas(list);
+                    recordedSteps = [];
+                    toast(`✓ 已保存「${f.title}」到步骤库`);
                 }
             } else {
                 recording = true;
@@ -363,7 +382,7 @@
         document.getElementById('btn-record').addEventListener('click', toggleRecording);
 
         /* ==================== 公式记号 ==================== */
-        // cw: 该层“顺时针”对应的 dir 符号（dir * cw > 0 即顺时针）
+        // cw: 该层"顺时针"对应的 dir 符号（dir * cw > 0 即顺时针）
         const NOTATION_MAP = {
             'x,2':  { name: 'R',  cw: -1 },
             'x,1':  { name: '2R', cw: -1 },
@@ -421,7 +440,7 @@
         // 保存公式弹窗
         function openSaveFormulaModal() {
             if (recordedSteps.length === 0) {
-                toast('还没有记录到步骤，请先点「开始记录」');
+                toast('还没有记录到步骤，请先点「记录」');
                 return;
             }
             const notation = recordedSteps.map(stepToNotation).join(' ');
@@ -465,7 +484,7 @@
         // 公式库弹窗
         function openFormulaList() {
             const list = getFormulas();
-            let html = '<h3>📜 公式库</h3><div class="snapshot-list">';
+            let html = '<h3>📜 步骤库</h3><div class="snapshot-list">';
             if (list.length === 0) {
                 html += '<div class="empty-tip">暂无公式</div>';
             } else {
@@ -477,8 +496,7 @@
                             <div class="snapshot-time" style="color:#7fe3ff;font-family:ui-monospace,Menlo,Consolas,monospace;opacity:.9">${escapeHtml(f.notation || '')}</div>
                         </div>
                         <div class="snapshot-actions">
-                            <button onclick="window._playFormula(${f.id})">回放</button>
-                            <button onclick="window._copyFormula(${f.id})">复制</button>
+                            <button onclick="window._playFormula(${f.id})">回放</button> 
                             <button class="del" onclick="window._deleteFormula(${f.id})">删除</button>
                         </div>
                     </div>
@@ -517,7 +535,6 @@
         window._copyFormula = copyFormula;
         window._deleteFormula = deleteFormula;
 
-        document.getElementById('btn-save-formula').addEventListener('click', openSaveFormulaModal);
         document.getElementById('btn-formula-lib').addEventListener('click', openFormulaList);
 
         /* ==================== 打乱 ==================== */
