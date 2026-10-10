@@ -1,0 +1,777 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>魔方小游戏</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none}
+  html,body{height:100%;overflow:hidden;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif}
+  body{display:flex;flex-direction:column;background:radial-gradient(1200px 800px at 50% 15%,#2b3a67,#1a2238 60%,#10142a)}
+  #hud{display:flex;align-items:center;gap:10px;padding:12px;flex-wrap:wrap;color:#fff}
+  #footer{display:flex;align-items:center;gap:6px;padding:10px 12px;flex-wrap:wrap;color:#fff;background:rgba(0,0,0,.3);border-top:1px solid rgba(255,255,255,.1)}
+  .btn{border:none;cursor:pointer;color:#fff;font-size:13px;padding:7px 12px;border-radius:10px;
+       background:linear-gradient(135deg,#4f6df5,#7b3ff2);box-shadow:0 4px 14px rgba(79,109,245,.4);
+       transition:transform .1s,opacity .15s;white-space:nowrap}
+  .btn:active{transform:scale(.94)}
+  .btn.gray{background:linear-gradient(135deg,#3a4358,#2a3040);box-shadow:0 4px 14px rgba(0,0,0,.35)}
+  .btn:disabled{opacity:.32;cursor:not-allowed;transform:none}
+  .btn.rec.active{background:linear-gradient(135deg,#e11d48,#f43f5e);box-shadow:0 4px 14px rgba(225,29,72,.5);animation:pulse 1.2s ease-in-out infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.6}}
+  .stat{font-size:14px;opacity:.85;margin-left:4px}
+  .stat b{font-size:16px;color:#7fe3ff}
+  #wrap{flex:1;position:relative;touch-action:none}
+  canvas{display:block}
+  #hint{position:fixed;bottom:56px;width:100%;text-align:center;font-size:12px;color:#fff;opacity:.55;pointer-events:none}
+  #toast{position:fixed;left:50%;top:16%;transform:translateX(-50%);background:rgba(0,0,0,.78);color:#fff;
+         padding:12px 24px;border-radius:14px;font-size:15px;opacity:0;pointer-events:none;transition:opacity .3s;z-index:200;
+         white-space:nowrap;max-width:92vw;overflow:hidden;text-overflow:ellipsis}
+  #toast.show{opacity:1}
+  #snapshot-modal{position:fixed;inset:0;background:rgba(0,0,0,.7);display:none;align-items:center;justify-content:center;z-index:100}
+  #snapshot-modal.show{display:flex}
+  .modal-box{background:#1e2436;border-radius:16px;padding:20px;width:90%;max-width:400px;max-height:82vh;overflow-y:auto;color:#fff;box-shadow:0 10px 40px rgba(0,0,0,.5)}
+  .modal-box h3{margin:0 0 14px;font-size:18px}
+  .modal-box input{width:100%;padding:12px;border:1px solid #3a4358;border-radius:10px;background:#10142a;color:#fff;font-size:15px;outline:none;margin-bottom:14px}
+  .modal-box input:focus{border-color:#7b3ff2}
+  .modal-actions{display:flex;gap:10px;justify-content:flex-end}
+  .snapshot-list{max-height:190px;overflow-y:auto;margin-top:4px}
+  .snapshot-item{display:flex;align-items:center;gap:10px;padding:10px 12px;background:#10142a;border-radius:10px;margin-bottom:8px}
+  .snapshot-info{flex:1;overflow:hidden;min-width:0}
+  .snapshot-title{font-size:14px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .snapshot-time{font-size:11px;opacity:.5;margin-top:2px}
+  .snapshot-actions{display:flex;gap:6px;flex-shrink:0}
+  .snapshot-actions button{border:none;cursor:pointer;font-size:12px;padding:6px 10px;border-radius:8px;color:#fff;background:linear-gradient(135deg,#4f6df5,#7b3ff2)}
+  .snapshot-actions button.del{background:linear-gradient(135deg,#c41e3a,#ff5800)}
+  .empty-tip{text-align:center;opacity:.5;padding:18px 0;font-size:13px}
+  .lib-section-title{font-size:13px;font-weight:600;opacity:.7;margin:14px 0 8px}
+  .formula-preview{background:#10142a;border:1px solid #3a4358;border-radius:10px;padding:12px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:14px;line-height:1.7;word-break:break-all;max-height:120px;overflow-y:auto;margin-bottom:14px;color:#7fe3ff}
+  .formula-mini{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11px;color:#7fe3ff;opacity:.75;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:3px}
+  .tip-text{font-size:11px;opacity:.45;line-height:1.6;margin-bottom:12px}
+</style>
+</head>
+<body>
+<div id="hud">
+  <button class="btn" id="btnShuffle">🔀 打乱</button>
+  <button class="btn gray" id="btnReset">↺ 复原</button>
+  <button class="btn gray" id="btnResetView">↺ 视角</button>
+  <span class="stat" style="margin-left:auto">步数 <b id="moves">0</b></span>
+</div>
+<div id="wrap"></div>
+<div id="footer">
+  <button class="btn gray" id="btnPrev">⏪ 上一步</button>
+  <button class="btn gray" id="btnNext">⏩ 下一步</button>
+  <button class="btn rec" id="btnRecord">⏺ 记录</button>
+  <button class="btn" id="btnSnap">📸 快照</button>
+  <button class="btn gray" id="btnLib">📋 库</button>
+  <span class="stat" style="margin-left:auto">时间 <b id="time">00:00</b></span>
+</div>
+<div id="hint">👆 滑动魔方表面转动一层 · 拖动空白处旋转视角</div>
+<div id="toast"></div>
+
+<!-- 模态框 -->
+<div id="snapshot-modal">
+  <div class="modal-box" id="modal-content"></div>
+</div>
+
+<script src="three.min.js"></script>
+<script>
+(function(){
+  /* ---------- 基础场景 ---------- */
+  const wrap = document.getElementById('wrap');
+  const renderer = new THREE.WebGLRenderer({antialias:true, alpha:true});
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio||1, 2));
+  wrap.appendChild(renderer.domElement);
+  const dom = renderer.domElement;
+
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 100);
+  scene.add(new THREE.AmbientLight(0xffffff, 0.9));
+  const dl = new THREE.DirectionalLight(0xffffff, 0.45);
+  dl.position.set(6, 10, 8);
+  scene.add(dl);
+
+  /* ---------- 构建 3x3x3 魔方 ---------- */
+  const C = {R:0xb71234, L:0xff5800, U:0xffffff, D:0xffd500, F:0x009b48, B:0x0046ad, X:0x14141c};
+  const geo = new THREE.BoxGeometry(0.96, 0.96, 0.96);
+  const cubies = [];
+  for(let x=-1;x<=1;x++) for(let y=-1;y<=1;y++) for(let z=-1;z<=1;z++){
+    if(!x && !y && !z) continue;
+    const stickers = [];
+    const mat = (nx,ny,nz,col)=>{
+      if(col!==C.X) stickers.push({n:new THREE.Vector3(nx,ny,nz), c:col});
+      return new THREE.MeshLambertMaterial({color:col});
+    };
+    const mats = [
+      mat( 1,0, 0, x=== 1 ? C.R : C.X),
+      mat(-1,0, 0, x===-1 ? C.L : C.X),
+      mat(0, 1, 0, y=== 1 ? C.U : C.X),
+      mat(0,-1, 0, y===-1 ? C.D : C.X),
+      mat(0, 0, 1, z=== 1 ? C.F : C.X),
+      mat(0, 0,-1, z===-1 ? C.B : C.X),
+    ];
+    const m = new THREE.Mesh(geo, mats);
+    m.position.set(x, y, z);
+    m.userData = {init: m.position.clone(), stickers};
+    scene.add(m);
+    cubies.push(m);
+  }
+
+  /* ---------- 相机轨道 + 缩放 ---------- */
+  let RAD = 20;
+  const RAD_MIN = 4.5, RAD_MAX = 22;
+  let theta = 0.8, phi = 1.02;
+  const DEF = {theta:0.8, phi:1.02, rad:RAD};
+
+  function updCam(){
+    camera.position.setFromSphericalCoords(RAD, phi, theta);
+    camera.lookAt(0, 0, 0);
+  }
+  function resize(){
+    const w = wrap.clientWidth, h = wrap.clientHeight;
+    renderer.setSize(w, h);
+    camera.aspect = w/h;
+    camera.updateProjectionMatrix();
+  }
+  window.addEventListener('resize', resize);
+  resize(); updCam();
+
+  function clamp(v, min, max){ return Math.max(min, Math.min(max, v)); }
+
+  /* =========================================================
+     动画队列：保证连续点击时按顺序执行
+     ========================================================= */
+  let pendingMoves = 0;
+  let animChain = Promise.resolve();
+
+  function busy(){ return pendingMoves > 0; }
+
+  function doMove(axis, layer, dir, dur){
+    pendingMoves++;
+    const run = () => animateMove(axis, layer, dir, dur);
+    const p = animChain.then(run, run);
+    animChain = p.then(()=>{}, ()=>{});
+    return p.then(
+      v => { pendingMoves--; return v; },
+      e => { pendingMoves--; throw e; }
+    );
+  }
+
+  function animateMove(axis, layer, dir, dur){
+    return new Promise((resolve) => {
+      const pivot = new THREE.Group();
+      scene.add(pivot);
+      const comp = axis.x!==0 ? 'x' : (axis.y!==0 ? 'y' : 'z');
+      for(const c of cubies)
+        if(Math.round(c.position[comp]) === layer) pivot.attach(c);
+
+      const to = Math.PI/2*dir;
+      const t0 = performance.now();
+
+      function step(now){
+        let k = (now - t0) / dur;
+        if(k > 1) k = 1;
+        const e = k<0.5 ? 2*k*k : 1 - Math.pow(-2*k+2, 2)/2;
+        pivot.rotation[comp] = to * e;
+        if(k < 1){
+          requestAnimationFrame(step);
+        } else {
+          pivot.rotation[comp] = to;
+          pivot.updateMatrixWorld(true);
+          const kids = pivot.children.slice();
+          for(const k2 of kids){
+            scene.attach(k2);
+            k2.position.set(Math.round(k2.position.x), Math.round(k2.position.y), Math.round(k2.position.z));
+          }
+          scene.remove(pivot);
+          resolve();
+        }
+      }
+      requestAnimationFrame(step);
+    });
+  }
+
+  /* =========================================================
+     历史记录：上一步 / 下一步
+     ========================================================= */
+  let moveHistory = [];      // { axis:{x,y,z}, layer, dir }
+  let historyIndex = 0;
+  let uiLocked = false;
+
+  function pushHistory(step){
+    moveHistory.length = historyIndex;
+    moveHistory.push(step);
+    historyIndex++;
+    updateNavButtons();
+  }
+  function clearHistory(){
+    moveHistory = [];
+    historyIndex = 0;
+    updateNavButtons();
+  }
+  function updateNavButtons(){
+    if(uiLocked) return;
+    document.getElementById('btnPrev').disabled = historyIndex <= 0;
+    document.getElementById('btnNext').disabled = historyIndex >= moveHistory.length;
+  }
+  function goPrev(){
+    if(historyIndex <= 0 || busy()) return;
+    historyIndex--;
+    const s = moveHistory[historyIndex];
+    doMove(s.axis, s.layer, -s.dir, 140).then(updateNavButtons);
+    updateNavButtons();
+  }
+  function goNext(){
+    if(historyIndex >= moveHistory.length || busy()) return;
+    const s = moveHistory[historyIndex];
+    historyIndex++;
+    doMove(s.axis, s.layer, s.dir, 140).then(updateNavButtons);
+    updateNavButtons();
+  }
+
+  /* =========================================================
+     步骤录制 → 保存为公式
+     ========================================================= */
+  let recording = false;
+  let recordedMoves = [];
+  const recordBtn = document.getElementById('btnRecord');
+
+  function updateRecordBtn(){
+    if(recording){
+      recordBtn.textContent = `⏹ 结束(${recordedMoves.length})`;
+      recordBtn.classList.add('active');
+    } else {
+      recordBtn.textContent = '⏺ 记录';
+      recordBtn.classList.remove('active');
+    }
+  }
+
+  recordBtn.addEventListener('click', ()=>{
+    if(busy()){ toast('动画进行中，请稍候…'); return; }
+    if(!recording){
+      recording = true;
+      recordedMoves = [];
+      updateRecordBtn();
+      toast('🔴 开始记录步骤，转动魔方吧');
+    } else {
+      recording = false;
+      updateRecordBtn();
+      if(recordedMoves.length === 0){
+        toast('未记录到任何步骤');
+        return;
+      }
+      openFormulaSaveModal();
+    }
+  });
+
+  // 3x3 标准记号：R/L/U/D/F/B 外层, M/E/S 中层
+  function stepToNotation(axis, layer, dir){
+    let face, cw;
+    if(axis.x !== 0){
+      if(layer > 0){ face='R'; cw=-1; }
+      else if(layer < 0){ face='L'; cw=1; }
+      else{ face='M'; cw=1; }
+    } else if(axis.y !== 0){
+      if(layer > 0){ face='U'; cw=-1; }
+      else if(layer < 0){ face='D'; cw=1; }
+      else{ face='E'; cw=1; }
+    } else {
+      if(layer > 0){ face='F'; cw=-1; }
+      else if(layer < 0){ face='B'; cw=1; }
+      else{ face='S'; cw=-1; }
+    }
+    if(Math.abs(dir) === 2) return face+'2';
+    return dir === cw ? face : face+"'";
+  }
+
+  function movesToNotation(moves){
+    return moves.map(m => stepToNotation(m.axis, m.layer, m.dir)).join(' ');
+  }
+
+  const FORMULA_KEY = 'cube3_formulas_v1';
+
+  function getFormulas(){
+    try{ return JSON.parse(localStorage.getItem(FORMULA_KEY)) || []; }
+    catch{ return []; }
+  }
+  function saveFormulaList(list){
+    localStorage.setItem(FORMULA_KEY, JSON.stringify(list));
+  }
+  function saveFormula(title, moves){
+    const list = getFormulas();
+    list.unshift({
+      id: Date.now(),
+      title,
+      time: new Date().toLocaleString('zh-CN'),
+      notation: movesToNotation(moves),
+      moves: moves.map(m=>({axis:m.axis, layer:m.layer, dir:m.dir}))
+    });
+    saveFormulaList(list);
+  }
+  function deleteFormula(id){
+    saveFormulaList(getFormulas().filter(f=>f.id!==id));
+    openLibrary();
+  }
+
+  async function playFormula(id){
+    const f = getFormulas().find(x=>x.id===id);
+    if(!f) return;
+    if(busy()){ toast('动画进行中，请稍候…'); return; }
+    closeModal();
+    toast(`▶ 执行「${f.title}」`);
+    for(const m of f.moves){
+      pushHistory(m);
+      doMoveCount();
+      await doMove(m.axis, m.layer, m.dir, 130);
+    }
+    toast('✓ 公式执行完成');
+  }
+
+  function openFormulaSaveModal(){
+    const notation = movesToNotation(recordedMoves);
+    openModal(`
+      <h3>💾 保存公式</h3>
+      <div class="formula-preview">${escapeHtml(notation)}</div>
+      <div class="tip-text">
+        记法：R/L/U/D/F/B 为外层面，M/E/S 为中层，' 表示逆时针，2 表示 180°。共 ${recordedMoves.length} 步。
+      </div>
+      <input type="text" id="formula-title" placeholder="给公式起个名字…" maxlength="30">
+      <div class="modal-actions">
+        <button class="btn gray" id="modal-cancel">取消</button>
+        <button class="btn" id="modal-save-formula">保存</button>
+      </div>
+    `);
+    const input = document.getElementById('formula-title');
+    setTimeout(()=>input.focus(), 50);
+    document.getElementById('modal-cancel').onclick = closeModal;
+    const doSave = ()=>{
+      const title = input.value.trim() || `公式 ${getFormulas().length+1}`;
+      saveFormula(title, recordedMoves);
+      recordedMoves = [];
+      updateRecordBtn();
+      closeModal();
+      toast(`✓ 已保存公式「${title}」`);
+    };
+    document.getElementById('modal-save-formula').onclick = doSave;
+    input.addEventListener('keydown', e=>{ if(e.key==='Enter') doSave(); });
+  }
+
+  /* =========================================================
+     快照系统
+     ========================================================= */
+  const SNAPSHOT_KEY = 'cube3_snapshots_v1';
+
+  function getSnapshots(){
+    try{ return JSON.parse(localStorage.getItem(SNAPSHOT_KEY)) || []; }
+    catch{ return []; }
+  }
+  function saveSnapshots(list){
+    localStorage.setItem(SNAPSHOT_KEY, JSON.stringify(list));
+  }
+
+  function captureCubeState(){
+    return cubies.map(c=>({
+      pos:{x:c.position.x, y:c.position.y, z:c.position.z},
+      quat:{x:c.quaternion.x, y:c.quaternion.y, z:c.quaternion.z, w:c.quaternion.w}
+    }));
+  }
+
+  function restoreCubeState(state){
+    if(!state || state.length !== cubies.length) return false;
+    state.forEach((s,i)=>{
+      cubies[i].position.set(s.pos.x, s.pos.y, s.pos.z);
+      cubies[i].quaternion.set(s.quat.x, s.quat.y, s.quat.z, s.quat.w);
+    });
+    return true;
+  }
+
+  function saveSnapshot(title){
+    const snaps = getSnapshots();
+    const snap = {
+      id: Date.now(),
+      title: title || `快照 ${snaps.length+1}`,
+      time: new Date().toLocaleString('zh-CN'),
+      cube: captureCubeState()
+    };
+    snaps.unshift(snap);
+    saveSnapshots(snaps);
+    toast(`✓ 已保存"${snap.title}"`);
+  }
+
+  function deleteSnapshot(id){
+    saveSnapshots(getSnapshots().filter(s=>s.id!==id));
+    openLibrary();
+  }
+
+  function restoreSnapshot(id){
+    const snap = getSnapshots().find(s=>s.id===id);
+    if(!snap) return;
+    if(busy()){ toast('动画进行中，请稍候…'); return; }
+    if(restoreCubeState(snap.cube)){
+      stopTime();
+      document.getElementById('time').innerText = '00:00';
+      resetStats();
+      clearHistory();
+      toast(`✓ 已恢复"${snap.title}"`);
+      closeModal();
+    } else {
+      toast('快照数据不兼容');
+    }
+  }
+
+  /* ---------- 模态框 ---------- */
+  const modal = document.getElementById('snapshot-modal');
+  const modalContent = document.getElementById('modal-content');
+
+  function openModal(html){
+    modalContent.innerHTML = html;
+    modal.classList.add('show');
+  }
+  function closeModal(){
+    modal.classList.remove('show');
+  }
+  modal.addEventListener('click', e=>{
+    if(e.target === modal) closeModal();
+  });
+
+  function escapeHtml(str){
+    const div = document.createElement('div');
+    div.textContent = str == null ? '' : String(str);
+    return div.innerHTML;
+  }
+
+  /* ---------- 保存快照弹窗 ---------- */
+  function openSaveModal(){
+    if(busy()){ toast('动画进行中，请稍候…'); return; }
+    openModal(`
+      <h3>📸 保存快照</h3>
+      <input type="text" id="snap-title" placeholder="输入快照标题..." maxlength="30">
+      <div class="modal-actions">
+        <button class="btn gray" id="modal-cancel">取消</button>
+        <button class="btn" id="modal-save">保存</button>
+      </div>
+    `);
+    setTimeout(()=>document.getElementById('snap-title').focus(), 50);
+    document.getElementById('modal-cancel').onclick = closeModal;
+    document.getElementById('modal-save').onclick = ()=>{
+      const title = document.getElementById('snap-title').value.trim();
+      saveSnapshot(title);
+      closeModal();
+    };
+    document.getElementById('snap-title').addEventListener('keydown', e=>{
+      if(e.key === 'Enter'){
+        const title = e.target.value.trim();
+        saveSnapshot(title);
+        closeModal();
+      }
+    });
+  }
+
+  /* ---------- 库（快照 + 公式） ---------- */
+  function openLibrary(){
+    const snaps = getSnapshots();
+    const formulas = getFormulas();
+
+    let html = '<h3>📋 我的库</h3>';
+
+    html += '<div class="lib-section-title">📸 快照</div><div class="snapshot-list">';
+    if(snaps.length === 0){
+      html += '<div class="empty-tip">暂无快照</div>';
+    } else {
+      html += snaps.map(s=>`
+        <div class="snapshot-item">
+          <div class="snapshot-info">
+            <div class="snapshot-title">${escapeHtml(s.title)}</div>
+            <div class="snapshot-time">${escapeHtml(s.time)}</div>
+          </div>
+          <div class="snapshot-actions">
+            <button onclick="window._restore(${s.id})">恢复</button>
+            <button class="del" onclick="window._deleteSnap(${s.id})">删除</button>
+          </div>
+        </div>
+      `).join('');
+    }
+    html += '</div>';
+
+    html += '<div class="lib-section-title">📐 公式</div><div class="snapshot-list">';
+    if(formulas.length === 0){
+      html += '<div class="empty-tip">暂无公式，点击「⏺ 记录」开始录制</div>';
+    } else {
+      html += formulas.map(f=>`
+        <div class="snapshot-item">
+          <div class="snapshot-info">
+            <div class="snapshot-title">${escapeHtml(f.title)}</div>
+            <div class="formula-mini">${escapeHtml(f.notation)}</div>
+            <div class="snapshot-time">${escapeHtml(f.time)} · ${f.moves.length} 步</div>
+          </div>
+          <div class="snapshot-actions">
+            <button onclick="window._playFormula(${f.id})">执行</button>
+            <button class="del" onclick="window._deleteFormula(${f.id})">删除</button>
+          </div>
+        </div>
+      `).join('');
+    }
+    html += '</div>';
+
+    html += '<div class="modal-actions" style="margin-top:14px"><button class="btn gray" id="modal-close">关闭</button></div>';
+
+    openModal(html);
+    document.getElementById('modal-close').onclick = closeModal;
+  }
+
+  // 全局暴露
+  window._restore = restoreSnapshot;
+  window._deleteSnap = deleteSnapshot;
+  window._playFormula = playFormula;
+  window._deleteFormula = deleteFormula;
+
+  document.getElementById('btnSnap').addEventListener('click', openSaveModal);
+  document.getElementById('btnLib').addEventListener('click', openLibrary);
+  document.getElementById('btnPrev').addEventListener('click', goPrev);
+  document.getElementById('btnNext').addEventListener('click', goNext);
+
+  /* ---------- 状态 ---------- */
+  let moveCount = 0, started = false, timing = false, tStart = 0, tEnd = 0;
+  const movesEl = document.getElementById('moves');
+  const timeEl  = document.getElementById('time');
+
+  const ray = new THREE.Raycaster();
+  const ndc = new THREE.Vector2();
+  let drag = null;
+
+  /* ---------- 是否已还原 ---------- */
+  function isSolved(){
+    const map = {};
+    for(const c of cubies){
+      for(const s of c.userData.stickers){
+        const n = s.n.clone().applyQuaternion(c.quaternion);
+        const k = Math.round(n.x)+','+Math.round(n.y)+','+Math.round(n.z);
+        if(!map[k]) map[k] = new Set();
+        map[k].add(s.c);
+      }
+    }
+    return Object.values(map).every(set => set.size === 1);
+  }
+
+  /* ========== 交互 ========== */
+
+  dom.addEventListener('pointerdown', e=>{
+    e.preventDefault();
+    dom.setPointerCapture(e.pointerId);
+    const rect = dom.getBoundingClientRect();
+    ndc.set(((e.clientX-rect.left)/rect.width)*2-1, -((e.clientY-rect.top)/rect.height)*2+1);
+    ray.setFromCamera(ndc, camera);
+    const hits = ray.intersectObjects(cubies);
+    if(hits.length && !busy()){
+      const h = hits[0];
+      const n = h.face.normal.clone().transformDirection(h.object.matrixWorld);
+      n.set(Math.round(n.x), Math.round(n.y), Math.round(n.z));
+      drag = {type:'layer', cubie:h.object, n, point:h.point.clone(), sx:e.clientX, sy:e.clientY, done:false};
+    }else{
+      drag = {type:'view', sx:e.clientX, sy:e.clientY};
+    }
+  });
+
+  dom.addEventListener('pointermove', e=>{
+    if(!drag) return;
+    const dx = e.clientX-drag.sx, dy = e.clientY-drag.sy;
+    if(drag.type === 'view'){
+      theta -= dx*0.008;
+      phi   -= dy*0.008;
+      phi = Math.max(0.15, Math.min(Math.PI-0.15, phi));
+      drag.sx = e.clientX; drag.sy = e.clientY;
+      updCam();
+    }else if(!drag.done && Math.hypot(dx,dy) > 14){
+      drag.done = true;
+      decide(drag, dx, dy);
+      drag = null;
+    }
+  });
+  window.addEventListener('pointerup',    ()=> drag=null);
+  window.addEventListener('pointercancel',()=> drag=null);
+
+  // 双指缩放
+  let pinchDist0 = 0, pinchRad0 = RAD;
+  dom.addEventListener('touchstart', e=>{
+    if(e.touches.length === 2){
+      drag = null;
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      pinchDist0 = Math.hypot(dx, dy);
+      pinchRad0  = RAD;
+    }
+  }, {passive:false});
+
+  dom.addEventListener('touchmove', e=>{
+    if(e.touches.length === 2){
+      e.preventDefault();
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      const dist = Math.hypot(dx, dy);
+      if(pinchDist0 > 0){
+        const scale = pinchDist0 / dist;
+        RAD = clamp(pinchRad0 * scale, RAD_MIN, RAD_MAX);
+        updCam();
+      }
+    }
+  }, {passive:false});
+
+  dom.addEventListener('touchend', ()=>{ pinchDist0 = 0; });
+
+  // 滚轮缩放
+  dom.addEventListener('wheel', e=>{
+    e.preventDefault();
+    const factor = 1 + e.deltaY * 0.001;
+    RAD = clamp(RAD * factor, RAD_MIN, RAD_MAX);
+    updCam();
+  }, {passive:false});
+
+  function scrDir(p, v){
+    const a = p.clone().project(camera);
+    const b = p.clone().add(v).project(camera);
+    return new THREE.Vector2(b.x-a.x, b.y-a.y).normalize();
+  }
+
+  function decide(d, dx, dy){
+    const n = d.n;
+    const ts = [];
+    if(n.x===0) ts.push(new THREE.Vector3(1,0,0));
+    if(n.y===0) ts.push(new THREE.Vector3(0,1,0));
+    if(n.z===0) ts.push(new THREE.Vector3(0,0,1));
+    const dragV = new THREE.Vector2(dx, -dy).normalize();
+    let best=null, bs=0;
+    for(const t of ts){
+      const sd = scrDir(d.point, t);
+      const s = sd.dot(dragV);
+      if(Math.abs(s) > Math.abs(bs)){ bs = s; best = t.clone().multiplyScalar(Math.sign(s)); }
+    }
+    if(!best) return;
+
+    const axis = new THREE.Vector3().crossVectors(n, best);
+    const comp = axis.x!==0 ? 'x' : (axis.y!==0 ? 'y' : 'z');
+    const dir  = axis[comp] > 0 ? 1 : -1;
+
+    const layer = Math.round(d.cubie.position[comp]);
+    const step = {axis, layer, dir};
+
+    // 记入历史
+    pushHistory(step);
+
+    // 录制中 → 记录下来
+    if(recording){
+      recordedMoves.push(step);
+      updateRecordBtn();
+    }
+
+    startTimer();
+    doMoveCount();
+    doMove(axis, layer, dir, 200).then(()=>{
+      if(started && isSolved()){
+        stopTime(); started = false;
+        toast('🎉 还原成功！步数 '+moveCount+'，用时 '+timeEl.textContent);
+      }
+    });
+  }
+
+  function doMoveCount(){
+    moveCount++;
+    movesEl.textContent = moveCount;
+  }
+
+  /* ---------- 计时 & 提示 ---------- */
+  function startTimer(){
+    if(timing) return;
+    timing = true;
+    tStart = performance.now();
+  }
+  function stopTime(){ timing = false; tEnd = performance.now() - tStart; timeEl.textContent = fmt(tEnd); }
+  function resetStats(){
+    moveCount = 0;
+    movesEl.textContent = '0';
+  }
+  function fmt(ms){
+    const s = Math.floor(ms/1000);
+    return String(Math.floor(s/60)).padStart(2,'0') + ':' + String(s%60).padStart(2,'0');
+  }
+  let toastTimer;
+  function toast(msg){
+    const t = document.getElementById('toast');
+    t.textContent = msg; t.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(()=> t.classList.remove('show'), 2600);
+  }
+
+  /* ---------- 打乱 / 复原 ---------- */
+  document.getElementById('btnShuffle').onclick = ()=>{
+    if(busy()) return;
+    setButtonsDisabled(true);
+    stopTime();
+    timeEl.textContent = '00:00';
+    resetStats();
+    clearHistory();
+    toast('🔀 正在打乱...');
+
+    const axes = [new THREE.Vector3(1,0,0), new THREE.Vector3(0,1,0), new THREE.Vector3(0,0,1)];
+    let lastK = '';
+    const seq = [];
+    while(seq.length < 20){
+      const a = axes[Math.random()*3|0];
+      const l = (Math.random()*3|0) - 1;
+      const dir = Math.random()<0.5 ? 1 : -1;
+      const comp = a.x!==0?'x':(a.y!==0?'y':'z');
+      const k = comp + l;
+      if(k === lastK) continue;
+      lastK = k;
+      seq.push({axis:a, layer:l, dir});
+    }
+
+    async function runSeq(){
+      for(const m of seq){
+        pushHistory(m);
+        await doMove(m.axis, m.layer, m.dir, 80);
+      }
+      toast('🔀 打乱完成！');
+      setButtonsDisabled(false);
+      started = true; timing = true; tStart = performance.now();
+    }
+    runSeq();
+  };
+
+  document.getElementById('btnReset').onclick = ()=>{
+    if(busy()){ toast('动画进行中，请稍候…'); return; }
+    for(const c of cubies){
+      c.position.copy(c.userData.init);
+      c.quaternion.identity();
+    }
+    moveCount = 0; movesEl.textContent = 0;
+    started = false; timing = false; tEnd = 0; timeEl.textContent = '00:00';
+    theta = DEF.theta; phi = DEF.phi; RAD = DEF.rad; updCam();
+    clearHistory();
+    toast('↺ 已复原');
+  };
+
+  document.getElementById('btnResetView').onclick = ()=>{
+    theta = DEF.theta; phi = DEF.phi; RAD = DEF.rad;
+    updCam();
+    toast('↺ 视角已还原');
+  };
+
+  function setButtonsDisabled(disabled){
+    uiLocked = disabled;
+    document.querySelectorAll('button').forEach(b=>b.disabled=disabled);
+    if(!disabled) updateNavButtons();
+  }
+
+  /* ---------- 渲染循环 ---------- */
+  function tick(now){
+    requestAnimationFrame(tick);
+    if(timing) timeEl.textContent = fmt(now - tStart);
+    renderer.render(scene, camera);
+  }
+  requestAnimationFrame(tick);
+
+  // 初始化导航按钮状态
+  updateNavButtons();
+})();
+</script>
+</body>
+</html>

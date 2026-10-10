@@ -356,20 +356,49 @@
                 if (recordedSteps.length === 0) {
                     toast('⏹ 已停止（未记录到步骤）');
                 } else {
-                    // 停止记录并自动保存到步骤库
+                    // 停止记录，弹出名称编辑框让用户修改公式名称
                     const list = getFormulas();
+                    const defaultName = `公式 ${list.length + 1}`;
                     const notation = recordedSteps.map(stepToNotation).join(' ');
-                    const f = {
-                        id: Date.now(),
-                        title: `公式 ${list.length + 1}`,
-                        time: new Date().toLocaleString('zh-CN'),
-                        moves: recordedSteps.map(s => ({ axis: s.axis, layer: s.layer, dir: s.dir })),
-                        notation
+                    openModal(`
+                        <h3>💾 保存公式</h3>
+                        <input type="text" id="formula-title-input" value="${escapeHtml(defaultName)}" placeholder="输入公式名称..." maxlength="30">
+                        <div class="notation-box">${escapeHtml(notation)}</div>
+                        <div class="modal-actions">
+                            <button class="btn gray" id="modal-cancel">取消</button>
+                            <button class="btn" id="modal-save">保存</button>
+                        </div>
+                    `);
+                    setTimeout(() => {
+                        const input = document.getElementById('formula-title-input');
+                        input.focus();
+                        input.select();
+                    }, 50);
+
+                    const doSave = () => {
+                        const title = document.getElementById('formula-title-input').value.trim() || defaultName;
+                        const f = {
+                            id: Date.now(),
+                            title,
+                            time: new Date().toLocaleString('zh-CN'),
+                            moves: recordedSteps.map(s => ({ axis: s.axis, layer: s.layer, dir: s.dir })),
+                            notation
+                        };
+                        list.unshift(f);
+                        saveFormulas(list);
+                        recordedSteps = [];
+                        closeModal();
+                        toast(`✓ 已保存「${f.title}」到步骤库`);
                     };
-                    list.unshift(f);
-                    saveFormulas(list);
-                    recordedSteps = [];
-                    toast(`✓ 已保存「${f.title}」到步骤库`);
+                    document.getElementById('modal-cancel').onclick = () => {
+                        recordedSteps = [];
+                        closeModal();
+                        toast('⏹ 已取消保存');
+                    };
+                    document.getElementById('modal-save').onclick = doSave;
+                    document.getElementById('formula-title-input').addEventListener('keydown', e => {
+                        if (e.key === 'Enter') doSave();
+                    });
                 }
             } else {
                 recording = true;
@@ -497,6 +526,7 @@
                         </div>
                         <div class="snapshot-actions">
                             <button onclick="window._playFormula(${f.id})">回放</button> 
+                            <button onclick="window._renameFormula(${f.id})">改名</button>
                             <button class="del" onclick="window._deleteFormula(${f.id})">删除</button>
                         </div>
                     </div>
@@ -518,6 +548,44 @@
             copyText(f.notation || '').then(() => toast('✓ 公式已复制到剪贴板'));
         }
 
+        function renameFormula(id) {
+            const f = getFormulas().find(x => x.id === id);
+            if (!f) return;
+            openModal(`
+                <h3>✏ 重命名公式</h3>
+                <input type="text" id="rename-input" value="${escapeHtml(f.title)}" placeholder="输入新名称..." maxlength="30">
+                <div class="modal-actions">
+                    <button class="btn gray" id="modal-cancel">取消</button>
+                    <button class="btn" id="modal-save">保存</button>
+                </div>
+            `);
+            setTimeout(() => {
+                const input = document.getElementById('rename-input');
+                input.focus();
+                input.select();
+            }, 50);
+
+            const doRename = () => {
+                const newTitle = document.getElementById('rename-input').value.trim();
+                if (newTitle && newTitle !== f.title) {
+                    const list = getFormulas();
+                    const target = list.find(x => x.id === id);
+                    if (target) {
+                        target.title = newTitle;
+                        saveFormulas(list);
+                        toast(`✓ 已重命名为「${newTitle}」`);
+                    }
+                }
+                closeModal();
+                openFormulaList();
+            };
+            document.getElementById('modal-cancel').onclick = closeModal;
+            document.getElementById('modal-save').onclick = doRename;
+            document.getElementById('rename-input').addEventListener('keydown', e => {
+                if (e.key === 'Enter') doRename();
+            });
+        }
+
         async function playFormula(id) {
             const f = getFormulas().find(x => x.id === id);
             if (!f) return;
@@ -527,13 +595,17 @@
             for (const m of f.moves) {
                 await performMove(m.axis, m.layer, m.dir, { duration: 150, track: true, record: false });
             }
+            // 执行完后回到第一步（重置历史游标）
+            historyIndex = 0;
+            updateHistoryUI();
             setButtonsDisabled(false);
-            toast(`✓ 已回放「${f.title}」`);
+            toast(`✓ 已回放「${f.title}」，已回到第一步`);
         }
 
         window._playFormula = playFormula;
         window._copyFormula = copyFormula;
         window._deleteFormula = deleteFormula;
+        window._renameFormula = renameFormula;
 
         document.getElementById('btn-formula-lib').addEventListener('click', openFormulaList);
 
