@@ -5,160 +5,37 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>经典蜘蛛纸牌 (免旋转横屏版)</title>
     <style>
-        * {
-            box-sizing: border-box;
-            user-select: none;
-            -webkit-user-select: none;
-            margin: 0;
-            padding: 0;
-        }
-        html, body {
-            width: 100%;
-            height: 100%;
-            overflow: hidden;
-            background-color: #07471e;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-        }
-
+        *{box-sizing:border-box;user-select:none;-webkit-user-select:none;margin:0;padding:0}
+        html,body{width:100%;height:100%;overflow:hidden;background-color:#07471e;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
         /* 强制横屏核心容器 */
-        #game-wrapper {
-            position: absolute;
-            top: 0;
-            left: 0;
-            background-color: #0d5c28;
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-            transform-origin: 0 0;
-        }
-
+        #game-wrapper{position:absolute;top:0;left:0;background-color:#0d5c28;display:flex;flex-direction:column;overflow:hidden;transform-origin:0 0}
         /* 顶部导航与控制 */
-        header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            height: 38px;
-            padding: 0 12px;
-            background: rgba(0,0,0,0.25);
-            color: #fff;
-            font-size: 13px;
-            flex-shrink: 0;
-        }
-        .controls {
-            display: flex;
-            gap: 8px;
-            align-items: center;
-        }
-        select, button {
-            background: #1f8043;
-            color: white;
-            border: 1px solid #4ade80;
-            padding: 3px 8px;
-            border-radius: 4px;
-            font-size: 12px;
-            outline: none;
-        }
-        button:active { background: #14532d; }
-
+        header{display:flex;justify-content:space-between;align-items:center;height:38px;padding:0 12px;background:rgba(0,0,0,0.25);color:#fff;font-size:13px;flex-shrink:0}
+        .controls{display:flex;gap:8px;align-items:center}
+        select,button{background:#1f8043;color:white;border:1px solid #4ade80;padding:3px 8px;border-radius:4px;font-size:12px;outline:none}
+        button:active{background:#14532d}
         /* 纸牌主牌局区域 (10列) */
-        #board {
-            flex: 1;
-            display: grid;
-            grid-template-columns: repeat(10, 1fr);
-            gap: 4px;
-            padding: 4px 6px 0 6px;
-            position: relative;
-        }
-        .column {
-            position: relative;
-            height: 100%;
-            border-radius: 4px;
-            background: rgba(0, 0, 0, 0.12);
-        }
-
+        #board{flex:1;display:flex;gap:4px;padding:4px 6px 0 6px;position:relative;overflow:hidden}
+        .column{flex:1;position:relative;height:100%;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;border-radius:4px;background:rgba(0,0,0,0.12)}
+        .column::-webkit-scrollbar{width:3px}
+        .column::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.3);border-radius:2px}
+        .column-inner{position:relative;width:100%;min-height:100%}
         /* 底部操作区 (发牌区 + 收集区) */
-        footer {
-            height: 50px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 0 12px;
-            flex-shrink: 0;
-        }
-        .stock-box, .foundation-box {
-            display: flex;
-            gap: 4px;
-            align-items: center;
-        }
-
+        footer{height:50px;display:flex;justify-content:space-between;align-items:center;padding:0 12px;flex-shrink:0}
+        .stock-box,.foundation-box{display:flex;gap:4px;align-items:center}
         /* 卡牌基础样式 */
-        .card {
-            width: 100%;
-            aspect-ratio: 5 / 7.2;
-            position: absolute;
-            background: #fff;
-            border-radius: 4px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.4);
-            cursor: pointer;
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
-            padding: 2px;
-            font-size: 11px;
-            font-weight: 900;
-            transition: transform 0.08s;
-        }
-        .card.red { color: #d32f2f; }
-        .card.black { color: #1e1e1e; }
-
+        .card{width:100%;aspect-ratio:5/7.2;position:absolute;background:#fff;border-radius:4px;box-shadow:0 1px 3px rgba(0,0,0,0.4);cursor:pointer;display:flex;flex-direction:column;justify-content:space-between;padding:2px;font-size:11px;font-weight:900;transition:transform 0.08s}
+        .card.red{color:#d32f2f}
+        .card.black{color:#1e1e1e}
         /* 牌背样式 */
-        .card.back {
-            background: repeating-linear-gradient(
-                45deg,
-                #1e40af,
-                #1e40af 4px,
-                #3b82f6 4px,
-                #3b82f6 8px
-            );
-            border: 1.5px solid #ffffff;
-        }
-
+        .card.back{background:repeating-linear-gradient(45deg,#1e40af,#1e40af 4px,#3b82f6 4px,#3b82f6 8px);border:1.5px solid #ffffff}
         /* 选中牌高亮 */
-        .card.selected {
-            box-shadow: 0 0 0 2px #facc15, 0 4px 8px rgba(0,0,0,0.6);
-            transform: translateY(-4px);
-            z-index: 1000 !important;
-        }
-
-        .card-corner {
-            line-height: 1;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }
-        .card-corner.bottom {
-            transform: rotate(180deg);
-        }
-
+        .card.selected{box-shadow:0 0 0 2px #facc15,0 4px 8px rgba(0,0,0,0.6);transform:translateY(-4px);z-index:1000!important}
+        .card-corner{line-height:1;display:flex;flex-direction:column;align-items:center}
+        .card-corner.bottom{transform:rotate(180deg)}
         /* 发牌堆与完成堆小牌图标 */
-        .mini-card {
-            width: 26px;
-            height: 36px;
-            border-radius: 3px;
-            background: #1e40af;
-            border: 1px solid white;
-            box-shadow: 0 1px 2px rgba(0,0,0,0.3);
-            cursor: pointer;
-        }
-        .mini-card.foundation {
-            background: #15803d;
-            color: #fff;
-            font-size: 12px;
-            font-weight: bold;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
+        .mini-card{width:26px;height:36px;border-radius:3px;background:#1e40af;border:1px solid white;box-shadow:0 1px 2px rgba(0,0,0,0.3);cursor:pointer}
+        .mini-card.foundation{background:#15803d;color:#fff;font-size:12px;font-weight:bold;display:flex;align-items:center;justify-content:center}
     </style>
 </head>
 <body>
@@ -301,6 +178,9 @@
                 }
             };
 
+            const colInner = document.createElement('div');
+            colInner.className = 'column-inner';
+
             let topOffset = 0;
             col.forEach((card, cardIdx) => {
                 const cardDiv = document.createElement('div');
@@ -328,8 +208,12 @@
                     onCardClick(colIdx, cardIdx);
                 };
 
-                colDiv.appendChild(cardDiv);
+                colInner.appendChild(cardDiv);
             });
+
+            // 设置内容区域高度，使列可以滚动
+            colInner.style.height = `${Math.max(topOffset, 100)}px`;
+            colDiv.appendChild(colInner);
             board.appendChild(colDiv);
         });
 
