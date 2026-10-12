@@ -1,344 +1,1217 @@
+
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>四阶魔方 3D</title>
-    <style>
-        *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none}
-        html,body{height:100%;overflow:hidden;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif}
-        body{display:flex;flex-direction:column;background:radial-gradient(1200px 800px at 50% 15%,#2b3a67,#1a2238 60%,#10142a)}
-        #hud{display:grid;grid-template-columns:1fr auto 1fr;grid-template-rows:auto auto auto;gap:6px 8px;padding:10px 12px;color:#fff;align-items:center}
-        #hud .r1c1{grid-row:1;grid-column:1;justify-self:start}
-        #hud .r1c2{grid-row:1;grid-column:2;justify-self:center;white-space:nowrap}
-        #hud .r1c3{grid-row:1;grid-column:3;justify-self:end}
-        #hud .r2c1{grid-row:2;grid-column:1;justify-self:start}
-        #hud .r2c2{grid-row:2;grid-column:2;justify-self:center;white-space:nowrap}
-        #hud .r2c3{grid-row:2;grid-column:3;justify-self:end}
-        #hud .r3c1{grid-row:3;grid-column:1;justify-self:start}
-        #hud .r3c3{grid-row:3;grid-column:3;justify-self:end}
-        #footer{display:flex;align-items:center;justify-content:center;gap:6px;padding:10px 12px;flex-wrap:wrap;color:#fff;background:#ddd;border-top:1px solid rgba(255,255,255,.1)}
-        .btn{border:none;cursor:pointer;color:#fff;font-size:13px;padding:7px 12px;border-radius:10px;background:linear-gradient(135deg,#4f6df5,#7b3ff2);box-shadow:0 4px 14px rgba(79,109,245,.4);transition:transform .1s,opacity .15s;white-space:nowrap}
-        .btn:active{transform:scale(.94)}
-        .btn.gray{background:linear-gradient(135deg,#3a4358,#2a3040);box-shadow:0 4px 14px rgba(0,0,0,.35)}
-        .btn:disabled{opacity:.32;cursor:not-allowed;transform:none}
-        .nav-btn{font-size:15px;padding:10px 22px;border-radius:12px}
-        .btn.rec.active{background:linear-gradient(135deg,#e11d48,#f43f5e);box-shadow:0 4px 14px rgba(225,29,72,.5);animation:pulse 1.2s ease-in-out infinite}
-        @keyframes pulse{0%,100%{opacity:1}50%{opacity:.6}}
-        .stat{font-size:12px;opacity:.85;margin-left:4px;white-space:nowrap}
-        .stat b{font-size:14px;color:#7fe3ff}
-        #wrap{flex:1;position:relative;touch-action:none}
-        canvas{display:block}
-        #toast{position:fixed;left:50%;top:16%;transform:translateX(-50%);background:rgba(0,0,0,.78);color:#fff;padding:12px 24px;border-radius:14px;font-size:15px;opacity:0;pointer-events:none;transition:opacity .3s;z-index:200;white-space:nowrap;max-width:92vw;overflow:hidden;text-overflow:ellipsis}
-        #toast.show{opacity:1}
-        #snapshot-modal{position:fixed;inset:0;background:rgba(0,0,0,.7);display:none;align-items:center;justify-content:center;z-index:100}
-        #snapshot-modal.show{display:flex}
-        .modal-box{background:#1e2436;border-radius:16px;padding:20px;width:90%;max-width:400px;max-height:82vh;overflow-y:auto;color:#fff;box-shadow:0 10px 40px rgba(0,0,0,.5)}
-        .modal-box h3{margin:0 0 14px;font-size:18px}
-        .modal-box input{width:100%;padding:12px;border:1px solid #3a4358;border-radius:10px;background:#10142a;color:#fff;font-size:15px;outline:none;margin-bottom:14px}
-        .modal-box input:focus{border-color:#7b3ff2}
-        .modal-actions{display:flex;gap:10px;justify-content:flex-end}
-        .snapshot-list{max-height:190px;overflow-y:auto;margin-top:4px}
-        .snapshot-item{display:flex;align-items:center;gap:10px;padding:10px 12px;background:#10142a;border-radius:10px;margin-bottom:8px}
-        .snapshot-info{flex:1;overflow:hidden;min-width:0}
-        .snapshot-title{font-size:14px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-        .snapshot-time{font-size:11px;opacity:.5;margin-top:2px}
-        .snapshot-actions{display:flex;gap:6px;flex-shrink:0}
-        .snapshot-actions button{border:none;cursor:pointer;font-size:12px;padding:6px 10px;border-radius:8px;color:#fff;background:linear-gradient(135deg,#4f6df5,#7b3ff2)}
-        .snapshot-actions button.del{background:linear-gradient(135deg,#c41e3a,#ff5800)}
-        .empty-tip{text-align:center;opacity:.5;padding:18px 0;font-size:13px}
-        .lib-section-title{font-size:13px;font-weight:600;opacity:.7;margin:14px 0 8px}
-        .formula-preview{background:#10142a;border:1px solid #3a4358;border-radius:10px;padding:12px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:14px;line-height:1.7;word-break:break-all;max-height:120px;overflow-y:auto;margin-bottom:14px;color:#7fe3ff}
-        .formula-mini{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11px;color:#7fe3ff;opacity:.75;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:3px}
-        .tip-text{font-size:11px;opacity:.45;line-height:1.6;margin-bottom:12px}
-    </style>
-    <!-- Three.js -->
-    <script src="three.min.js"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>四阶魔方 3D</title>
+<style>
+    *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none}
+    html,body{height:100%;overflow:hidden;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif}
+    body{display:flex;flex-direction:column;background:radial-gradient(1200px 800px at 50% 15%,#2b3a67,#1a2238 60%,#10142a)}
+    #app{display:flex;flex-direction:column;height:100%}
+    #hud{display:grid;grid-template-columns:1fr auto auto 1fr;grid-template-rows:auto auto;gap:6px 8px;padding:10px 12px;color:#fff;align-items:center}
+    #hud .r1c1{grid-row:1;grid-column:1;justify-self:start}
+    #hud .r1c2{grid-row:1;grid-column:2;justify-self:center;white-space:nowrap}
+    #hud .r1c3{grid-row:1;grid-column:3;justify-self:center;white-space:nowrap}
+    #hud .r1c4{grid-row:1;grid-column:4;justify-self:end}
+    #hud .r2c1{grid-row:2;grid-column:1;justify-self:start}
+    #hud .r2c2{grid-row:2;grid-column:2;justify-self:center;white-space:nowrap}
+    #hud .r2c3{grid-row:2;grid-column:3;justify-self:center;white-space:nowrap}
+    #hud .r2c4{grid-row:2;grid-column:4;justify-self:end}
+    #footer{display:flex;align-items:center;justify-content:center;gap:6px;padding:10px 12px;flex-wrap:wrap;color:#fff;background:#ddd;border-top:1px solid rgba(255,255,255,.1)}
+    .btn{border:none;cursor:pointer;color:#fff;font-size:13px;padding:7px 12px;border-radius:10px;background:linear-gradient(135deg,#4f6df5,#7b3ff2);box-shadow:0 4px 14px rgba(79,109,245,.4);transition:transform .1s,opacity .15s;white-space:nowrap}
+    .btn:active{transform:scale(.94)}
+    .btn.gray{background:linear-gradient(135deg,#3a4358,#2a3040);box-shadow:0 4px 14px rgba(0,0,0,.35)}
+    .btn:disabled{opacity:.32;cursor:not-allowed;transform:none}
+    .nav-btn{font-size:15px;padding:10px 22px;border-radius:12px}
+    .btn.rec.active{background:linear-gradient(135deg,#e11d48,#f43f5e);box-shadow:0 4px 14px rgba(225,29,72,.5);animation:pulse 1.2s ease-in-out infinite}
+    @keyframes pulse{0%,100%{opacity:1}50%{opacity:.6}}
+    .stat{font-size:12px;opacity:.85;margin-left:4px;white-space:nowrap}
+    .stat b{font-size:14px;color:#7fe3ff}
+    #wrap{flex:1;position:relative;touch-action:none;min-height:0}
+    canvas{display:block}
+    #toast{position:fixed;left:50%;top:16%;transform:translateX(-50%);background:rgba(0,0,0,.78);color:#fff;padding:12px 24px;border-radius:14px;font-size:15px;opacity:0;pointer-events:none;transition:opacity .3s;z-index:200;white-space:nowrap;max-width:92vw;overflow:hidden;text-overflow:ellipsis}
+    #toast.show{opacity:1}
+    #snapshot-modal{position:fixed;inset:0;background:rgba(0,0,0,.7);display:none;align-items:center;justify-content:center;z-index:100}
+    #snapshot-modal.show{display:flex}
+    .modal-box{background:#1e2436;border-radius:16px;padding:20px;width:90%;max-width:400px;max-height:82vh;overflow-y:auto;color:#fff;box-shadow:0 10px 40px rgba(0,0,0,.5)}
+    .modal-box h3{margin:0 0 14px;font-size:18px}
+    .modal-box input{width:100%;padding:12px;border:1px solid #3a4358;border-radius:10px;background:#10142a;color:#fff;font-size:15px;outline:none;margin-bottom:14px}
+    .modal-box input:focus{border-color:#7b3ff2}
+    .modal-actions{display:flex;gap:10px;justify-content:flex-end}
+    .snapshot-list{max-height:none;overflow-y:auto;margin-top:4px}
+    .snapshot-item{display:flex;align-items:center;gap:10px;padding:10px 12px;background:#10142a;border-radius:10px;margin-bottom:8px}
+    .snapshot-info{flex:1;overflow:hidden;min-width:0}
+    .snapshot-title{font-size:14px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#fff}
+    .snapshot-time{font-size:11px;opacity:.5;margin-top:2px;color:#fff}
+    .snapshot-actions{display:flex;gap:6px;flex-shrink:0}
+    .snapshot-actions button{border:none;cursor:pointer;font-size:12px;padding:6px 10px;border-radius:8px;color:#fff;background:linear-gradient(135deg,#4f6df5,#7b3ff2)}
+    .snapshot-actions button.del{background:linear-gradient(135deg,#c41e3a,#ff5800)}
+    .empty-tip{text-align:center;opacity:.5;padding:18px 0;font-size:13px}
+    .formula-preview{background:#10142a;border:1px solid #3a4358;border-radius:10px;padding:12px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:14px;line-height:1.7;word-break:break-all;max-height:120px;overflow-y:auto;margin-bottom:14px;color:#7fe3ff}
+    .formula-mini{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11px;color:#7fe3ff;opacity:.75;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:3px}
+    .tip-text{font-size:11px;opacity:.45;line-height:1.6;margin-bottom:12px}
+    /* 抽屉面板样式 */
+    #drawer-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:150;display:none}
+    #drawer-overlay.show{display:block}
+    #drawer-panel{position:fixed;top:0;right:0;bottom:0;width:340px;max-width:88vw;background:#1e2436;z-index:151;transform:translateX(100%);transition:transform .3s cubic-bezier(.4,0,.2,1);display:flex;flex-direction:column;box-shadow:-4px 0 24px rgba(0,0,0,.4)}
+    #drawer-panel.open{transform:translateX(0)}
+    .drawer-header{display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:1px solid #3a4358;flex-shrink:0}
+    .drawer-header h3{margin:0;font-size:17px;color:#fff}
+    .drawer-close{border:none;background:none;color:#aaa;font-size:22px;cursor:pointer;padding:4px 8px;border-radius:8px;line-height:1}
+    .drawer-close:hover{background:#3a4358;color:#fff}
+    .drawer-content{flex:1;overflow-y:auto;padding:14px 18px}
+
+</style>
+<!-- <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/vue@2.7.16/dist/vue.min.js"></script> -->
+
+<script src="./../js/three.min.js"></script>
+<script src="./../js/vue.min.js"></script>
 </head>
 <body>
 
+<div id="app">
+
+    <!-- ================= HUD ================= -->
     <div id="hud">
-        <!-- 第一行：复原 | 时间 | 打乱 -->
-        <button class="btn gray r1c1" id="btn-reset">↺ 复原</button>
-        <span class="stat r1c2">时间 <b id="timer">00:00</b></span>
-        <button class="btn r1c3" id="btn-scramble">🔀 打乱</button>
-        <!-- 第二行：快照库 | 步数 | 步骤库 -->
-        <button class="btn gray r2c1" id="btn-list-snap">📋 快照库</button>
-        <span class="stat r2c2">步数 <b id="steps">0</b></span>
-        <button class="btn gray r2c3" id="btn-list-formula">📜 步骤库</button>
-        <!-- 第三行：存快照 |  | 记录 -->
-        <button class="btn r3c1" id="btn-save-snap">📸 存快照</button>
-        <button class="btn rec r3c3" id="btn-record">⏺ 记录</button>
+        <button class="btn gray r1c1" :disabled="uiLocked" @click="openSnapshotList">� 快照库</button>
+        <button class="btn gray r1c2" :disabled="uiLocked" @click="openFormulaList">� 公式库</button>
+        <span class="stat r1c3">步数 <b>{{ stepCount }}</b></span>
+        <button class="btn r1c4" :disabled="uiLocked" @click="onReset">↺ 复原</button>
+
+        <button class="btn r2c1" :disabled="uiLocked" @click="openSnapshotSave">📸 存快照</button>
+        <button class="btn rec r2c2" :class="{ active: recording }" :disabled="uiLocked"
+                @click="toggleRecord">{{ recordLabel }}</button>
+        <span class="stat r2c3">时间 <b>{{ timerText }}</b></span>
+        <button class="btn r2c4" :disabled="uiLocked" @click="onScramble">🔀 打乱</button>
     </div>
-    <div id="wrap"></div>
+
+    <!-- ================= 3D 画布 ================= -->
+    <div id="wrap" ref="wrap"></div>
+
+    <!-- ================= 底部导航 ================= -->
     <div id="footer">
-        <button class="btn gray nav-btn" id="btn-prev">◀ 上一步</button>
-        <button class="btn gray" id="btn-reset-view">↺ 视角</button>
-        <button class="btn gray nav-btn" id="btn-next">下一步 ▶</button>
-    </div>
-    <div id="toast"></div>
-
-    <!-- 模态框 -->
-    <div id="snapshot-modal">
-        <div class="modal-box" id="modal-content"></div>
+        <button class="btn gray nav-btn" :disabled="!canPrev" @click="onPrev">◀ 上一步</button>
+        <button class="btn gray" @click="onResetView">↺ 视角</button>
+        <button class="btn gray nav-btn" :disabled="!canNext" @click="onNext">下一步 ▶</button>
     </div>
 
-    <script>
-        // --- 核心常量 ---
-        const SIZE = 4;
-        const CUBE_SIZE = 1.0;
-        const GAP = 0.04;
-        const STEP = CUBE_SIZE + GAP;
-        const OFFSET = (SIZE - 1) / 2;
+    <!-- ================= Toast ================= -->
+    <div id="toast" :class="{ show: toastShow }">{{ toastMsg }}</div>
 
-        const COLORS = {
-            R: 0xc41e3a, L: 0xff5800, U: 0xffffff,
-            D: 0xffd500, F: 0x009e60, B: 0x0051ba,
-            INNER: 0x1a1a1a
+    <!-- ================= 抽屉面板(快照库/步骤库) ================= -->
+    <div id="drawer-overlay" :class="{ show: drawerOpen }" @click.self="closeDrawer"></div>
+    <div id="drawer-panel" :class="{ open: drawerOpen }">
+        <div class="drawer-header">
+            <h3 v-if="drawerType === 'snapshots'">📋 快照库</h3>
+            <h3 v-else-if="drawerType === 'formulas'">📜 步骤库</h3>
+            <button class="drawer-close" @click="closeDrawer">✕</button>
+        </div>
+        <div class="drawer-content">
+            <!-- 快照库列表 -->
+            <template v-if="drawerType === 'snapshots'">
+                <div class="snapshot-list">
+                    <div v-if="!snapshots.length" class="empty-tip">暂无快照(已加载内置预设)</div>
+                    <div v-for="s in sortedSnapshots" :key="s.id" class="snapshot-item">
+                        <div class="snapshot-info">
+                            <div class="snapshot-title">{{ s.title }}</div>
+                            <div class="snapshot-time">{{ s.time }}</div>
+                        </div>
+                        <div class="snapshot-actions">
+                            <button @click="restoreSnapshot(s.id)">恢复</button>
+                            <button class="del" @click="deleteSnapshot(s.id)" v-if="isShowDelete(s)">删除</button>
+                        </div>
+                    </div>
+                </div>
+            </template>
+
+            <!-- 步骤库列表 -->
+            <template v-else-if="drawerType === 'formulas'">
+                <div class="snapshot-list">
+                    <div v-if="!formulas.length" class="empty-tip">暂无公式，点击「⏺ 记录」开始录制</div>
+                    <div v-for="f in formulas" :key="f.id" class="snapshot-item">
+                        <div class="snapshot-info">
+                            <div class="snapshot-title">{{ f.title }}</div>
+                            <div class="formula-mini">{{ f.notation }}</div>
+                            <div class="snapshot-time">{{ f.time }} · {{ f.moves.length }} 步</div>
+                        </div>
+                        <div class="snapshot-actions">
+                            <button @click="playFormula(f.id)">恢复</button>
+                            <button class="del" @click="deleteFormula(f.id)" v-if="isShowDelete(f)">删除</button>
+                        </div>
+                    </div>
+                </div>
+            </template>
+        </div>
+    </div>
+
+    <!-- ================= 模态框(保存快照/保存公式) ================= -->
+    <div id="snapshot-modal" :class="{ show: modalType !== null }" @click.self="closeModal">
+        <div class="modal-box">
+
+            <!-- 保存快照 -->
+            <template v-if="modalType === 'saveSnapshot'">
+                <h3>📸 保存快照</h3>
+                <input ref="snapInput" type="text" v-model="snapTitle"
+                       placeholder="输入快照标题..." maxlength="30"
+                       @keydown.enter="doSaveSnapshot">
+                <div class="modal-actions">
+                    <button class="btn gray" @click="closeModal">取消</button>
+                    <button class="btn" @click="doSaveSnapshot">保存</button>
+                </div>
+            </template>
+
+            <!-- 保存公式 -->
+            <template v-else-if="modalType === 'saveFormula'">
+                <h3>💾 保存公式</h3>
+                <div class="formula-preview">{{ formulaPreview }}</div>
+                <div class="tip-text">
+                    记法：R/L/U/D/F/B 为外层面，2R/2L/2U/2D/2F/2B 为内层，
+                    ' 表示逆时针，2 表示 180°。共 {{ formulaStepCount }} 步。
+                </div>
+                <input ref="formulaInput" type="text" v-model="formulaTitle"
+                       placeholder="给公式起个名字…" maxlength="30"
+                       @keydown.enter="doSaveFormula">
+                <div class="modal-actions">
+                    <button class="btn gray" @click="closeModal">取消</button>
+                    <button class="btn" @click="doSaveFormula">保存</button>
+                </div>
+            </template>
+
+        </div>
+    </div>
+</div>
+
+<script>
+
+/* =========================================================================
+ * 1. 魔方 3D 引擎(V2优化版) - 与 Vue 解耦,避免被 Vue 响应式代理污染 Three.js 对象
+ * 优化项: 内存泄漏修复、对象池完善、动画队列增强
+ * ========================================================================= */
+function createCubeEngine(hooks) {
+    hooks = hooks || {};
+
+    /* ---------- 常量 ---------- */
+    const SIZE         = 4;
+    const CUBE_SIZE    = 1.0;
+    const GAP          = 0.04;
+    const STEP         = CUBE_SIZE + GAP;
+    const OFFSET       = (SIZE - 1) / 2;
+    const ANIM_DURATION = 160;
+    const NAV_DURATION  = 140;
+    const SCRAMBLE_DUR_SINGLE = 55;
+    const SCRAMBLE_DUR_DOUBLE = 80;
+
+    const COLORS = {
+        R: 0xc41e3a, L: 0xff5800, U: 0xffffff,
+        D: 0xffd500, F: 0x009e60, B: 0x0051ba,
+        INNER: 0x1a1a1a
+    };
+
+    /* ---------- 场景 ---------- */
+    const scene    = new THREE.Scene();
+    const camera   = new THREE.PerspectiveCamera(38, 1, 0.1, 100);
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+
+    scene.add(new THREE.AmbientLight(0xffffff, 0.9));
+    const dirLight = new THREE.DirectionalLight(0xffffff, 0.45);
+    dirLight.position.set(6, 10, 8);
+    scene.add(dirLight);
+
+    const cubeGroup = new THREE.Group();
+    cubeGroup.position.y = 0.7;
+    scene.add(cubeGroup);
+
+    /* ---------- 预创建材质(优化点1: 避免重复创建) ---------- */
+    const materialMap = {
+        [COLORS.R]:    new THREE.MeshLambertMaterial({ color: COLORS.R }),
+        [COLORS.L]:    new THREE.MeshLambertMaterial({ color: COLORS.L }),
+        [COLORS.U]:    new THREE.MeshLambertMaterial({ color: COLORS.U }),
+        [COLORS.D]:    new THREE.MeshLambertMaterial({ color: COLORS.D }),
+        [COLORS.F]:    new THREE.MeshLambertMaterial({ color: COLORS.F }),
+        [COLORS.B]:    new THREE.MeshLambertMaterial({ color: COLORS.B }),
+        [COLORS.INNER]: new THREE.MeshLambertMaterial({ color: COLORS.INNER })
+    };
+
+    /* ---------- 资源复用(几何体 + 法线预创建) ---------- */
+    const boxGeom   = new THREE.BoxGeometry(CUBE_SIZE, CUBE_SIZE, CUBE_SIZE);
+    const faceNormals = [
+        new THREE.Vector3(1, 0, 0),   // right
+        new THREE.Vector3(-1, 0, 0),  // left
+        new THREE.Vector3(0, 1, 0),   // top
+        new THREE.Vector3(0, -1, 0),  // bottom
+        new THREE.Vector3(0, 0, 1),   // front
+        new THREE.Vector3(0, 0, -1)   // back
+    ];
+
+    /* ---------- 对象池(优化点2: 减少GC压力) ---------- */
+    const _vecPool = [];
+    const _quatPool = [];
+    function getVec(x, y, z) {
+        if (_vecPool.length > 0) {
+            const v = _vecPool.pop();
+            v.set(x || 0, y || 0, z || 0);
+            return v;
+        }
+        return new THREE.Vector3(x, y, z);
+    }
+    function returnVec(v) { _vecPool.push(v); }
+
+    function getQuat(x, y, z, w) {
+        if (_quatPool.length > 0) {
+            const q = _quatPool.pop();
+            q.set(x || 0, y || 0, z || 0, w || 1);
+            return q;
+        }
+        return new THREE.Quaternion(x, y, z, w);
+    }
+    function returnQuat(q) { _quatPool.push(q); }
+
+    /* ---------- 状态 ---------- */
+    let wrapEl   = null;
+    let dom      = null;
+    let cubies   = [];
+    let disposed = false;
+
+    /* ---------- 相机轨道 ---------- */
+    let RAD = 20;
+    const RAD_MIN = 4.5, RAD_MAX = 22;
+    let theta = 0.8, phi = 1.02;
+    const DEF = { theta: 0.8, phi: 1.02, rad: 20 };
+
+    function updCam() {
+        camera.position.setFromSphericalCoords(RAD, phi, theta);
+        camera.lookAt(0, 0, 0);
+    }
+
+    function resize() {
+        if (!wrapEl) return;
+        const w = wrapEl.clientWidth, h = wrapEl.clientHeight;
+        if (!w || !h) return;
+        renderer.setSize(w, h);
+        camera.aspect = w / h;
+        camera.updateProjectionMatrix();
+    }
+
+    function resetView() {
+        theta = DEF.theta; phi = DEF.phi; RAD = DEF.rad;
+        updCam();
+    }
+
+    /* ---------- 建魔方(优化: 使用预创建材质) ---------- */
+    function initCube() {
+        while (cubeGroup.children.length) cubeGroup.remove(cubeGroup.children[0]);
+        cubies = [];
+
+        for (let x = 0; x < SIZE; x++) {
+            for (let y = 0; y < SIZE; y++) {
+                for (let z = 0; z < SIZE; z++) {
+                    const materials = [
+                        materialMap[x === SIZE - 1 ? COLORS.R : COLORS.INNER],
+                        materialMap[x === 0        ? COLORS.L : COLORS.INNER],
+                        materialMap[y === SIZE - 1 ? COLORS.U : COLORS.INNER],
+                        materialMap[y === 0        ? COLORS.D : COLORS.INNER],
+                        materialMap[z === SIZE - 1 ? COLORS.F : COLORS.INNER],
+                        materialMap[z === 0        ? COLORS.B : COLORS.INNER]
+                    ];
+                    const mesh = new THREE.Mesh(boxGeom, materials);
+                    mesh.position.set(
+                        (x - OFFSET) * STEP,
+                        (y - OFFSET) * STEP,
+                        (z - OFFSET) * STEP
+                    );
+                    cubeGroup.add(mesh);
+                    cubies.push(mesh);
+                }
+            }
+        }
+    }
+
+    /* ---------- 坐标吸附(优化点3: 更精确的吸附逻辑) ---------- */
+    function snapCoord(val) {
+        // 使用更精确的浮点比较
+        const raw = val / STEP;
+        // 四舍五入到最近的 0.5 倍数
+        let layer = Math.round(raw * 2) / 2;
+        layer = Math.max(-1.5, Math.min(1.5, layer));
+        return layer * STEP;
+    }
+
+    function snapCubie(mesh) {
+        mesh.position.x = snapCoord(mesh.position.x);
+        mesh.position.y = snapCoord(mesh.position.y);
+        mesh.position.z = snapCoord(mesh.position.z);
+
+        mesh.updateMatrix();
+        const rot = new THREE.Matrix4().extractRotation(mesh.matrix);
+        const m = rot.elements;
+        for (let i = 0; i < 16; i++) m[i] = Math.round(m[i]);
+        mesh.quaternion.setFromRotationMatrix(rot);
+        mesh.updateMatrix();
+    }
+
+    /* =====================================================================
+     * 动画队列(优化点4: 支持取消 + 更可靠的执行)
+     * ===================================================================== */
+    let pendingMoves = 0;
+    let animChain = Promise.resolve();
+    let cancelAnimation = false;
+
+    function busy() { return pendingMoves > 0; }
+
+    // 创建一个可取消的动画 Promise
+    function cancellablePromise() {
+        let rejectFn = null;
+        const promise = new Promise((resolve, reject) => {
+            rejectFn = reject;
+        });
+        promise.cancel = () => {
+            if (rejectFn) rejectFn(new Error('Animation cancelled'));
         };
+        return promise;
+    }
 
-        // --- Three.js 场景初始化 ---
-        const wrap = document.getElementById('wrap');
-        const scene = new THREE.Scene();
-        const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 100);
-        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    function rotateSlice(axis, layerCoord, direction, duration) {
+        duration = duration || ANIM_DURATION;
+        pendingMoves++;
+        const run = () => animateSlice(axis, layerCoord, direction, duration);
+        const p = animChain.then(run, run);
+        animChain = p.then(() => {}, () => {});
+        return p.then(
+            v => { pendingMoves--; return v; },
+            e => { pendingMoves--; throw e; }
+        );
+    }
 
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-        wrap.appendChild(renderer.domElement);
-        const dom = renderer.domElement;
+    function animateSlice(axis, layerCoord, direction, duration) {
+        return new Promise((resolve, reject) => {
+            const rotationGroup = new THREE.Group();
+            cubeGroup.add(rotationGroup);
 
-        scene.add(new THREE.AmbientLight(0xffffff, 0.9));
-        const dirLight = new THREE.DirectionalLight(0xffffff, 0.45);
-        dirLight.position.set(6, 10, 8);
-        scene.add(dirLight);
-
-        const cubeGroup = new THREE.Group();
-        cubeGroup.position.y = 0.7;
-        scene.add(cubeGroup);
-
-        /* ---------- 相机轨道 + 缩放 ---------- */
-        let RAD = 20;
-        const RAD_MIN = 4.5, RAD_MAX = 22;
-        let theta = 0.8, phi = 1.02;
-        const DEF = { theta: 0.8, phi: 1.02, rad: 20 };
-
-        function updCam() {
-            camera.position.setFromSphericalCoords(RAD, phi, theta);
-            camera.lookAt(0, 0, 0);
-        }
-        function resize() {
-            const w = wrap.clientWidth, h = wrap.clientHeight;
-            renderer.setSize(w, h);
-            camera.aspect = w / h;
-            camera.updateProjectionMatrix();
-        }
-        window.addEventListener('resize', resize);
-        resize(); updCam();
-
-        let cubies = [];
-
-        function createCubeMaterial(faceColor, isOuter) {
-            return new THREE.MeshLambertMaterial({
-                color: isOuter ? faceColor : COLORS.INNER
-            });
-        }
-
-        function initCube() {
-            while (cubeGroup.children.length > 0) {
-                cubeGroup.remove(cubeGroup.children[0]);
-            }
-            cubies = [];
-
-            const geom = new THREE.BoxGeometry(CUBE_SIZE, CUBE_SIZE, CUBE_SIZE);
-
-            for (let x = 0; x < SIZE; x++) {
-                for (let y = 0; y < SIZE; y++) {
-                    for (let z = 0; z < SIZE; z++) {
-                        const materials = [
-                            createCubeMaterial(COLORS.R, x === SIZE - 1),
-                            createCubeMaterial(COLORS.L, x === 0),
-                            createCubeMaterial(COLORS.U, y === SIZE - 1),
-                            createCubeMaterial(COLORS.D, y === 0),
-                            createCubeMaterial(COLORS.F, z === SIZE - 1),
-                            createCubeMaterial(COLORS.B, z === 0)
-                        ];
-
-                        const mesh = new THREE.Mesh(geom, materials);
-                        mesh.position.set(
-                            (x - OFFSET) * STEP,
-                            (y - OFFSET) * STEP,
-                            (z - OFFSET) * STEP
-                        );
-                        cubeGroup.add(mesh);
-                        cubies.push(mesh);
-                    }
-                }
-            }
-        }
-        initCube();
-
-        // --- 坐标吸附与正交化 ---
-        function snapCoord(val) {
-            const raw = val / STEP;
-            let layer = Math.round(raw - 0.5) + 0.5;
-            layer = Math.max(-1.5, Math.min(1.5, layer));
-            return layer * STEP;
-        }
-
-        function snapCubie(mesh) {
-            mesh.position.x = snapCoord(mesh.position.x);
-            mesh.position.y = snapCoord(mesh.position.y);
-            mesh.position.z = snapCoord(mesh.position.z);
-
-            mesh.updateMatrix();
-            const rot = new THREE.Matrix4().extractRotation(mesh.matrix);
-            const m = rot.elements;
-            for (let i = 0; i < 16; i++) {
-                m[i] = Math.round(m[i]);
-            }
-            mesh.quaternion.setFromRotationMatrix(rot);
-            mesh.updateMatrix();
-        }
-
-        /* =========================================================
-           动画队列：保证连续点击 / 连续打乱时按顺序执行，不会互相打断
-           ========================================================= */
-        let pendingMoves = 0;
-        let animChain = Promise.resolve();
-
-        function busy() { return pendingMoves > 0; }
-
-        function rotateSlice(axis, layerCoord, direction, duration = 160) {
-            pendingMoves++;
-            const run = () => animateSlice(axis, layerCoord, direction, duration);
-            const p = animChain.then(run, run);
-            animChain = p.then(() => {}, () => {});
-            return p.then(
-                v => { pendingMoves--; return v; },
-                e => { pendingMoves--; throw e; }
+            const targetLayerPos = layerCoord * STEP;
+            const activeCubies = cubies.filter(
+                c => Math.abs(c.position[axis] - targetLayerPos) < STEP / 2
             );
-        }
+            activeCubies.forEach(c => rotationGroup.attach(c));
 
-        function animateSlice(axis, layerCoord, direction, duration) {
-            return new Promise((resolve) => {
-                const rotationGroup = new THREE.Group();
-                cubeGroup.add(rotationGroup);
+            const targetAngle = (Math.PI / 2) * direction;
+            const startTime = performance.now();
 
-                const targetLayerPos = layerCoord * STEP;
-                const activeCubies = cubies.filter(
-                    c => Math.abs(c.position[axis] - targetLayerPos) < STEP / 2
-                );
+            function animate(time) {
+                if (disposed) { resolve(); return; }
 
-                activeCubies.forEach(c => rotationGroup.attach(c));
+                const elapsed  = time - startTime;
+                const progress = Math.min(elapsed / duration, 1);
+                const ease     = 1 - Math.pow(1 - progress, 3);
 
-                const targetAngle = (Math.PI / 2) * direction;
-                const startTime = performance.now();
+                rotationGroup.rotation[axis] = targetAngle * ease;
 
-                function animate(time) {
-                    const elapsed = time - startTime;
-                    const progress = Math.min(elapsed / duration, 1);
-                    const ease = 1 - Math.pow(1 - progress, 3);
+                if (progress < 1) {
+                    requestAnimationFrame(animate);
+                } else {
+                    rotationGroup.rotation[axis] = targetAngle;
+                    rotationGroup.updateMatrixWorld();
 
-                    rotationGroup.rotation[axis] = targetAngle * ease;
+                    activeCubies.forEach(c => {
+                        cubeGroup.attach(c);
+                        snapCubie(c);
+                    });
 
-                    if (progress < 1) {
-                        requestAnimationFrame(animate);
-                    } else {
-                        rotationGroup.rotation[axis] = targetAngle;
-                        rotationGroup.updateMatrixWorld();
-
-                        activeCubies.forEach(c => {
-                            cubeGroup.attach(c);
-                            snapCubie(c);
-                        });
-
-                        cubeGroup.remove(rotationGroup);
-                        resolve();
-                    }
+                    cubeGroup.remove(rotationGroup);
+                    resolve();
                 }
-                requestAnimationFrame(animate);
-            });
+            }
+            requestAnimationFrame(animate);
+        });
+    }
+
+    /* =====================================================================
+     * 历史记录(优化: 更安全的操作)
+     * ===================================================================== */
+    let moveHistory  = [];
+    let historyIndex = 0;
+
+    function notifyNav() {
+        if (hooks.onNav) hooks.onNav(historyIndex, moveHistory.length);
+    }
+
+    function pushHistory(step) {
+        moveHistory.length = historyIndex;
+        moveHistory.push(step);
+        historyIndex++;
+        notifyNav();
+    }
+
+    function clearHistory() {
+        moveHistory = [];
+        historyIndex = 0;
+        notifyNav();
+    }
+
+    function setHistory(moves) {
+        moveHistory = moves.map(m => ({ axis: m.axis, layer: m.layer, dir: m.dir }));
+        historyIndex = 0;
+        notifyNav();
+    }
+
+    function goPrev() {
+        if (historyIndex <= 0 || busy()) return;
+        historyIndex--;
+        const s = moveHistory[historyIndex];
+        rotateSlice(s.axis, s.layer, -s.dir, NAV_DURATION).then(notifyNav);
+        notifyNav();
+    }
+
+    function goNext() {
+        if (historyIndex >= moveHistory.length || busy()) return;
+        const s = moveHistory[historyIndex];
+        historyIndex++;
+        rotateSlice(s.axis, s.layer, s.dir, NAV_DURATION).then(notifyNav);
+        notifyNav();
+    }
+
+    /* =====================================================================
+     * 打乱序列(优化点5: 更好的随机性 + 避免重复模式)
+     * ===================================================================== */
+    function generateScrambleSequence(length) {
+        length = length || 24;
+        const axes   = ['x', 'y', 'z'];
+        const coords = [-1.5, -0.5, 0.5, 1.5];
+        const dirs   = [1, -1, 2];
+        const seq = [];
+        let lastAxis = '', lastLayer = null, lastDir = null;
+
+        for (let i = 0; i < length; i++) {
+            let axis, layer, dir;
+            let attempts = 0;
+            do {
+                axis  = axes[Math.floor(Math.random() * axes.length)];
+                layer = coords[Math.floor(Math.random() * coords.length)];
+                dir = dirs[Math.floor(Math.random() * dirs.length)];
+                attempts++;
+                // 避免连续相同轴+层 + 避免立即撤销上一步
+            } while (
+                (axis === lastAxis && layer === lastLayer) ||
+                (axis === lastAxis && dir === -lastDir && layer === lastLayer)
+                && attempts < 10
+            );
+
+            seq.push({ axis, layer, dir });
+            lastAxis = axis;
+            lastLayer = layer;
+            lastDir = dir;
+        }
+        return seq;
+    }
+
+    async function runScramble(length) {
+        const seq = generateScrambleSequence(length);
+        for (const step of seq) {
+            const duration = Math.abs(step.dir) === 2 ? SCRAMBLE_DUR_DOUBLE : SCRAMBLE_DUR_SINGLE;
+            pushHistory(step);
+            await rotateSlice(step.axis, step.layer, step.dir, duration);
+        }
+    }
+
+    /* =====================================================================
+     * 快照: 状态捕获/恢复(优化: 深拷贝避免引用问题)
+     * ===================================================================== */
+    function captureState() {
+        return cubies.map(c => ({
+            pos:  { x: c.position.x, y: c.position.y, z: c.position.z },
+            quat: { x: c.quaternion.x, y: c.quaternion.y, z: c.quaternion.z, w: c.quaternion.w }
+        }));
+    }
+
+    /* ---------- 快照: 面片网格格式(6面×4×4颜色数字) ---------- */
+    function captureFaceGrid() {
+        // 颜色到数字映射
+        const colorToNum = {};
+        colorToNum[COLORS.R] = 1;
+        colorToNum[COLORS.L] = 2;
+        colorToNum[COLORS.U] = 3;
+        colorToNum[COLORS.D] = 4;
+        colorToNum[COLORS.F] = 5;
+        colorToNum[COLORS.B] = 6;
+        colorToNum[COLORS.INNER] = 0;
+
+        // 局部面法线(与materials数组顺序一致: right, left, top, bottom, front, back)
+        const localNormals = [
+            [1, 0, 0],   // right
+            [-1, 0, 0],  // left
+            [0, 1, 0],   // top
+            [0, -1, 0],  // bottom
+            [0, 0, 1],   // front
+            [0, 0, -1]   // back
+        ];
+
+        // 初始化6个面, 每个面4×4网格
+        const faces = [];
+        for (let f = 0; f < 6; f++) {
+            faces.push(Array(4).fill(null).map(() => Array(4).fill(0)));
         }
 
-        /* =========================================================
-           历史记录：上一步 / 下一步
-           ========================================================= */
-        let moveHistory = [];      // { axis, layer, dir }
-        let historyIndex = 0;      // 已应用的步数
-        let uiLocked = false;
+        for (const cubie of cubies) {
+            // 获取层坐标(0-3)
+            const px = Math.round(cubie.position.x / STEP + OFFSET);
+            const py = Math.round(cubie.position.y / STEP + OFFSET);
+            const pz = Math.round(cubie.position.z / STEP + OFFSET);
 
-        function pushHistory(step) {
-            moveHistory.length = historyIndex;   // 截断"未来"
-            moveHistory.push(step);
-            historyIndex++;
-            updateNavButtons();
-        }
+            // 对每个局部面, 旋转法线看它指向哪个全局方向
+            for (let lf = 0; lf < 6; lf++) {
+                const ln = localNormals[lf];
+                const wn = new THREE.Vector3(ln[0], ln[1], ln[2]).applyQuaternion(cubie.quaternion);
 
-        function clearHistory() {
-            moveHistory = [];
-            historyIndex = 0;
-            updateNavButtons();
-        }
+                // 判断全局面编号和网格坐标
+                let gf = -1, r = 0, c = 0;
+                if (Math.abs(wn.x - 1) < 0.5) { gf = 0; r = py; c = pz; }          // Red(+x)
+                else if (Math.abs(wn.x + 1) < 0.5) { gf = 1; r = py; c = pz; }      // Orange(-x)
+                else if (Math.abs(wn.y - 1) < 0.5) { gf = 2; r = px; c = pz; }      // White(+y)
+                else if (Math.abs(wn.y + 1) < 0.5) { gf = 3; r = px; c = pz; }      // Yellow(-y)
+                else if (Math.abs(wn.z - 1) < 0.5) { gf = 4; r = px; c = py; }      // Green(+z)
+                else if (Math.abs(wn.z + 1) < 0.5) { gf = 5; r = px; c = py; }      // Blue(-z)
+                else continue;
 
-        function updateNavButtons() {
-            if (uiLocked) return;
-            document.getElementById('btn-prev').disabled = historyIndex <= 0;
-            document.getElementById('btn-next').disabled = historyIndex >= moveHistory.length;
-        }
-
-        function goPrev() {
-            if (historyIndex <= 0 || busy()) return;
-            historyIndex--;
-            const s = moveHistory[historyIndex];
-            rotateSlice(s.axis, s.layer, -s.dir, 140).then(updateNavButtons);
-            updateNavButtons();
-        }
-
-        function goNext() {
-            if (historyIndex >= moveHistory.length || busy()) return;
-            const s = moveHistory[historyIndex];
-            historyIndex++;
-            rotateSlice(s.axis, s.layer, s.dir, 140).then(updateNavButtons);
-            updateNavButtons();
-        }
-
-        /* =========================================================
-           步骤录制 → 保存为公式
-           ========================================================= */
-        let recording = false;
-        let recordedMoves = [];
-        const recordBtn = document.getElementById('btn-record');
-
-        function updateRecordBtn() {
-            if (recording) {
-                recordBtn.textContent = `⏹ 结束(${recordedMoves.length})`;
-                recordBtn.classList.add('active');
-            } else {
-                recordBtn.textContent = '⏺ 记录';
-                recordBtn.classList.remove('active');
+                // 读取材质颜色(安全读取,兼容标准材质和被替换的材质)
+                const mat = cubie.material[lf];
+                let colorHex = COLORS.INNER;
+                if (mat && mat.color) {
+                    colorHex = mat.color.getHex ? mat.color.getHex() : COLORS.INNER;
+                }
+                faces[gf][r][c] = colorToNum[colorHex] || 0;
             }
         }
 
-        recordBtn.addEventListener('click', () => {
-            if (busy()) { toast('动画进行中，请稍候…'); return; }
-            if (!recording) {
-                recording = true;
-                recordedMoves = [];
-                updateRecordBtn();
-                toast('🔴 开始记录步骤，转动魔方吧');
-            } else {
-                recording = false;
-                updateRecordBtn();
-                if (recordedMoves.length === 0) {
-                    toast('未记录到任何步骤');
-                    return;
+        return faces;
+    }
+
+    /* ---------- 快照: 从面片网格恢复(兼容旧格式) ---------- */
+    function restoreFromFaceGrid(grid) {
+        // 判断是面片网格格式还是旧的位置/四元数格式
+        if (grid.length === 6 && Array.isArray(grid[0]) && Array.isArray(grid[0][0])) {
+            // 面片网格格式: 需要转换为内部状态格式再恢复
+            // 先捕获当前状态作为基准, 然后通过颜色匹配重建
+            return restoreFromFaceGridInternal(grid);
+        } else {
+            // 旧的位置/四元数格式
+            return restoreState(grid);
+        }
+    }
+
+    function restoreFromFaceGridInternal(grid) {
+        // 颜色数字到颜色值的映射
+        const numToColor = {};
+        numToColor[1] = COLORS.R;
+        numToColor[2] = COLORS.L;
+        numToColor[3] = COLORS.U;
+        numToColor[4] = COLORS.D;
+        numToColor[5] = COLORS.F;
+        numToColor[6] = COLORS.B;
+        numToColor[0] = COLORS.INNER;
+
+        // 构建目标颜色映射: 每个面片位置期望的颜色
+        // faceMap 定义每个全局面对应的 cubie 位置映射
+        const faceMap = [
+            // Face 0: Red(+x) -> cubies with px=3, varying py,pz
+            { faceDir: 'x', sign: 1, coord: 3, v1: 'py', v2: 'pz' },
+            // Face 1: Orange(-x) -> cubies with px=0
+            { faceDir: 'x', sign: -1, coord: 0, v1: 'py', v2: 'pz' },
+            // Face 2: White(+y) -> cubies with py=3, varying px,pz
+            { faceDir: 'y', sign: 1, coord: 3, v1: 'px', v2: 'pz' },
+            // Face 3: Yellow(-y) -> cubies with py=0
+            { faceDir: 'y', sign: -1, coord: 0, v1: 'px', v2: 'pz' },
+            // Face 4: Green(+z) -> cubies with pz=3, varying px,py
+            { faceDir: 'z', sign: 1, coord: 3, v1: 'px', v2: 'py' },
+            // Face 5: Blue(-z) -> cubies with pz=0
+            { faceDir: 'z', sign: -1, coord: 0, v1: 'px', v2: 'py' },
+        ];
+
+        // 对每个 cubie, 确定其home位置和可见面, 然后从网格中读取期望颜色
+        // 设置 cubie 的位置和材质颜色以匹配目标状态
+        for (let i = 0; i < cubies.length; i++) {
+            const cubie = cubies[i];
+            
+            // Home位置 (从创建顺序)
+            const pz0 = Math.floor(i / 16);
+            const py0 = Math.floor((i % 16) / 4);
+            const px0 = i % 4;
+
+            // 设置位置到home
+            cubie.position.set(
+                (px0 - OFFSET) * STEP,
+                (py0 - OFFSET) * STEP,
+                (pz0 - OFFSET) * STEP
+            );
+
+            // 确定哪些面可见, 并设置材质颜色
+            // 重置旋转为恒等
+            cubie.quaternion.set(0, 0, 0, 1);
+
+            // 根据home位置确定可见面及其颜色
+            // materials数组顺序: [right, left, top, bottom, front, back]
+            const newMats = [
+                px0 === 3 ? numToColor[grid[0][py0][pz0]] : COLORS.INNER,  // right -> Face 0 (Red)
+                px0 === 0 ? numToColor[grid[1][py0][pz0]] : COLORS.INNER,  // left -> Face 1 (Orange)
+                py0 === 3 ? numToColor[grid[2][px0][pz0]] : COLORS.INNER,  // top -> Face 2 (White)
+                py0 === 0 ? numToColor[grid[3][px0][pz0]] : COLORS.INNER,  // bottom -> Face 3 (Yellow)
+                pz0 === 3 ? numToColor[grid[4][px0][py0]] : COLORS.INNER,  // front -> Face 4 (Green)
+                pz0 === 0 ? numToColor[grid[5][px0][py0]] : COLORS.INNER,  // back -> Face 5 (Blue)
+            ];
+
+            // 更新材质颜色(创建新实例避免修改共享材质)
+            for (let f = 0; f < 6; f++) {
+                cubie.material[f] = new THREE.MeshLambertMaterial({ color: newMats[f] });
+            }
+
+            snapCubie(cubie);
+        }
+
+        // 清除历史记录
+        moveHistory = [];
+        historyIndex = 0;
+        notifyNav();
+        return true;
+    }
+
+
+    function restoreState(state) {
+        if (!state || state.length !== cubies.length) return false;
+        state.forEach((s, i) => {
+            cubies[i].position.set(s.pos.x, s.pos.y, s.pos.z);
+            cubies[i].quaternion.set(s.quat.x, s.quat.y, s.quat.z, s.quat.w);
+            snapCubie(cubies[i]);
+        });
+        return true;
+    }
+
+    /* =====================================================================
+     * 交互(优化点6: 改进触摸处理 + 减少临时对象)
+     * ===================================================================== */
+    const raycaster = new THREE.Raycaster();
+    const ndc       = new THREE.Vector2();
+    let drag = null;
+    let pinchDist0 = 0, pinchRad0 = RAD;
+
+    const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
+
+    function onPointerDown(e) {
+        e.preventDefault();
+        dom.setPointerCapture(e.pointerId);
+
+        const rect = dom.getBoundingClientRect();
+        ndc.set(
+            ((e.clientX - rect.left) / rect.width) * 2 - 1,
+            -((e.clientY - rect.top) / rect.height) * 2 + 1
+        );
+        raycaster.setFromCamera(ndc, camera);
+        const hits = raycaster.intersectObjects(cubies);
+
+        if (hits.length && !busy()) {
+            const h = hits[0];
+            // 使用预创建的法线数组
+            const n = faceNormals[h.face.materialIndex].clone();
+            drag = {
+                type: 'layer', cubie: h.object, n,
+                point: h.point.clone(),
+                sx: e.clientX, sy: e.clientY, done: false
+            };
+        } else {
+            drag = { type: 'view', sx: e.clientX, sy: e.clientY };
+        }
+    }
+
+    function onPointerMove(e) {
+        if (!drag) return;
+        const dx = e.clientX - drag.sx, dy = e.clientY - drag.sy;
+
+        if (drag.type === 'view') {
+            theta -= dx * 0.008;
+            phi   -= dy * 0.008;
+            phi = clamp(phi, 0.15, Math.PI - 0.15);
+            drag.sx = e.clientX; drag.sy = e.clientY;
+            updCam();
+        } else if (!drag.done && Math.hypot(dx, dy) > 14) {
+            drag.done = true;
+            handleCubeDrag(drag, dx, dy);
+            drag = null;
+        }
+    }
+
+    function onPointerUp() { drag = null; }
+
+    function onTouchStart(e) {
+        if (e.touches.length === 2) {
+            drag = null;
+            const dx = e.touches[0].clientX - e.touches[1].clientX;
+            const dy = e.touches[0].clientY - e.touches[1].clientY;
+            pinchDist0 = Math.hypot(dx, dy);
+            pinchRad0  = RAD;
+        }
+    }
+
+    function onTouchMove(e) {
+        if (e.touches.length === 2) {
+            e.preventDefault();
+            const dx = e.touches[0].clientX - e.touches[1].clientX;
+            const dy = e.touches[0].clientY - e.touches[1].clientY;
+            const dist = Math.hypot(dx, dy);
+            if (pinchDist0 > 0) {
+                RAD = clamp(pinchRad0 * (pinchDist0 / dist), RAD_MIN, RAD_MAX);
+                updCam();
+            }
+        }
+    }
+
+    function onTouchEnd() { pinchDist0 = 0; }
+
+    function onWheel(e) {
+        e.preventDefault();
+        RAD = clamp(RAD * (1 + e.deltaY * 0.001), RAD_MIN, RAD_MAX);
+        updCam();
+    }
+
+    /* ---------- 屏幕方向转换(优化: 减少向量创建) ---------- */
+    function scrDir(p, v) {
+        // 优化: 避免p.clone()造成内存泄漏，直接用对象池
+        const a = getVec(p.x, p.y, p.z);
+        a.project(camera);
+        const b = getVec(p.x + v.x, p.y + v.y, p.z + v.z);
+        b.project(camera);
+        const result = getVec(b.x - a.x, b.y - a.y, 0).normalize();
+        returnVec(a);
+        returnVec(b);
+        return result;
+    }
+
+    function handleCubeDrag(d, dx, dy) {
+        const n = d.n;
+        const ts = [];
+        if (n.x === 0) ts.push(new THREE.Vector3(1, 0, 0));
+        if (n.y === 0) ts.push(new THREE.Vector3(0, 1, 0));
+        if (n.z === 0) ts.push(new THREE.Vector3(0, 0, 1));
+
+        const dragV = getVec(dx, -dy, 0).normalize();
+
+        let best = null, bs = 0;
+        for (const t of ts) {
+            const s = scrDir(d.point, t).dot(dragV);
+            if (Math.abs(s) > Math.abs(bs)) {
+                bs = s;
+                best = getVec(t.x * Math.sign(s), t.y * Math.sign(s), t.z * Math.sign(s));
+            }
+        }
+        if (!best) { return; }
+
+        const axisVec = getVec().crossVectors(n, best);
+
+        let comp, dir;
+        if (Math.abs(axisVec.x) > 0.5)      { comp = 'x'; dir = Math.sign(axisVec.x); }
+        else if (Math.abs(axisVec.y) > 0.5) { comp = 'y'; dir = Math.sign(axisVec.y); }
+        else                                { comp = 'z'; dir = Math.sign(axisVec.z); }
+
+        const rawLayer = d.cubie.position[comp] / STEP;
+        let layerCoord = Math.round(rawLayer - 0.5) + 0.5;
+        layerCoord = Math.max(-1.5, Math.min(1.5, layerCoord));
+
+        const step = { axis: comp, layer: layerCoord, dir };
+
+        pushHistory(step);
+        if (hooks.onUserMove) hooks.onUserMove(step);
+        rotateSlice(comp, layerCoord, dir);
+
+        // 归还池对象
+        returnVec(best);
+        returnVec(axisVec);
+        returnVec(dragV);
+    }
+
+    /* =====================================================================
+     * 事件绑定(优化: 统一事件处理)
+     * ===================================================================== */
+    function bindEvents() {
+        dom.addEventListener('pointerdown', onPointerDown);
+        dom.addEventListener('pointermove', onPointerMove);
+        window.addEventListener('pointerup', onPointerUp);
+        window.addEventListener('pointercancel', onPointerUp);
+        dom.addEventListener('touchstart', onTouchStart, { passive: false });
+        dom.addEventListener('touchmove', onTouchMove, { passive: false });
+        dom.addEventListener('touchend', onTouchEnd);
+        dom.addEventListener('wheel', onWheel, { passive: false });
+        window.addEventListener('resize', resize);
+    }
+
+    function unbindEvents() {
+        if (dom) {
+            dom.removeEventListener('pointerdown', onPointerDown);
+            dom.removeEventListener('pointermove', onPointerMove);
+            dom.removeEventListener('touchstart', onTouchStart);
+            dom.removeEventListener('touchmove', onTouchMove);
+            dom.removeEventListener('touchend', onTouchEnd);
+            dom.removeEventListener('wheel', onWheel);
+        }
+        window.removeEventListener('pointerup', onPointerUp);
+        window.removeEventListener('pointercancel', onPointerUp);
+        window.removeEventListener('resize', resize);
+    }
+
+    /* =====================================================================
+     * 渲染循环
+     * ===================================================================== */
+    let rafId = 0;
+    function loop(now) {
+        if (disposed) return;
+        rafId = requestAnimationFrame(loop);
+        if (hooks.onFrame) hooks.onFrame(now);
+        renderer.render(scene, camera);
+    }
+
+    /* =====================================================================
+     * 对外 API(优化点9: 改进清理逻辑)
+     * ===================================================================== */
+    function mount(el) {
+        wrapEl = el;
+        dom = renderer.domElement;
+        wrapEl.appendChild(dom);
+        resize();
+        updCam();
+        initCube();
+        bindEvents();
+        notifyNav();
+        rafId = requestAnimationFrame(loop);
+    }
+
+    function destroy() {
+        if (disposed) return;
+        disposed = true;
+        cancelAnimationFrame(rafId);
+        unbindEvents();
+
+        // 清理 cubeGroup 中的所有子对象
+        while (cubeGroup.children.length) {
+            const child = cubeGroup.children[0];
+            cubeGroup.remove(child);
+            if (child.geometry) child.geometry.dispose();
+            if (child.material) {
+                if (Array.isArray(child.material)) {
+                    child.material.forEach(m => m.dispose());
+                } else {
+                    child.material.dispose();
                 }
-                openFormulaSaveModal();
+            }
+        }
+
+        // 清理 renderer
+        if (dom && dom.parentNode) dom.parentNode.removeChild(dom);
+        renderer.dispose();
+
+        // 清空对象池
+        _vecPool.length = 0;
+        _quatPool.length = 0;
+
+        // 清理事件引用
+        cubies = [];
+        moveHistory = [];
+    }
+
+    function resetAll() {
+        clearHistory();
+        resetView();
+        cubeGroup.rotation.set(0, 0, 0);
+        initCube();
+    }
+
+    return {
+        mount, destroy,
+        busy,
+        rotateSlice, runScramble,
+        goPrev, goNext, clearHistory, setHistory,
+        captureState, captureFaceGrid, restoreState, restoreFromFaceGrid,
+        resetAll, resetView, resize,
+        get historyIndex() { return historyIndex; },
+        get historyLength() { return moveHistory.length; }
+    };
+}
+
+/* =========================================================================
+ * 2. Vue 应用(优化版)
+ * ========================================================================= */
+const FORMULA_KEY  = 'mfv4_formulas';
+const SNAPSHOT_KEY = 'mfv4_snapshots';
+
+// ===== 预设快照库(内置图案) =====
+// 颜色映射: 1=红(R) 2=橙(L) 3=白(U) 4=黄(D) 5=绿(F) 6=蓝(B) 0=内芯
+var PRESET_SNAPSHOTS = [
+    {
+        id: '01',
+        title: '反棱体', 
+        cube: [
+            [[3,3,3,3],[3,3,3,3],[3,3,3,3],[3,3,3,3]],  // 上
+            [[2,2,2,2],[2,2,2,2],[2,2,2,2],[2,2,2,2]],   // 左
+            [[5,5,5,5],[5,5,5,5],[5,5,5,5],[5,5,5,5]],   // 前
+            [[1,1,1,1],[1,1,1,1],[1,1,1,1],[1,1,1,1]],   // 右
+            [[6,6,6,6],[6,6,6,6],[6,6,6,6],[6,6,6,6]],   // 后
+            [[4,4,4,4],[4,4,4,4],[4,4,4,4],[4,4,4,4]],   // 下
+        ],
+        isPreset: true
+    },
+    {
+        id: '02',
+        title: '调角', 
+        cube: [
+            [[3,3,3,3],[3,3,3,3],[3,3,3,3],[3,3,3,3]],  // 上
+            [[2,2,2,2],[2,2,2,2],[2,2,2,2],[2,2,2,2]],   // 左
+            [[5,5,5,5],[5,5,5,5],[5,5,5,5],[5,5,5,5]],   // 前
+            [[1,1,1,1],[1,1,1,1],[1,1,1,1],[1,1,1,1]],   // 右
+            [[6,6,6,6],[6,6,6,6],[6,6,6,6],[6,6,6,6]],   // 后
+            [[4,4,4,4],[4,4,4,4],[4,4,4,4],[4,4,4,4]],   // 下
+        ],
+        isPreset: true
+    },
+    
+];
+new Vue({
+    el: '#app',
+
+    data() {
+        return {
+            timerText: '00:00',
+            stepCount: 0,
+            recording: false,
+            recordedMoves: [],
+            uiLocked: false,
+            navIndex: 0,
+            navLen: 0,
+            toastMsg: '',
+            toastShow: false,
+            modalType: null,
+            drawerOpen: false,
+            drawerType: null,
+            snapTitle: '',
+            formulaTitle: '',
+            formulaPreview: '',
+            formulaStepCount: 0,
+            snapshots: [],
+            formulas: [],
+            fps: 0,
+            frameCount: 0,
+            lastFpsTime: performance.now()
+        };
+    },
+
+    computed: {
+        canPrev() { return this.navIndex > 0; },
+        canNext() { return this.navIndex < this.navLen; },
+        recordLabel() {
+            return this.recording
+                ? '结束(' + this.recordedMoves.length + ')'
+                : '记录';
+        },
+        sortedSnapshots() {
+            return [...this.snapshots].sort((a, b) => {
+                if (a.isPreset === b.isPreset) return 0;
+                return a.isPreset ? -1 : 1;
+            });
+        }
+    },
+
+    created() {
+        // 读取用户数据
+        this.snapshots = this.readStorage(SNAPSHOT_KEY, []);
+        this.formulas  = this.readStorage(FORMULA_KEY, []);
+        
+        // 如果用户没有任何快照，加载预设快照作为初始数据
+        if (!this.snapshots.length) {
+            this.snapshots = PRESET_SNAPSHOTS.map(p => ({
+                ...p,
+                time: '内置预设',
+                _state: null
+            }));
+            this.writeStorage(SNAPSHOT_KEY, this.snapshots);
+        } else {
+            // 已有用户数据，确保isPreset属性存在
+            this.snapshots = this.snapshots.map(s => ({...s, isPreset: s.isPreset || false}));
+        }
+        
+        this._timing = false;
+        this._timeStart = 0;
+        this._recordStartState = null;
+        this._toastTimer = null;
+        this.engine = null;
+        this._fpsTimer = null;
+    },
+
+    mounted() {
+        this.engine = createCubeEngine({
+            onNav: (idx, len) => {
+                this.navIndex = idx;
+                this.navLen   = len;
+            },
+            onUserMove: (step) => {
+                if (this.recording) this.recordedMoves.push(step);
+                this.startTimer();
+                this.stepCount++;
+            },
+            onFrame: (now) => {
+                this.tickTimer(now);
+                this.updateFPS(now);
             }
         });
 
-        // 转换为标准魔方记号（外层面 R/L/U/D/F/B，内层 2R/2L…）
-        function stepToNotation(axis, layer, dir) {
+        this.$nextTick(() => this.engine.mount(this.$refs.wrap));
+
+        /* 键盘快捷键 */
+        window.addEventListener('keydown', this.onKeyDown);
+    },
+
+    beforeDestroy() {
+        if (this.engine) this.engine.destroy();
+        clearTimeout(this._toastTimer);
+        clearTimeout(this._fpsTimer);
+        window.removeEventListener('keydown', this.onKeyDown);
+    },
+
+    methods: {
+        isShowDelete(row) {
+            // 预设快照不可删除，用户快照可删除
+            return !row?.isPreset;
+        },
+        readStorage(key, fallback) {
+            try {
+                return JSON.parse(localStorage.getItem(key)) || fallback;
+            } catch (e) {
+                return fallback;
+            }
+        },
+        writeStorage(key, value) {
+            try {
+                localStorage.setItem(key, JSON.stringify(value));
+            } catch (e) { /* 忽略配额错误 */ }
+        },
+        toast(msg) {
+            this.toastMsg = msg;
+            this.toastShow = true;
+            clearTimeout(this._toastTimer);
+            this._toastTimer = setTimeout(() => { this.toastShow = false; }, 2400);
+        },
+        busyGuard() {
+            if (this.engine && this.engine.busy()) {
+                this.toast('动画进行中,请稍候...');
+                return true;
+            }
+            return false;
+        },
+        startTimer() {
+            if (this._timing) return;
+            this._timing = true;
+            this._timeStart = performance.now();
+        },
+        stopTimer() { this._timing = false; },
+        tickTimer(now) {
+            if (!this._timing) return;
+            const t = this.fmt(now - this._timeStart);
+            if (t !== this.timerText) this.timerText = t;
+        },
+        fmt(ms) {
+            const s = Math.floor(ms / 1000);
+            return String(Math.floor(s / 60)).padStart(2, '0') + ':' +
+                   String(s % 60).padStart(2, '0');
+        },
+        resetStats() {
+            this.stepCount = 0;
+            this.timerText = '00:00';
+        },
+        updateFPS(now) {
+            this.frameCount++;
+            if (now - this.lastFpsTime >= 1000) {
+                this.fps = this.frameCount;
+                this.frameCount = 0;
+                this.lastFpsTime = now;
+            }
+        },
+        onKeyDown(e) {
+            if (e.target.tagName === 'INPUT') return;
+            switch (e.key) {
+                case 'ArrowLeft':
+                case 'z':
+                    e.preventDefault();
+                    this.onPrev();
+                    break;
+                case 'ArrowRight':
+                case 'x':
+                    e.preventDefault();
+                    this.onNext();
+                    break;
+                case 'r':
+                    e.preventDefault();
+                    this.onReset();
+                    break;
+                case 's':
+                    e.preventDefault();
+                    this.onScramble();
+                    break;
+                case 'v':
+                    e.preventDefault();
+                    this.onResetView();
+                    break;
+                case ' ':
+                    e.preventDefault();
+                    this.toggleRecord();
+                    break;
+                case 'Escape':
+                    this.closeModal();
+                    break;
+            }
+        },
+        onReset() {
+            if (this.busyGuard()) return;
+            this.stopTimer();
+            this.resetStats();
+            this.engine.resetAll();
+            this.toast('已复原');
+        },
+        async onScramble() {
+            if (this.engine.busy()) return;
+            this.uiLocked = true;
+            this.stopTimer();
+            this.resetStats();
+            this.toast('正在打乱...');
+            try {
+                await this.engine.runScramble(24);
+                this.toast('打乱完成!');
+            } catch (e) {
+                this.toast('打乱过程中出错');
+                console.error('Scramble error:', e);
+            } finally {
+                this.uiLocked = false;
+            }
+        },
+        onResetView() {
+            this.engine.resetView();
+            this.toast('视角已还原');
+        },
+        onPrev() { this.engine.goPrev(); },
+        onNext() { this.engine.goNext(); },
+        toggleRecord() {
+            if (this.busyGuard()) return;
+            if (!this.recording) {
+                this.recording = true;
+                this.recordedMoves = [];
+                this._recordStartState = this.engine.captureState();
+                this.toast('开始记录步骤,转动魔方吧');
+                return;
+            }
+            this.recording = false;
+            if (this.recordedMoves.length === 0) {
+                this._recordStartState = null;
+                this.toast('未记录到任何步骤');
+                return;
+            }
+            this.openFormulaSave();
+        },
+        stepToNotation(axis, layer, dir) {
             let face, cw;
             if (axis === 'x') {
                 if (layer > 0) { face = 'R'; cw = -1; } else { face = 'L'; cw = 1; }
@@ -350,524 +1223,132 @@
             const name = (Math.abs(layer) === 0.5 ? '2' : '') + face;
             if (Math.abs(dir) === 2) return name + '2';
             return dir === cw ? name : name + "'";
-        }
-
-        function movesToNotation(moves) {
-            return moves.map(m => stepToNotation(m.axis, m.layer, m.dir)).join(' ');
-        }
-
-        const FORMULA_KEY = 'cube_formulas_v1';
-
-        function getFormulas() {
-            try { return JSON.parse(localStorage.getItem(FORMULA_KEY)) || []; }
-            catch { return []; }
-        }
-        function saveFormulaList(list) {
-            localStorage.setItem(FORMULA_KEY, JSON.stringify(list));
-        }
-        function saveFormula(title, moves) {
-            const list = getFormulas();
-            list.unshift({
+        },
+        movesToNotation(moves) {
+            return moves.map(m => this.stepToNotation(m.axis, m.layer, m.dir)).join(' ');
+        },
+        openModal(type) { this.modalType = type; },
+        closeModal() { this.modalType = null; },
+        closeDrawer() { this.drawerOpen = false; this.drawerType = null; },
+        openSnapshotSave() {
+            if (this.busyGuard()) return;
+            this.snapTitle = '';
+            this.openModal('saveSnapshot');
+            this.$nextTick(() => {
+                const el = this.$refs.snapInput;
+                if (el) el.focus();
+            });
+        },
+        doSaveSnapshot() {
+            const title = this.snapTitle.trim();
+            this.saveSnapshot(title);
+            this.closeModal();
+        },
+        saveSnapshot(title) {
+            // 用户快照同时保存面片网格和内部状态
+            const snap = {
+                id: Date.now(),
+                title: title || '快照 ' + (this.snapshots.length + 1),
+                time: new Date().toLocaleString('zh-CN'),
+                cube: this.engine.captureFaceGrid(),
+                _state: this.engine.captureState(),
+                isPreset: false
+            };
+            this.snapshots.unshift(snap);
+            this.writeStorage(SNAPSHOT_KEY, this.snapshots);
+            this.toast('已保存"' + snap.title + '"');
+        },
+        openSnapshotList() { this.drawerType = 'snapshots'; this.drawerOpen = true; },
+        restoreSnapshot(id) {
+            const snap = this.snapshots.find(s => s.id === id);
+            if (!snap) return;
+            if (this.busyGuard()) return;
+            try {
+                // 使用cube面片网格格式恢复(兼容预设和用户快照)
+                const state = snap.cube;
+                if (state && state.length === 6) {
+                    if (this.engine.restoreFromFaceGrid(state)) {
+                        this.stopTimer();
+                        this.resetStats();
+                        this.engine.clearHistory();
+                        this.toast('已恢复"' + snap.title + '"');
+                        this.closeDrawer();
+                    } else {
+                        this.toast('快照数据不兼容');
+                    }
+                } else {
+                    this.toast('快照数据格式错误');
+                }
+            } catch (e) {
+                this.toast('恢复快照时出错');
+                console.error('Restore snapshot error:', e);
+            }
+        },
+        deleteSnapshot(id) {
+            const snap = this.snapshots.find(s => s.id === id);
+            if (snap?.isPreset) {
+                this.toast('内置预设快照不可删除');
+                return;
+            }
+            this.snapshots = this.snapshots.filter(s => s.id !== id);
+            this.writeStorage(SNAPSHOT_KEY, this.snapshots);
+            this.toast('已删除快照');
+        },
+        openFormulaSave() {
+            this.formulaPreview   = this.movesToNotation(this.recordedMoves);
+            this.formulaStepCount = this.recordedMoves.length;
+            this.formulaTitle     = '';
+            this.openModal('saveFormula');
+            this.$nextTick(() => {
+                const el = this.$refs.formulaInput;
+                if (el) el.focus();
+            });
+        },
+        doSaveFormula() {
+            const title = this.formulaTitle.trim() || '公式 ' + (this.formulas.length + 1);
+            const formula = {
                 id: Date.now(),
                 title,
                 time: new Date().toLocaleString('zh-CN'),
-                notation: movesToNotation(moves),
-                moves: moves.map(m => ({ axis: m.axis, layer: m.layer, dir: m.dir }))
-            });
-            saveFormulaList(list);
-        }
-        function deleteFormula(id) {
-            saveFormulaList(getFormulas().filter(f => f.id !== id));
-            openLibrary();
-        }
-
-        // 播放公式
-        async function playFormula(id) {
-            const f = getFormulas().find(x => x.id === id);
+                notation: this.movesToNotation(this.recordedMoves),
+                moves: this.recordedMoves.map(m => ({ axis: m.axis, layer: m.layer, dir: m.dir })),
+                startState: this._recordStartState || null
+            };
+            this.formulas.unshift(formula);
+            this.writeStorage(FORMULA_KEY, this.formulas);
+            this.recordedMoves = [];
+            this._recordStartState = null;
+            this.closeModal();
+            this.toast('已保存公式「' + title + '」');
+        },
+        openFormulaList() { this.drawerType = 'formulas'; this.drawerOpen = true; },
+        deleteFormula(id) {
+            this.formulas = this.formulas.filter(f => f.id !== id);
+            this.writeStorage(FORMULA_KEY, this.formulas);
+        },
+        playFormula(id) {
+            const f = this.formulas.find(x => x.id === id);
             if (!f) return;
-            if (busy()) { toast('动画进行中，请稍候…'); return; }
-            closeModal();
-            toast(`▶ 执行「${f.title}」`);
-            for (const m of f.moves) {
-                pushHistory(m);
-                await rotateSlice(m.axis, m.layer, m.dir, 130);
-            }
-            historyIndex = 0;
-            updateNavButtons();
-            toast('✓ 公式执行完成');
-        }
-
-        function openFormulaSaveModal() {
-            const notation = movesToNotation(recordedMoves);
-            openModal(`
-                <h3>💾 保存公式</h3>
-                <div class="formula-preview">${escapeHtml(notation)}</div>
-                <div class="tip-text">
-                    记法：R/L/U/D/F/B 为外层面，2R/2L/2U/2D/2F/2B 为内层，
-                    ' 表示逆时针，2 表示 180°。共 ${recordedMoves.length} 步。
-                </div>
-                <input type="text" id="formula-title" placeholder="给公式起个名字…" maxlength="30">
-                <div class="modal-actions">
-                    <button class="btn gray" id="modal-cancel">取消</button>
-                    <button class="btn" id="modal-save-formula">保存</button>
-                </div>
-            `);
-
-            const input = document.getElementById('formula-title');
-            setTimeout(() => input.focus(), 50);
-
-            document.getElementById('modal-cancel').onclick = closeModal;
-
-            const doSave = () => {
-                const title = input.value.trim() || `公式 ${getFormulas().length + 1}`;
-                saveFormula(title, recordedMoves);
-                recordedMoves = [];
-                updateRecordBtn();
-                closeModal();
-                toast(`✓ 已保存公式「${title}」`);
-            };
-            document.getElementById('modal-save-formula').onclick = doSave;
-            input.addEventListener('keydown', e => {
-                if (e.key === 'Enter') doSave();
-            });
-        }
-
-        /* =========================================================
-           WCA 风格打乱
-           ========================================================= */
-        function generateScrambleSequence(length = 24) {
-            const axes = ['x', 'y', 'z'];
-            const coords = [-1.5, -0.5, 0.5, 1.5];
-            const dirs = [1, -1, 2];
-            const seq = [];
-            let lastAxis = '', lastLayer = null;
-
-            for (let i = 0; i < length; i++) {
-                let axis, layer;
-                do {
-                    axis = axes[Math.floor(Math.random() * axes.length)];
-                    layer = coords[Math.floor(Math.random() * coords.length)];
-                } while (axis === lastAxis && layer === lastLayer);
-
-                const dir = dirs[Math.floor(Math.random() * dirs.length)];
-                seq.push({ axis, layer, dir });
-                lastAxis = axis;
-                lastLayer = layer;
-            }
-            return seq;
-        }
-
-        async function runScramble() {
-            if (busy()) return;
-            setButtonsDisabled(true);
-            stopTimer();
-            document.getElementById('timer').innerText = '00:00';
-            resetStats();
-            toast('🔀 正在打乱...');
-
-            const seq = generateScrambleSequence(24);
-            for (const step of seq) {
-                const duration = Math.abs(step.dir) === 2 ? 80 : 55;
-                pushHistory(step);
-                await rotateSlice(step.axis, step.layer, step.dir, duration);
-            }
-
-            toast('🔀 打乱完成！');
-            setButtonsDisabled(false);
-        }
-
-        function setButtonsDisabled(disabled) {
-            uiLocked = disabled;
-            document.querySelectorAll('button').forEach(b => b.disabled = disabled);
-            if (!disabled) updateNavButtons();
-        }
-
-        /* =========================================================
-           交互系统
-           ========================================================= */
-        const raycaster = new THREE.Raycaster();
-        const ndc = new THREE.Vector2();
-        let drag = null;
-
-        function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
-
-        dom.addEventListener('pointerdown', e => {
-            e.preventDefault();
-            dom.setPointerCapture(e.pointerId);
-            const rect = dom.getBoundingClientRect();
-            ndc.set(
-                ((e.clientX - rect.left) / rect.width) * 2 - 1,
-                -((e.clientY - rect.top) / rect.height) * 2 + 1
-            );
-            raycaster.setFromCamera(ndc, camera);
-            const hits = raycaster.intersectObjects(cubies);
-            if (hits.length && !busy()) {
-                const h = hits[0];
-                const n = h.face.normal.clone().transformDirection(h.object.matrixWorld);
-                n.set(Math.round(n.x), Math.round(n.y), Math.round(n.z));
-                drag = { type: 'layer', cubie: h.object, n, point: h.point.clone(), sx: e.clientX, sy: e.clientY, done: false };
-            } else {
-                drag = { type: 'view', sx: e.clientX, sy: e.clientY };
-            }
-        });
-
-        dom.addEventListener('pointermove', e => {
-            if (!drag) return;
-            const dx = e.clientX - drag.sx, dy = e.clientY - drag.sy;
-            if (drag.type === 'view') {
-                theta -= dx * 0.008;
-                phi -= dy * 0.008;
-                phi = Math.max(0.15, Math.min(Math.PI - 0.15, phi));
-                drag.sx = e.clientX; drag.sy = e.clientY;
-                updCam();
-            } else if (!drag.done && Math.hypot(dx, dy) > 14) {
-                drag.done = true;
-                handleCubeDrag(drag, dx, dy);
-                drag = null;
-            }
-        });
-        window.addEventListener('pointerup', () => drag = null);
-        window.addEventListener('pointercancel', () => drag = null);
-
-        // 双指缩放
-        let pinchDist0 = 0, pinchRad0 = RAD;
-        dom.addEventListener('touchstart', e => {
-            if (e.touches.length === 2) {
-                drag = null;
-                const dx = e.touches[0].clientX - e.touches[1].clientX;
-                const dy = e.touches[0].clientY - e.touches[1].clientY;
-                pinchDist0 = Math.hypot(dx, dy);
-                pinchRad0 = RAD;
-            }
-        }, { passive: false });
-
-        dom.addEventListener('touchmove', e => {
-            if (e.touches.length === 2) {
-                e.preventDefault();
-                const dx = e.touches[0].clientX - e.touches[1].clientX;
-                const dy = e.touches[0].clientY - e.touches[1].clientY;
-                const dist = Math.hypot(dx, dy);
-                if (pinchDist0 > 0) {
-                    const scale = pinchDist0 / dist;
-                    RAD = clamp(pinchRad0 * scale, RAD_MIN, RAD_MAX);
-                    updCam();
+            if (this.busyGuard()) return;
+            this.closeDrawer();
+            try {
+                if (f.startState) {
+                    this.engine.restoreState(f.startState);
+                    this.toast('已还原到录制「' + f.title + '」时的初始状态');
+                } else {
+                    this.toast('查看公式「' + f.title + '」');
                 }
-            }
-        }, { passive: false });
-
-        dom.addEventListener('touchend', () => { pinchDist0 = 0; });
-
-        // 滚轮缩放
-        dom.addEventListener('wheel', e => {
-            e.preventDefault();
-            const factor = 1 + e.deltaY * 0.001;
-            RAD = clamp(RAD * factor, RAD_MIN, RAD_MAX);
-            updCam();
-        }, { passive: false });
-
-        function handleCubeDrag(d, dx, dy) {
-            const n = d.n;
-            const ts = [];
-            if (n.x === 0) ts.push(new THREE.Vector3(1, 0, 0));
-            if (n.y === 0) ts.push(new THREE.Vector3(0, 1, 0));
-            if (n.z === 0) ts.push(new THREE.Vector3(0, 0, 1));
-
-            const dragV = new THREE.Vector2(dx, -dy).normalize();
-
-            let best = null, bs = 0;
-            for (const t of ts) {
-                const s = scrDir(d.point, t).dot(dragV);
-                if (Math.abs(s) > Math.abs(bs)) {
-                    bs = s;
-                    best = t.clone().multiplyScalar(Math.sign(s));
-                }
-            }
-            if (!best) return;
-
-            const axisVec = new THREE.Vector3().crossVectors(n, best);
-
-            let comp, dir;
-            if (Math.abs(axisVec.x) > 0.5)      { comp = 'x'; dir = Math.sign(axisVec.x); }
-            else if (Math.abs(axisVec.y) > 0.5) { comp = 'y'; dir = Math.sign(axisVec.y); }
-            else                                { comp = 'z'; dir = Math.sign(axisVec.z); }
-
-            const rawLayer = d.cubie.position[comp] / STEP;
-            let layerCoord = Math.round(rawLayer - 0.5) + 0.5;
-            layerCoord = Math.max(-1.5, Math.min(1.5, layerCoord));
-
-            const step = { axis: comp, layer: layerCoord, dir };
-
-            // 记入历史（支持上一步/下一步）
-            pushHistory(step);
-
-            // 录制中 → 记录下来
-            if (recording) {
-                recordedMoves.push(step);
-                updateRecordBtn();
-            }
-
-            startTimer();
-            addStep();
-            rotateSlice(comp, layerCoord, dir);
-        }
-
-        function scrDir(p, v) {
-            const a = p.clone().project(camera);
-            const b = p.clone().add(v).project(camera);
-            return new THREE.Vector2(b.x - a.x, b.y - a.y).normalize();
-        }
-
-        /* ---------- 计时器与步数 ---------- */
-        let timeStart = 0;
-        let timing = false;
-        let moveCount = 0;
-
-        function startTimer() {
-            if (timing) return;
-            timing = true;
-            timeStart = performance.now();
-        }
-        function stopTimer() { timing = false; }
-        function resetStats() {
-            moveCount = 0;
-            document.getElementById('steps').innerText = '0';
-        }
-        function addStep() {
-            moveCount++;
-            document.getElementById('steps').innerText = moveCount;
-        }
-        function fmt(ms) {
-            const s = Math.floor(ms / 1000);
-            return String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
-        }
-
-        /* ---------- Toast ---------- */
-        let toastTimer;
-        function toast(msg) {
-            const t = document.getElementById('toast');
-            t.textContent = msg;
-            t.classList.add('show');
-            clearTimeout(toastTimer);
-            toastTimer = setTimeout(() => t.classList.remove('show'), 2400);
-        }
-
-        /* ---------- 顶部按钮 ---------- */
-        document.getElementById('btn-scramble').addEventListener('click', runScramble);
-
-        document.getElementById('btn-reset-view').addEventListener('click', () => {
-            theta = DEF.theta; phi = DEF.phi; RAD = DEF.rad;
-            updCam();
-            toast('↺ 视角已还原');
-        });
-
-        document.getElementById('btn-reset').addEventListener('click', () => {
-            if (busy()) { toast('动画进行中，请稍候…'); return; }
-            stopTimer();
-            document.getElementById('timer').innerText = '00:00';
-            resetStats();
-            clearHistory();
-            theta = DEF.theta; phi = DEF.phi; RAD = DEF.rad;
-            updCam();
-            cubeGroup.rotation.set(0, 0, 0);
-            initCube();
-            toast('↺ 已复原');
-        });
-
-        /* ---------- 底部导航按钮 ---------- */
-        document.getElementById('btn-prev').addEventListener('click', goPrev);
-        document.getElementById('btn-next').addEventListener('click', goNext);
-
-        /* ==================== 快照系统 ==================== */
-        const SNAPSHOT_KEY = 'xiangqi_snapshots';
-
-        function getSnapshots() {
-            try { return JSON.parse(localStorage.getItem(SNAPSHOT_KEY)) || []; }
-            catch { return []; }
-        }
-        function saveSnapshots(list) {
-            localStorage.setItem(SNAPSHOT_KEY, JSON.stringify(list));
-        }
-
-        function captureCubeState() {
-            return cubies.map(c => ({
-                pos: { x: c.position.x, y: c.position.y, z: c.position.z },
-                quat: { x: c.quaternion.x, y: c.quaternion.y, z: c.quaternion.z, w: c.quaternion.w }
-            }));
-        }
-
-        function restoreCubeState(state) {
-            if (!state || state.length !== cubies.length) return false;
-            state.forEach((s, i) => {
-                cubies[i].position.set(s.pos.x, s.pos.y, s.pos.z);
-                cubies[i].quaternion.set(s.quat.x, s.quat.y, s.quat.z, s.quat.w);
-                snapCubie(cubies[i]);
-            });
-            return true;
-        }
-
-        function saveSnapshot(title) {
-            const snaps = getSnapshots();
-            const snap = {
-                id: Date.now(),
-                title: title || `快照 ${snaps.length + 1}`,
-                time: new Date().toLocaleString('zh-CN'),
-                cube: captureCubeState()
-            };
-            snaps.unshift(snap);
-            saveSnapshots(snaps);
-            toast(`✓ 已保存"${snap.title}"`);
-        }
-
-        function deleteSnapshot(id) {
-            saveSnapshots(getSnapshots().filter(s => s.id !== id));
-            openLibrary();
-        }
-
-        function restoreSnapshot(id) {
-            const snap = getSnapshots().find(s => s.id === id);
-            if (!snap) return;
-            if (busy()) { toast('动画进行中，请稍候…'); return; }
-            if (restoreCubeState(snap.cube)) {
-                stopTimer();
-                document.getElementById('timer').innerText = '00:00';
-                resetStats();
-                clearHistory();          // 状态跳变，历史失效
-                toast(`✓ 已恢复"${snap.title}"`);
-                closeModal();
-            } else {
-                toast('快照数据不兼容');
+                this.stopTimer();
+                this.resetStats();
+                this.engine.setHistory(f.moves);
+            } catch (e) {
+                this.toast('播放公式时出错');
+                console.error('Play formula error:', e);
             }
         }
+    }
+});
 
-        /* ---------- 模态框 ---------- */
-        const modal = document.getElementById('snapshot-modal');
-        const modalContent = document.getElementById('modal-content');
-
-        function openModal(html) {
-            modalContent.innerHTML = html;
-            modal.classList.add('show');
-        }
-        function closeModal() {
-            modal.classList.remove('show');
-        }
-        modal.addEventListener('click', e => {
-            if (e.target === modal) closeModal();
-        });
-
-        function escapeHtml(str) {
-            const div = document.createElement('div');
-            div.textContent = str == null ? '' : String(str);
-            return div.innerHTML;
-        }
-
-        /* ---------- 保存快照弹窗 ---------- */
-        function openSaveModal() {
-            if (busy()) { toast('动画进行中，请稍候…'); return; }
-            openModal(`
-                <h3>📸 保存快照</h3>
-                <input type="text" id="snap-title" placeholder="输入快照标题..." maxlength="30">
-                <div class="modal-actions">
-                    <button class="btn gray" id="modal-cancel">取消</button>
-                    <button class="btn" id="modal-save">保存</button>
-                </div>
-            `);
-            setTimeout(() => document.getElementById('snap-title').focus(), 50);
-            document.getElementById('modal-cancel').onclick = closeModal;
-            document.getElementById('modal-save').onclick = () => {
-                const title = document.getElementById('snap-title').value.trim();
-                saveSnapshot(title);
-                closeModal();
-            };
-            document.getElementById('snap-title').addEventListener('keydown', e => {
-                if (e.key === 'Enter') {
-                    const title = e.target.value.trim();
-                    saveSnapshot(title);
-                    closeModal();
-                }
-            });
-        }
-
-        /* ---------- 快照库 ---------- */
-        function openLibrary() {
-            const snaps = getSnapshots();
-
-            let html = '<h3>📋 快照库</h3><div class="snapshot-list">';
-            if (snaps.length === 0) {
-                html += '<div class="empty-tip">暂无快照</div>';
-            } else {
-                html += snaps.map(s => `
-                    <div class="snapshot-item">
-                        <div class="snapshot-info">
-                            <div class="snapshot-title">${escapeHtml(s.title)}</div>
-                            <div class="snapshot-time">${escapeHtml(s.time)}</div>
-                        </div>
-                        <div class="snapshot-actions">
-                            <button onclick="window._restore(${s.id})">恢复</button>
-                            <button class="del" onclick="window._delete(${s.id})">删除</button>
-                        </div>
-                    </div>
-                `).join('');
-            }
-            html += '</div>';
-
-            html += '<div class="modal-actions" style="margin-top:14px"><button class="btn gray" id="modal-close">关闭</button></div>';
-
-            openModal(html);
-            document.getElementById('modal-close').onclick = closeModal;
-        }
-
-        /* ---------- 公式库 ---------- */
-        function openFormulaLibrary() {
-            const formulas = getFormulas();
-
-            let html = '<h3>� 步骤库</h3><div class="snapshot-list">';
-            if (formulas.length === 0) {
-                html += '<div class="empty-tip">暂无公式，点击「⏺ 记录」开始录制</div>';
-            } else {
-                html += formulas.map(f => `
-                    <div class="snapshot-item">
-                        <div class="snapshot-info">
-                            <div class="snapshot-title">${escapeHtml(f.title)}</div>
-                            <div class="formula-mini">${escapeHtml(f.notation)}</div>
-                            <div class="snapshot-time">${escapeHtml(f.time)} · ${f.moves.length} 步</div>
-                        </div>
-                        <div class="snapshot-actions">
-                            <button onclick="window._playFormula(${f.id})">执行</button>
-                            <button class="del" onclick="window._deleteFormula(${f.id})">删除</button>
-                        </div>
-                    </div>
-                `).join('');
-            }
-            html += '</div>';
-
-            html += '<div class="modal-actions" style="margin-top:14px"><button class="btn gray" id="modal-close">关闭</button></div>';
-
-            openModal(html);
-            document.getElementById('modal-close').onclick = closeModal;
-        }
-
-        // 全局暴露（供内联 onclick 调用）
-        window._restore = restoreSnapshot;
-        window._delete = deleteSnapshot;
-        window._playFormula = playFormula;
-        window._deleteFormula = deleteFormula;
-
-        document.getElementById('btn-save-snap').addEventListener('click', openSaveModal);
-        document.getElementById('btn-list-snap').addEventListener('click', openLibrary);
-        document.getElementById('btn-list-formula').addEventListener('click', openFormulaLibrary);
-
-        /* ---------- 渲染循环 ---------- */
-        function render(now) {
-            requestAnimationFrame(render);
-            if (timing) {
-                document.getElementById('timer').innerText = fmt(now - timeStart);
-            }
-            renderer.render(scene, camera);
-        }
-        requestAnimationFrame(render);
-
-        // 初始化导航按钮状态
-        updateNavButtons();
-    </script>
+</script>
 </body>
 </html>

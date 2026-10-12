@@ -8,10 +8,11 @@
         *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none}
         html,body{height:100%;overflow:hidden;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif}
         body{display:flex;flex-direction:column;background:radial-gradient(1200px 800px at 50% 15%,#2b3a67,#1a2238 60%,#10142a)}
-        #topbar{display:flex;align-items:center;justify-content:space-between;padding:8px 12px;color:#fff;gap:8px}
-        #topbar .stat{font-size:12px;opacity:.85}
+        #topbar{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;grid-template-rows:auto auto;gap:6px;padding:8px 12px;color:#fff}
+        #topbar .stat{font-size:12px;opacity:.85;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:center}
         #topbar .stat b{font-size:14px;color:#7fe3ff}
-        #footer{    background: #ddd;display:flex;align-items:center;justify-content:center;gap:8px;padding:10px 12px;color:#fff;border-top:1px solid rgba(255,255,255,.1)}
+        #topbar .btn{justify-self:stretch;align-self:stretch}
+        #footer{display:flex;align-items:center;justify-content:center;gap:8px;padding:10px 12px;color:#fff;border-top:1px solid rgba(255,255,255,.1)}
         .btn{border:none;cursor:pointer;color:#fff;font-size:13px;padding:7px 14px;border-radius:10px;background:linear-gradient(135deg,#4f6df5,#7b3ff2);box-shadow:0 4px 14px rgba(79,109,245,.4);transition:transform .1s;white-space:nowrap}
         .btn:active{transform:scale(.94)}
         .btn.gray{background:linear-gradient(135deg,#3a4358,#2a3040);box-shadow:0 4px 14px rgba(0,0,0,.35)}
@@ -44,25 +45,20 @@
         .empty-tip{text-align:center;opacity:.5;padding:30px 0;font-size:14px}
         .notation-box{background:#10142a;border-radius:10px;padding:10px 12px;font-size:13px;line-height:1.7;max-height:110px;overflow-y:auto;word-break:break-all;color:#7fe3ff;font-family:ui-monospace,Menlo,Consolas,monospace;margin-bottom:16px}
     </style>
-    <!-- Three.js -->
-    <script src="three.min.js"></script>
+    <script src="./../js/three.min.js"></script>
+    <script src="./../js/vue.min.js"></script>
 </head>
 <body>
 
     <div id="topbar">
+        <button class="btn gray" id="btn-list-snap">� 快照库</button>
+        <button class="btn gray" id="btn-formula-lib">� 公式库</button>
+        <span class="stat">步数 <b id="steps">0</b></span>
         <button class="btn gray" id="btn-reset">↺ 复原</button>
+        <button class="btn" id="btn-save-snap">📸 存快照</button>
+        <button class="btn" id="btn-record">⏺ 记录</button>
         <span class="stat">时间 <b id="timer">00:00</b></span>
         <button class="btn" id="btn-scramble">🔀 打乱</button>
-    </div>
-    <div id="topbar">
-        <button class="btn gray" id="btn-list-snap">📋 快照库</button>
-        <span class="stat">步数 <b id="steps">0</b></span>
-        <button class="btn gray" id="btn-formula-lib">📜 步骤库</button>
-    </div>
-    <div id="topbar">
-        <button class="btn" id="btn-save-snap">📸 存快照</button>
-        <span></span>
-        <button class="btn" id="btn-record">⏺ 记录</button>
     </div>
     <div id="wrap"></div>
     <div id="footer">
@@ -70,956 +66,962 @@
         <button class="btn gray" id="btn-reset-view">↺ 视角</button>
         <button class="btn gray" id="btn-redo" style="width: 100%;">下一步 ▶</button>
     </div>
-    <!-- <div id="hint">👆 滑动魔方表面转动一层 · 拖动空白处旋转视角</div> -->
     <div id="toast"></div>
 
-    <!-- 快照模态框 -->
+    <!-- 通用模态框 -->
     <div id="snapshot-modal">
         <div class="modal-box" id="modal-content"></div>
     </div>
 
     <script>
-        // --- 核心常量 ---
-        const SIZE = 5;
-        const CUBE_SIZE = 1.0;
-        const GAP = 0.04;
-        const STEP = CUBE_SIZE + GAP; // 单块步长
-        const OFFSET = (SIZE - 1) / 2; // 1.5
+    /* ============================================================
+     *  五阶魔方 3D · 重构版
+     *  模块顺序：
+     *  常量 → 工具 → 场景 → 魔方 → 转动引擎 → 历史 → 记号
+     *  → 存储 → 弹窗 → 快照 → 公式 → 打乱 → 交互 → UI → 主循环
+     * ============================================================ */
 
-        const COLORS = {
-            R: 0xc41e3a, // 红 (右)
-            L: 0xff5800, // 橙 (左)
-            U: 0xffffff, // 白 (上)
-            D: 0xffd500, // 黄 (下)
-            F: 0x009e60, // 绿 (前)
-            B: 0x0051ba, // 蓝 (后)
-            INNER: 0x1a1a1a
-        };
+    /* ---------------- 1. 常量 ---------------- */
+    const SIZE          = 5;
+    const CUBE_SIZE     = 1.0;
+    const GAP           = 0.04;
+    const STEP          = CUBE_SIZE + GAP;
+    const OFFSET        = (SIZE - 1) / 2;
+    const MAX_LAYER     = (SIZE - 1) / 2;        // ±2
+    const HALF_STEP     = STEP / 2;
+    const TURN_DURATION = 160;
+    const FAST_DURATION = 150;
+    const SCRAMBLE_LEN  = 24;
+    const MAX_HISTORY   = 600;                   // 历史栈上限，防止内存无限增长
 
-        // --- Three.js 场景初始化 ---
-        const wrap = document.getElementById('wrap');
-        const scene = new THREE.Scene();
-        const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 100);
-        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    const COLORS = {
+        R: 0xc41e3a, L: 0xff5800, U: 0xffffff,
+        D: 0xffd500, F: 0x009e60, B: 0x0051ba,
+        INNER: 0x1a1a1a
+    };
+    const AXES         = ['x', 'y', 'z'];
+    const LAYER_COORDS = [-2, -1, 0, 1, 2];
+    const TURN_DIRS    = [1, -1, 2];
 
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-        wrap.appendChild(renderer.domElement);
-        const dom = renderer.domElement;
+    /* ---------------- 2. 通用工具 ---------------- */
+    const $ = id => document.getElementById(id);
+    const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
-        scene.add(new THREE.AmbientLight(0xffffff, 0.9));
-        const dirLight = new THREE.DirectionalLight(0xffffff, 0.45);
-        dirLight.position.set(6, 10, 8);
-        scene.add(dirLight);
+    function escapeHtml(str) {
+        const d = document.createElement('div');
+        d.textContent = str ?? '';
+        return d.innerHTML;
+    }
+    function loadJSON(key, fallback) {
+        try { return JSON.parse(localStorage.getItem(key)) ?? fallback; }
+        catch { return fallback; }
+    }
+    function saveJSON(key, value) {
+        try { localStorage.setItem(key, JSON.stringify(value)); } catch (e) {}
+    }
 
-        // 魔方顶级节点
-        const cubeGroup = new THREE.Group();
-        cubeGroup.position.y = 0.7; // 向上调整魔方中心位置
-        scene.add(cubeGroup);
+    let toastTimer = null;
+    function toast(msg) {
+        const t = $('toast');
+        t.textContent = msg;
+        t.classList.add('show');
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => t.classList.remove('show'), 2600);
+    }
 
-        /* ---------- 相机轨道 + 缩放 ---------- */
-        let RAD = 24;
-        const RAD_MIN = 5.5, RAD_MAX = 28;
-        let theta = 0.8, phi = 1.02;
-        const DEF = { theta: 0.8, phi: 1.02, rad: 24 };
+    function focusInput(id) {
+        setTimeout(() => {
+            const el = $(id);
+            if (!el) return;
+            el.focus();
+            if (el.select) el.select();
+        }, 50);
+    }
+    function bindEnter(id, fn) {
+        const el = $(id);
+        if (el) el.addEventListener('keydown', e => { if (e.key === 'Enter') fn(); });
+    }
 
-        function updCam() {
-            camera.position.setFromSphericalCoords(RAD, phi, theta);
-            camera.lookAt(0, 0, 0);
-        }
-        function resize() {
-            const w = wrap.clientWidth, h = wrap.clientHeight;
-            renderer.setSize(w, h);
-            camera.aspect = w / h;
-            camera.updateProjectionMatrix();
-        }
-        window.addEventListener('resize', resize);
-        resize(); updCam();
+    /* ---------------- 3. Three.js 场景 ---------------- */
+    const wrap = $('wrap');
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 100);
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    wrap.appendChild(renderer.domElement);
+    const dom = renderer.domElement;
 
-        let cubies = [];
+    scene.add(new THREE.AmbientLight(0xffffff, 0.9));
+    const dirLight = new THREE.DirectionalLight(0xffffff, 0.45);
+    dirLight.position.set(6, 10, 8);
+    scene.add(dirLight);
 
-        function createCubeMaterial(faceColor, isOuter) {
-            return new THREE.MeshLambertMaterial({
-                color: isOuter ? faceColor : COLORS.INNER,
-                roughness: 0.3
-            });
-        }
+    const cubeGroup = new THREE.Group();
+    cubeGroup.position.y = 0.7;
+    scene.add(cubeGroup);
 
-        // 初始化 5x5x5 方块
-        function initCube() {
-            while (cubeGroup.children.length > 0) {
-                cubeGroup.remove(cubeGroup.children[0]);
-            }
-            cubies = [];
+    /* --- 相机轨道 --- */
+    const DEFAULT_VIEW = { theta: 0.8, phi: 1.02, rad: 24 };
+    const RAD_MIN = 5.5, RAD_MAX = 28;
+    let RAD = DEFAULT_VIEW.rad;
+    let theta = DEFAULT_VIEW.theta;
+    let phi = DEFAULT_VIEW.phi;
 
-            const geom = new THREE.BoxGeometry(CUBE_SIZE, CUBE_SIZE, CUBE_SIZE);
+    function updateCamera() {
+        camera.position.setFromSphericalCoords(RAD, phi, theta);
+        camera.lookAt(0, 0, 0);
+    }
+    function resetView() {
+        theta = DEFAULT_VIEW.theta;
+        phi = DEFAULT_VIEW.phi;
+        RAD = DEFAULT_VIEW.rad;
+        updateCamera();
+    }
+    function resize() {
+        const w = wrap.clientWidth, h = wrap.clientHeight;
+        renderer.setSize(w, h);
+        camera.aspect = w / h;
+        camera.updateProjectionMatrix();
+    }
+    window.addEventListener('resize', resize);
+    resize();
+    updateCamera();
 
-            for (let x = 0; x < SIZE; x++) {
-                for (let y = 0; y < SIZE; y++) {
-                    for (let z = 0; z < SIZE; z++) {
-                        const materials = [
-                            createCubeMaterial(COLORS.R, x === SIZE - 1),
-                            createCubeMaterial(COLORS.L, x === 0),
-                            createCubeMaterial(COLORS.U, y === SIZE - 1),
-                            createCubeMaterial(COLORS.D, y === 0),
-                            createCubeMaterial(COLORS.F, z === SIZE - 1),
-                            createCubeMaterial(COLORS.B, z === 0)
-                        ];
+    /* ---------------- 4. 魔方构建 ---------------- */
+    // 材质全局共享：7 个材质实例替代原先的 5×5×5×6 = 750 个
+    const MATERIALS = {};
+    for (const key in COLORS) {
+        MATERIALS[key] = new THREE.MeshLambertMaterial({ color: COLORS[key] });
+    }
+    const CUBIE_GEOMETRY = new THREE.BoxGeometry(CUBE_SIZE, CUBE_SIZE, CUBE_SIZE);
 
-                        const mesh = new THREE.Mesh(geom, materials);
-                        mesh.position.set(
-                            (x - OFFSET) * STEP,
-                            (y - OFFSET) * STEP,
-                            (z - OFFSET) * STEP
-                        );
-                        cubeGroup.add(mesh);
-                        cubies.push(mesh);
-                    }
+    let cubies = [];
+
+    function initCube() {
+        while (cubeGroup.children.length) cubeGroup.remove(cubeGroup.children[0]);
+        cubies = [];
+
+        for (let x = 0; x < SIZE; x++) {
+            for (let y = 0; y < SIZE; y++) {
+                for (let z = 0; z < SIZE; z++) {
+                    // 面序：+X, -X, +Y, -Y, +Z, -Z
+                    const mats = [
+                        x === SIZE - 1 ? MATERIALS.R : MATERIALS.INNER,
+                        x === 0        ? MATERIALS.L : MATERIALS.INNER,
+                        y === SIZE - 1 ? MATERIALS.U : MATERIALS.INNER,
+                        y === 0        ? MATERIALS.D : MATERIALS.INNER,
+                        z === SIZE - 1 ? MATERIALS.F : MATERIALS.INNER,
+                        z === 0        ? MATERIALS.B : MATERIALS.INNER
+                    ];
+                    const mesh = new THREE.Mesh(CUBIE_GEOMETRY, mats);
+                    mesh.position.set(
+                        (x - OFFSET) * STEP,
+                        (y - OFFSET) * STEP,
+                        (z - OFFSET) * STEP
+                    );
+                    cubeGroup.add(mesh);
+                    cubies.push(mesh);
                 }
             }
         }
-        initCube();
+    }
 
-        // --- 修复关键点 1：五阶魔方整数坐标吸附与正交化纠错 ---
-        function snapCoord(val) {
-            const raw = val / STEP;
-            // 五阶合法坐标只存在于 [-2, -1, 0, 1, 2]
-            let layer = Math.round(raw);
-            layer = Math.max(-2, Math.min(2, layer));
-            return layer * STEP;
-        }
+    /* --- 坐标吸附 & 姿态正交化（复用临时矩阵，避免每块新建） --- */
+    const _tmpMatrix = new THREE.Matrix4();
 
-        function snapCubie(mesh) {
-            // 1. 位置吸附（防止方块漂移和重叠）
-            mesh.position.x = snapCoord(mesh.position.x);
-            mesh.position.y = snapCoord(mesh.position.y);
-            mesh.position.z = snapCoord(mesh.position.z);
+    function snapCoord(v) {
+        return clamp(Math.round(v / STEP), -MAX_LAYER, MAX_LAYER) * STEP;
+    }
+    function snapCubie(mesh) {
+        mesh.position.set(
+            snapCoord(mesh.position.x),
+            snapCoord(mesh.position.y),
+            snapCoord(mesh.position.z)
+        );
 
-            // 2. 姿态矩阵正交化（消除 90° 旋转累积微小角度倾斜）
-            mesh.updateMatrix();
-            const rot = new THREE.Matrix4().extractRotation(mesh.matrix);
-            const m = rot.elements;
-            for (let i = 0; i < 16; i++) {
-                m[i] = Math.round(m[i]); // 90度倍数旋转的矩阵元素严格为 -1, 0, 1
-            }
-            mesh.quaternion.setFromRotationMatrix(rot);
-            mesh.updateMatrix();
-        }
+        mesh.updateMatrix();
+        _tmpMatrix.extractRotation(mesh.matrix);
+        const e = _tmpMatrix.elements;
+        for (let i = 0; i < 16; i++) e[i] = Math.round(e[i]); // 90° 倍数旋转矩阵元素严格为 -1/0/1
+        mesh.quaternion.setFromRotationMatrix(_tmpMatrix);
+        mesh.updateMatrix();
+    }
 
-        // --- 修复关键点 2：在局部坐标系内完成旋转 ---
-        let isAnimating = false;
+    initCube();
 
-        function rotateSlice(axis, layerCoord, direction, duration = 160) {
-            if (isAnimating) return Promise.resolve();
-            isAnimating = true;
+    /* ---------------- 5. 转动引擎（串行队列） ---------------- */
+    let isAnimating = false;
 
-            return new Promise((resolve) => {
-                // 将临时旋转节点放在 cubeGroup 内部，避免因视角转动而引发轴向偏差
-                const rotationGroup = new THREE.Group();
-                cubeGroup.add(rotationGroup);
+    function rotateSlice(axis, layerCoord, direction, duration = TURN_DURATION) {
+        if (isAnimating) return Promise.resolve();
+        isAnimating = true;
 
-                const targetLayerPos = layerCoord * STEP;
-                const activeCubies = cubies.filter(c => Math.abs(c.position[axis] - targetLayerPos) < STEP / 2);
+        return new Promise(resolve => {
+            // 临时节点挂在 cubeGroup 内部，保证轴向与相机视角解耦
+            const pivot = new THREE.Group();
+            cubeGroup.add(pivot);
 
-                activeCubies.forEach(c => rotationGroup.attach(c));
-
-                const targetAngle = (Math.PI / 2) * direction;
-                const startTime = performance.now();
-
-                function animate(time) {
-                    const elapsed = time - startTime;
-                    const progress = Math.min(elapsed / duration, 1);
-                    const ease = 1 - Math.pow(1 - progress, 3);
-
-                    rotationGroup.rotation[axis] = targetAngle * ease;
-
-                    if (progress < 1) {
-                        requestAnimationFrame(animate);
-                    } else {
-                        rotationGroup.rotation[axis] = targetAngle;
-                        rotationGroup.updateMatrixWorld();
-
-                        activeCubies.forEach(c => {
-                            cubeGroup.attach(c);
-                            snapCubie(c); // 吸附纠偏
-                        });
-
-                        cubeGroup.remove(rotationGroup);
-                        isAnimating = false;
-                        resolve();
-                    }
-                }
-                requestAnimationFrame(animate);
-            });
-        }
-
-        /* ==================== 步骤历史 / 动作队列 ==================== */
-        // 队列化：所有转动按顺序串行执行，避免快速点击时丢步
-        let moveQueue = Promise.resolve();
-        let queueCount = 0;
-
-        function enqueueMove(axis, layer, dir, duration = 160) {
-            queueCount++;
-            const task = moveQueue.then(() => rotateSlice(axis, layer, dir, duration));
-            moveQueue = task.catch(() => {});
-            return task.finally(() => { queueCount--; });
-        }
-
-        function isBusy() {
-            return isAnimating || queueCount > 0;
-        }
-
-        // 历史记录（用于上一步 / 下一步）
-        let history = [];        // 已执行过的所有步骤
-        let historyIndex = 0;    // 游标：history[0..historyIndex) 已应用
-
-        // 步骤记录器（用于保存公式）
-        let recording = false;
-        let recordedSteps = [];
-
-        /**
-         * 执行一步转动并登记到历史 / 记录器
-         * @param {string} axis  'x' | 'y' | 'z'
-         * @param {number} layer -2..2
-         * @param {number} dir   1 | -1 | 2 | -2
-         * @param {object} opts  { duration, track, record }
-         */
-        function performMove(axis, layer, dir, opts = {}) {
-            const { duration = 160, track = true, record = true } = opts;
-            return enqueueMove(axis, layer, dir, duration).then(() => {
-                if (track) {
-                    // 若在历史中间执行新动作，丢弃后面的“未来”
-                    if (historyIndex < history.length) history.length = historyIndex;
-                    history.push({ axis, layer, dir });
-                    historyIndex = history.length;
-                    updateHistoryUI();
-                }
-                if (record && recording) {
-                    recordedSteps.push({ axis, layer, dir });
-                    updateRecordUI();
-                }
-            });
-        }
-
-        function updateHistoryUI() {
-            const u = document.getElementById('btn-undo');
-            const r = document.getElementById('btn-redo');
-            if (u) u.disabled = historyIndex <= 0;
-            if (r) r.disabled = historyIndex >= history.length;
-        }
-
-        function clearHistory() {
-            history = [];
-            historyIndex = 0;
-            updateHistoryUI();
-        }
-
-        // 上一步：把最近一步反向转回去
-        async function undoStep() {
-            if (isBusy()) return;
-            if (historyIndex <= 0) { toast('已经是最早一步了'); return; }
-            const step = history[historyIndex - 1];
-            historyIndex--;
-            updateHistoryUI();
-            await enqueueMove(step.axis, step.layer, -step.dir, 150);
-        }
-
-        // 下一步：重放游标处的那一步
-        async function redoStep() {
-            if (isBusy()) return;
-            if (historyIndex >= history.length) { toast('已经是最新一步了'); return; }
-            const step = history[historyIndex];
-            historyIndex++;
-            updateHistoryUI();
-            await enqueueMove(step.axis, step.layer, step.dir, 150);
-        }
-
-        document.getElementById('btn-undo').addEventListener('click', undoStep);
-        document.getElementById('btn-redo').addEventListener('click', redoStep);
-
-        /* ==================== 步骤记录器 UI ==================== */
-        function updateRecordUI() {
-            const btn = document.getElementById('btn-record');
-            if (!btn) return;
-            if (recording) {
-                btn.textContent = `⏹ 停止记录 (${recordedSteps.length})`;
-                btn.classList.add('recording');
-            } else {
-                btn.textContent = '⏺ 记录';
-                btn.classList.remove('recording');
-            }
-        }
-
-        function toggleRecording() {
-            if (recording) {
-                recording = false;
-                updateRecordUI();
-                if (recordedSteps.length === 0) {
-                    toast('⏹ 已停止（未记录到步骤）');
-                } else {
-                    // 停止记录，弹出名称编辑框让用户修改公式名称
-                    const list = getFormulas();
-                    const defaultName = `公式 ${list.length + 1}`;
-                    const notation = recordedSteps.map(stepToNotation).join(' ');
-                    openModal(`
-                        <h3>💾 保存公式</h3>
-                        <input type="text" id="formula-title-input" value="${escapeHtml(defaultName)}" placeholder="输入公式名称..." maxlength="30">
-                        <div class="notation-box">${escapeHtml(notation)}</div>
-                        <div class="modal-actions">
-                            <button class="btn gray" id="modal-cancel">取消</button>
-                            <button class="btn" id="modal-save">保存</button>
-                        </div>
-                    `);
-                    setTimeout(() => {
-                        const input = document.getElementById('formula-title-input');
-                        input.focus();
-                        input.select();
-                    }, 50);
-
-                    const doSave = () => {
-                        const title = document.getElementById('formula-title-input').value.trim() || defaultName;
-                        const f = {
-                            id: Date.now(),
-                            title,
-                            time: new Date().toLocaleString('zh-CN'),
-                            moves: recordedSteps.map(s => ({ axis: s.axis, layer: s.layer, dir: s.dir })),
-                            notation
-                        };
-                        list.unshift(f);
-                        saveFormulas(list);
-                        recordedSteps = [];
-                        closeModal();
-                        toast(`✓ 已保存「${f.title}」到步骤库`);
-                    };
-                    document.getElementById('modal-cancel').onclick = () => {
-                        recordedSteps = [];
-                        closeModal();
-                        toast('⏹ 已取消保存');
-                    };
-                    document.getElementById('modal-save').onclick = doSave;
-                    document.getElementById('formula-title-input').addEventListener('keydown', e => {
-                        if (e.key === 'Enter') doSave();
-                    });
-                }
-            } else {
-                recording = true;
-                recordedSteps = [];
-                updateRecordUI();
-                toast('⏺ 开始记录步骤，转动魔方即可');
-            }
-        }
-
-        document.getElementById('btn-record').addEventListener('click', toggleRecording);
-
-        /* ==================== 公式记号 ==================== */
-        // cw: 该层"顺时针"对应的 dir 符号（dir * cw > 0 即顺时针）
-        const NOTATION_MAP = {
-            'x,2':  { name: 'R',  cw: -1 },
-            'x,1':  { name: '2R', cw: -1 },
-            'x,0':  { name: 'M',  cw: 1  },
-            'x,-1': { name: '2L', cw: 1  },
-            'x,-2': { name: 'L',  cw: 1  },
-            'y,2':  { name: 'U',  cw: -1 },
-            'y,1':  { name: '2U', cw: -1 },
-            'y,0':  { name: 'E',  cw: 1  },
-            'y,-1': { name: '2D', cw: 1  },
-            'y,-2': { name: 'D',  cw: 1  },
-            'z,2':  { name: 'F',  cw: -1 },
-            'z,1':  { name: '2F', cw: -1 },
-            'z,0':  { name: 'S',  cw: -1 },
-            'z,-1': { name: '2B', cw: 1  },
-            'z,-2': { name: 'B',  cw: 1  }
-        };
-
-        function stepToNotation(step) {
-            const info = NOTATION_MAP[step.axis + ',' + step.layer];
-            if (!info) return step.axis + step.layer + (step.dir > 0 ? '+' : '-');
-            if (Math.abs(step.dir) === 2) return info.name + '2';
-            const clockwise = step.dir * info.cw > 0;
-            return info.name + (clockwise ? '' : "'");
-        }
-
-        /* ==================== 公式库 ==================== */
-        const FORMULA_KEY = 'formula_005';
-
-        function getFormulas() {
-            try { return JSON.parse(localStorage.getItem(FORMULA_KEY)) || []; }
-            catch { return []; }
-        }
-        function saveFormulas(list) {
-            localStorage.setItem(FORMULA_KEY, JSON.stringify(list));
-        }
-
-        function copyText(text) {
-            if (navigator.clipboard && window.isSecureContext) {
-                return navigator.clipboard.writeText(text).catch(() => fallbackCopy(text));
-            }
-            return Promise.resolve(fallbackCopy(text));
-        }
-        function fallbackCopy(text) {
-            const ta = document.createElement('textarea');
-            ta.value = text;
-            ta.style.position = 'fixed';
-            ta.style.opacity = '0';
-            document.body.appendChild(ta);
-            ta.select();
-            try { document.execCommand('copy'); } catch (e) {}
-            document.body.removeChild(ta);
-        }
-
-        // 保存公式弹窗
-        function openSaveFormulaModal() {
-            if (recordedSteps.length === 0) {
-                toast('还没有记录到步骤，请先点「记录」');
-                return;
-            }
-            const notation = recordedSteps.map(stepToNotation).join(' ');
-            openModal(`
-                <h3>💾 保存公式</h3>
-                <input type="text" id="formula-title" placeholder="输入公式名称..." maxlength="30">
-                <div class="notation-box">${escapeHtml(notation)}</div>
-                <div class="modal-actions">
-                    <button class="btn gray" id="modal-cancel">取消</button>
-                    <button class="btn" id="modal-save">保存</button>
-                </div>
-            `);
-            setTimeout(() => document.getElementById('formula-title').focus(), 50);
-
-            const doSave = () => {
-                const title = document.getElementById('formula-title').value.trim();
-                saveFormula(title);
-                closeModal();
-            };
-            document.getElementById('modal-cancel').onclick = closeModal;
-            document.getElementById('modal-save').onclick = doSave;
-            document.getElementById('formula-title').addEventListener('keydown', e => {
-                if (e.key === 'Enter') doSave();
-            });
-        }
-
-        function saveFormula(title) {
-            const list = getFormulas();
-            const f = {
-                id: Date.now(),
-                title: title || `公式 ${list.length + 1}`,
-                time: new Date().toLocaleString('zh-CN'),
-                moves: recordedSteps.map(s => ({ axis: s.axis, layer: s.layer, dir: s.dir })),
-                notation: recordedSteps.map(stepToNotation).join(' ')
-            };
-            list.unshift(f);
-            saveFormulas(list);
-            toast(`✓ 已保存「${f.title}」`);
-        }
-
-        // 公式库弹窗
-        function openFormulaList() {
-            const list = getFormulas();
-            let html = '<h3>📜 步骤库</h3><div class="snapshot-list">';
-            if (list.length === 0) {
-                html += '<div class="empty-tip">暂无公式</div>';
-            } else {
-                html += list.map(f => `
-                    <div class="snapshot-item">
-                        <div class="snapshot-info">
-                            <div class="snapshot-title">${escapeHtml(f.title)}</div>
-                            <div class="snapshot-time">${f.time} · ${f.moves.length} 步</div>
-                            <div class="snapshot-time" style="color:#7fe3ff;font-family:ui-monospace,Menlo,Consolas,monospace;opacity:.9">${escapeHtml(f.notation || '')}</div>
-                        </div>
-                        <div class="snapshot-actions">
-                            <button onclick="window._playFormula(${f.id})">回放</button> 
-                            <button onclick="window._renameFormula(${f.id})">改名</button>
-                            <button class="del" onclick="window._deleteFormula(${f.id})">删除</button>
-                        </div>
-                    </div>
-                `).join('');
-            }
-            html += '</div><div class="modal-actions" style="margin-top:14px"><button class="btn gray" id="modal-close">关闭</button></div>';
-            openModal(html);
-            document.getElementById('modal-close').onclick = closeModal;
-        }
-
-        function deleteFormula(id) {
-            saveFormulas(getFormulas().filter(f => f.id !== id));
-            openFormulaList();
-        }
-
-        function copyFormula(id) {
-            const f = getFormulas().find(x => x.id === id);
-            if (!f) return;
-            copyText(f.notation || '').then(() => toast('✓ 公式已复制到剪贴板'));
-        }
-
-        function renameFormula(id) {
-            const f = getFormulas().find(x => x.id === id);
-            if (!f) return;
-            openModal(`
-                <h3>✏ 重命名公式</h3>
-                <input type="text" id="rename-input" value="${escapeHtml(f.title)}" placeholder="输入新名称..." maxlength="30">
-                <div class="modal-actions">
-                    <button class="btn gray" id="modal-cancel">取消</button>
-                    <button class="btn" id="modal-save">保存</button>
-                </div>
-            `);
-            setTimeout(() => {
-                const input = document.getElementById('rename-input');
-                input.focus();
-                input.select();
-            }, 50);
-
-            const doRename = () => {
-                const newTitle = document.getElementById('rename-input').value.trim();
-                if (newTitle && newTitle !== f.title) {
-                    const list = getFormulas();
-                    const target = list.find(x => x.id === id);
-                    if (target) {
-                        target.title = newTitle;
-                        saveFormulas(list);
-                        toast(`✓ 已重命名为「${newTitle}」`);
-                    }
-                }
-                closeModal();
-                openFormulaList();
-            };
-            document.getElementById('modal-cancel').onclick = closeModal;
-            document.getElementById('modal-save').onclick = doRename;
-            document.getElementById('rename-input').addEventListener('keydown', e => {
-                if (e.key === 'Enter') doRename();
-            });
-        }
-
-        async function playFormula(id) {
-            const f = getFormulas().find(x => x.id === id);
-            if (!f) return;
-            if (isBusy()) { toast('动画进行中，请稍候…'); return; }
-            closeModal();
-            setButtonsDisabled(true);
-            for (const m of f.moves) {
-                await performMove(m.axis, m.layer, m.dir, { duration: 150, track: true, record: false });
-            }
-            // 执行完后回到第一步（重置历史游标）
-            historyIndex = 0;
-            updateHistoryUI();
-            setButtonsDisabled(false);
-            toast(`✓ 已回放「${f.title}」，已回到第一步`);
-        }
-
-        window._playFormula = playFormula;
-        window._copyFormula = copyFormula;
-        window._deleteFormula = deleteFormula;
-        window._renameFormula = renameFormula;
-
-        document.getElementById('btn-formula-lib').addEventListener('click', openFormulaList);
-
-        /* ==================== 打乱 ==================== */
-        // --- 高品质 WCA 打乱算法 ---
-        function generateScrambleSequence(length = 24) {
-            const axes = ['x', 'y', 'z'];
-            const coords = [-2, -1, 0, 1, 2];
-            const dirs = [1, -1, 2]; // 包含 180 度双转
-            const seq = [];
-            let lastAxis = '', lastLayer = null;
-
-            for (let i = 0; i < length; i++) {
-                let axis, layer;
-                do {
-                    axis = axes[Math.floor(Math.random() * axes.length)];
-                    layer = coords[Math.floor(Math.random() * coords.length)];
-                } while (axis === lastAxis && layer === lastLayer); // 绝不连续在同轴同层打乱
-
-                const dir = dirs[Math.floor(Math.random() * dirs.length)];
-                seq.push({ axis, layer, dir });
-                lastAxis = axis;
-                lastLayer = layer;
-            }
-            return seq;
-        }
-
-        async function runScramble() {
-            if (isBusy()) return;
-            setButtonsDisabled(true);
-            stopTimer();
-            document.getElementById('timer').innerText = '00:00';
-            resetStats();
-            toast('🔀 正在打乱...');
-
-            const seq = generateScrambleSequence(24);
-            for (const step of seq) {
-                const duration = Math.abs(step.dir) === 2 ? 80 : 55;
-                // 打乱过程登记进历史（可用上一步逐步回看），但不计入公式记录
-                await performMove(step.axis, step.layer, step.dir, {
-                    duration, track: true, record: false
-                });
-            }
-
-            toast('🔀 打乱完成！');
-            setButtonsDisabled(false);
-        }
-
-        function setButtonsDisabled(disabled) {
-            document.querySelectorAll('button').forEach(b => b.disabled = disabled);
-            if (!disabled) updateHistoryUI();
-        }
-
-        /* ==================== 交互系统（触控、缩放、滑转） ==================== */
-        const raycaster = new THREE.Raycaster();
-        const ndc = new THREE.Vector2();
-        let drag = null;
-
-        function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
-
-        // --- 指针按下 ---
-        dom.addEventListener('pointerdown', e => {
-            e.preventDefault();
-            dom.setPointerCapture(e.pointerId);
-            const rect = dom.getBoundingClientRect();
-            ndc.set(
-                ((e.clientX - rect.left) / rect.width) * 2 - 1,
-                -((e.clientY - rect.top) / rect.height) * 2 + 1
+            const layerPos = layerCoord * STEP;
+            const active = cubies.filter(
+                c => Math.abs(c.position[axis] - layerPos) < HALF_STEP
             );
-            raycaster.setFromCamera(ndc, camera);
-            const hits = raycaster.intersectObjects(cubies);
-            if (hits.length && !isBusy()) {
-                const h = hits[0];
-                const n = h.face.normal.clone().transformDirection(h.object.matrixWorld);
-                n.set(Math.round(n.x), Math.round(n.y), Math.round(n.z));
-                drag = { type: 'layer', cubie: h.object, n, point: h.point.clone(), sx: e.clientX, sy: e.clientY, done: false };
-            } else {
-                drag = { type: 'view', sx: e.clientX, sy: e.clientY };
-            }
-        });
+            active.forEach(c => pivot.attach(c));
 
-        // --- 指针移动 ---
-        dom.addEventListener('pointermove', e => {
-            if (!drag) return;
-            const dx = e.clientX - drag.sx, dy = e.clientY - drag.sy;
-            if (drag.type === 'view') {
-                theta -= dx * 0.008;
-                phi -= dy * 0.008;
-                phi = Math.max(0.15, Math.min(Math.PI - 0.15, phi));
-                drag.sx = e.clientX; drag.sy = e.clientY;
-                updCam();
-            } else if (!drag.done && Math.hypot(dx, dy) > 14) {
-                drag.done = true;
-                handleCubeDrag(drag, dx, dy);
-                drag = null;
-            }
-        });
-        window.addEventListener('pointerup', () => drag = null);
-        window.addEventListener('pointercancel', () => drag = null);
+            const targetAngle = (Math.PI / 2) * direction;
+            const startTime = performance.now();
 
-        // --- 双指捏合缩放（触摸）---
-        let pinchDist0 = 0, pinchRad0 = RAD;
-        dom.addEventListener('touchstart', e => {
-            if (e.touches.length === 2) {
-                drag = null;
-                const dx = e.touches[0].clientX - e.touches[1].clientX;
-                const dy = e.touches[0].clientY - e.touches[1].clientY;
-                pinchDist0 = Math.hypot(dx, dy);
-                pinchRad0 = RAD;
-            }
-        }, { passive: false });
+            (function animate(time) {
+                const progress = Math.min((time - startTime) / duration, 1);
+                const ease = 1 - Math.pow(1 - progress, 3);
+                pivot.rotation[axis] = targetAngle * ease;
 
-        dom.addEventListener('touchmove', e => {
-            if (e.touches.length === 2) {
-                e.preventDefault();
-                const dx = e.touches[0].clientX - e.touches[1].clientX;
-                const dy = e.touches[0].clientY - e.touches[1].clientY;
-                const dist = Math.hypot(dx, dy);
-                if (pinchDist0 > 0) {
-                    const scale = pinchDist0 / dist;
-                    RAD = clamp(pinchRad0 * scale, RAD_MIN, RAD_MAX);
-                    updCam();
+                if (progress < 1) {
+                    requestAnimationFrame(animate);
+                    return;
                 }
-            }
-        }, { passive: false });
 
-        dom.addEventListener('touchend', () => { pinchDist0 = 0; });
+                pivot.rotation[axis] = targetAngle;
+                pivot.updateMatrixWorld(true);
+                active.forEach(c => {
+                    cubeGroup.attach(c);
+                    snapCubie(c);
+                });
+                cubeGroup.remove(pivot);
 
-        // --- 鼠标滚轮缩放（PC）---
-        dom.addEventListener('wheel', e => {
-            e.preventDefault();
-            const factor = 1 + e.deltaY * 0.001;
-            RAD = clamp(RAD * factor, RAD_MIN, RAD_MAX);
-            updCam();
-        }, { passive: false });
-
-        // 图层旋转方向解算
-        function handleCubeDrag(d, dx, dy) {
-            const n = d.n;
-            const ts = [];
-            if (n.x === 0) ts.push(new THREE.Vector3(1, 0, 0));
-            if (n.y === 0) ts.push(new THREE.Vector3(0, 1, 0));
-            if (n.z === 0) ts.push(new THREE.Vector3(0, 0, 1));
-
-            const dragV = new THREE.Vector2(dx, -dy).normalize();
-
-            // 在面内两个切向中，选出屏幕投影方向与手指滑动最贴合的那个
-            let best = null, bs = 0;
-            for (const t of ts) {
-                const s = scrDir(d.point, t).dot(dragV);
-                if (Math.abs(s) > Math.abs(bs)) {
-                    bs = s;
-                    best = t.clone().multiplyScalar(Math.sign(s));
-                }
-            }
-            if (!best) return;
-
-            // 旋转轴 a 需满足：面上点速度 a × n 与 best 同向  =>  a = n × best
-            // ⚠️ 关键修复：必须保留轴向的符号，否则部分面/方向会转反
-            const axisVec = new THREE.Vector3().crossVectors(n, best);
-
-            let comp, dir;
-            if (Math.abs(axisVec.x) > 0.5)      { comp = 'x'; dir = Math.sign(axisVec.x); }
-            else if (Math.abs(axisVec.y) > 0.5) { comp = 'y'; dir = Math.sign(axisVec.y); }
-            else                                { comp = 'z'; dir = Math.sign(axisVec.z); }
-
-            const rawLayer = d.cubie.position[comp] / STEP;
-            let layerCoord = Math.round(rawLayer);
-            layerCoord = Math.max(-2, Math.min(2, layerCoord));
-
-            startTimer();
-            addStep();
-            // 走历史队列，并（若正在记录）写入公式记录
-            performMove(comp, layerCoord, dir, { duration: 160 });
-        }
-
-        function scrDir(p, v) {
-            const a = p.clone().project(camera);
-            const b = p.clone().add(v).project(camera);
-            return new THREE.Vector2(b.x - a.x, b.y - a.y).normalize();
-        }
-
-        // --- 计时器与步数 ---
-        let timeStart = 0;
-        let timing = false;
-        let moveCount = 0;
-
-        function startTimer() {
-            if (timing) return;
-            timing = true;
-            timeStart = performance.now();
-        }
-
-        function stopTimer() {
-            timing = false;
-        }
-
-        function resetStats() {
-            moveCount = 0;
-            document.getElementById('steps').innerText = '0';
-        }
-
-        function addStep() {
-            moveCount++;
-            document.getElementById('steps').innerText = moveCount;
-        }
-
-        function fmt(ms) {
-            const s = Math.floor(ms / 1000);
-            return String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
-        }
-
-        /* ---------- Toast 提示 ---------- */
-        let toastTimer;
-        function toast(msg) {
-            const t = document.getElementById('toast');
-            t.textContent = msg;
-            t.classList.add('show');
-            clearTimeout(toastTimer);
-            toastTimer = setTimeout(() => t.classList.remove('show'), 2600);
-        }
-
-        // --- 按钮事件 ---
-        document.getElementById('btn-scramble').addEventListener('click', runScramble);
-
-        document.getElementById('btn-reset-view').addEventListener('click', () => {
-            theta = DEF.theta;
-            phi = DEF.phi;
-            RAD = DEF.rad;
-            updCam();
-            toast('↺ 视角已还原');
+                isAnimating = false;
+                resolve();
+            })(startTime);
         });
+    }
 
-        document.getElementById('btn-reset').addEventListener('click', () => {
-            if (isBusy()) { toast('动画进行中，请稍候…'); return; }
-            stopTimer();
-            document.getElementById('timer').innerText = '00:00';
-            resetStats();
-            theta = DEF.theta;
-            phi = DEF.phi;
-            RAD = DEF.rad;
-            updCam();
-            cubeGroup.rotation.set(0, 0, 0);
-            initCube();
-            clearHistory();
-            toast('↺ 已复原');
-        });
+    // 队列：所有转动串行执行，快速连点不丢步
+    let moveQueue = Promise.resolve();
+    let queueCount = 0;
 
-        // ==================== 快照系统 ====================
-        const SNAPSHOT_KEY = 'cache_005';
+    function enqueueMove(axis, layer, dir, duration = TURN_DURATION) {
+        queueCount++;
+        const task = moveQueue.then(() => rotateSlice(axis, layer, dir, duration));
+        moveQueue = task.catch(() => {});
+        return task.finally(() => { queueCount--; });
+    }
 
-        function getSnapshots() {
-            try {
-                return JSON.parse(localStorage.getItem(SNAPSHOT_KEY)) || [];
-            } catch { return []; }
-        }
+    const isBusy = () => isAnimating || queueCount > 0;
 
-        function saveSnapshots(list) {
-            localStorage.setItem(SNAPSHOT_KEY, JSON.stringify(list));
-        }
+    /* ---------------- 6. 历史（上一步 / 下一步） ---------------- */
+    let history = [];
+    let historyIndex = 0;
 
-        // 捕获当前魔方状态
-        function captureCubeState() {
-            return cubies.map(c => ({
-                pos: { x: c.position.x, y: c.position.y, z: c.position.z },
-                quat: { x: c.quaternion.x, y: c.quaternion.y, z: c.quaternion.z, w: c.quaternion.w }
-            }));
-        }
+    const btnUndo = $('btn-undo');
+    const btnRedo = $('btn-redo');
 
-        // 恢复魔方状态（直接设置，无动画）
-        function restoreCubeState(state) {
-            if (!state || state.length !== cubies.length) return false;
-            state.forEach((s, i) => {
-                cubies[i].position.set(s.pos.x, s.pos.y, s.pos.z);
-                cubies[i].quaternion.set(s.quat.x, s.quat.y, s.quat.z, s.quat.w);
-                snapCubie(cubies[i]);
-            });
-            return true;
-        }
+    function updateHistoryUI() {
+        btnUndo.disabled = historyIndex <= 0;
+        btnRedo.disabled = historyIndex >= history.length;
+    }
 
-        // 保存快照
-        function saveSnapshot(title) {
-            const snaps = getSnapshots();
-            const snap = {
-                id: Date.now(),
-                title: title || `快照 ${snaps.length + 1}`,
-                time: new Date().toLocaleString('zh-CN'),
-                cube: captureCubeState()
-            };
-            snaps.unshift(snap);
-            saveSnapshots(snaps);
-            toast(`✓ 已保存"${snap.title}"`);
-        }
-
-        // 删除快照
-        function deleteSnapshot(id) {
-            const snaps = getSnapshots().filter(s => s.id !== id);
-            saveSnapshots(snaps);
-            openSnapshotList();
-        }
-
-        // 恢复快照
-        function restoreSnapshot(id) {
-            const snap = getSnapshots().find(s => s.id === id);
-            if (!snap) return;
-            if (isBusy()) { toast('动画进行中，请稍候…'); return; }
-            if (restoreCubeState(snap.cube)) {
-                stopTimer();
-                document.getElementById('timer').innerText = '00:00';
-                resetStats();
-                clearHistory();   // 状态已跳变，历史作废
-                toast(`✓ 已恢复"${snap.title}"`);
-                closeModal();
-            } else {
-                toast('快照数据不兼容');
-            }
-        }
-
-        // 模态框控制
-        const modal = document.getElementById('snapshot-modal');
-        const modalContent = document.getElementById('modal-content');
-
-        function openModal(html) {
-            modalContent.innerHTML = html;
-            modal.classList.add('show');
-        }
-        function closeModal() {
-            modal.classList.remove('show');
-        }
-        modal.addEventListener('click', e => {
-            if (e.target === modal) closeModal();
-        });
-
-        // 打开保存快照弹窗
-        function openSaveModal() {
-            if (isBusy()) { toast('动画进行中，请稍候…'); return; }
-            openModal(`
-                <h3>📸 保存快照</h3>
-                <input type="text" id="snap-title" placeholder="输入快照标题..." maxlength="30">
-                <div class="modal-actions">
-                    <button class="btn gray" id="modal-cancel">取消</button>
-                    <button class="btn" id="modal-save">保存</button>
-                </div>
-            `);
-            setTimeout(() => document.getElementById('snap-title').focus(), 50);
-            document.getElementById('modal-cancel').onclick = closeModal;
-            document.getElementById('modal-save').onclick = () => {
-                const title = document.getElementById('snap-title').value.trim();
-                saveSnapshot(title);
-                closeModal();
-            };
-            document.getElementById('snap-title').addEventListener('keydown', e => {
-                if (e.key === 'Enter') {
-                    const title = e.target.value.trim();
-                    saveSnapshot(title);
-                    closeModal();
-                }
-            });
-        }
-
-        // 打开快照列表弹窗
-        function openSnapshotList() {
-            const snaps = getSnapshots();
-            let listHtml = '<h3>📋 快照库</h3><div class="snapshot-list">';
-            if (snaps.length === 0) {
-                listHtml += '<div class="empty-tip">暂无快照</div>';
-            } else {
-                listHtml += snaps.map(s => `
-                    <div class="snapshot-item">
-                        <div class="snapshot-info">
-                            <div class="snapshot-title">${escapeHtml(s.title)}</div>
-                            <div class="snapshot-time">${s.time}</div>
-                        </div>
-                        <div class="snapshot-actions">
-                            <button onclick="window._restore(${s.id})">恢复</button>
-                            <button class="del" onclick="window._delete(${s.id})">删除</button>
-                        </div>
-                    </div>
-                `).join('');
-            }
-            listHtml += '</div><div class="modal-actions" style="margin-top:14px"><button class="btn gray" id="modal-close">关闭</button></div>';
-            openModal(listHtml);
-            document.getElementById('modal-close').onclick = closeModal;
-        }
-
-        function escapeHtml(str) {
-            const div = document.createElement('div');
-            div.textContent = str;
-            return div.innerHTML;
-        }
-
-        // 全局暴露给 onclick
-        window._restore = restoreSnapshot;
-        window._delete = deleteSnapshot;
-
-        // 按钮绑定
-        document.getElementById('btn-save-snap').addEventListener('click', openSaveModal);
-        document.getElementById('btn-list-snap').addEventListener('click', openSnapshotList);
-
-        // 初始化按钮状态
+    function pushHistory(step) {
+        if (historyIndex < history.length) history.length = historyIndex; // 丢弃“未来”
+        history.push(step);
+        if (history.length > MAX_HISTORY) history.splice(0, history.length - MAX_HISTORY);
+        historyIndex = history.length;
         updateHistoryUI();
+    }
+
+    function clearHistory() {
+        history = [];
+        historyIndex = 0;
+        updateHistoryUI();
+    }
+
+    /* ---------------- 7. 记录器 ---------------- */
+    let recording = false;
+    let recordedSteps = [];
+    let recordedInitialState = null;  // 记录开始时的魔方初始状态
+
+    const btnRecord = $('btn-record');
+
+    function updateRecordUI() {
+        btnRecord.classList.toggle('recording', recording);
+        btnRecord.textContent = recording
+            ? `⏹ 停止记录 (${recordedSteps.length})`
+            : '⏺ 记录';
+    }
+
+    /**
+     * 统一入口：执行一步转动并登记历史 / 记录器
+     * @param {'x'|'y'|'z'} axis
+     * @param {number} layer  -2..2
+     * @param {number} dir    1 | -1 | 2 | -2
+     * @param {{duration?:number, track?:boolean, record?:boolean}} opts
+     */
+    async function performMove(axis, layer, dir, opts = {}) {
+        const { duration = TURN_DURATION, track = true, record = true } = opts;
+
+        await enqueueMove(axis, layer, dir, duration);
+
+        if (track) pushHistory({ axis, layer, dir });
+
+        if (record && recording) {
+            recordedSteps.push({ axis, layer, dir });
+            updateRecordUI();
+        }
+    }
+
+    async function undoStep() {
+        if (isBusy()) return;
+        if (historyIndex <= 0) { toast('已经是最早一步了'); return; }
+        const step = history[--historyIndex];
+        updateHistoryUI();
+        await enqueueMove(step.axis, step.layer, -step.dir, FAST_DURATION);
+    }
+
+    async function redoStep() {
+        if (isBusy()) return;
+        if (historyIndex >= history.length) { toast('已经是最新一步了'); return; }
+        const step = history[historyIndex++];
+        updateHistoryUI();
+        await enqueueMove(step.axis, step.layer, step.dir, FAST_DURATION);
+    }
+
+    btnUndo.addEventListener('click', undoStep);
+    btnRedo.addEventListener('click', redoStep);
+
+    /* ---------------- 8. 公式记号 ---------------- */
+    // cw：该层“顺时针”对应的 dir 符号（dir * cw > 0 即顺时针）
+    const NOTATION_MAP = {
+        'x,2':  { name: 'R',  cw: -1 },
+        'x,1':  { name: '2R', cw: -1 },
+        'x,0':  { name: 'M',  cw: 1  },
+        'x,-1': { name: '2L', cw: 1  },
+        'x,-2': { name: 'L',  cw: 1  },
+        'y,2':  { name: 'U',  cw: -1 },
+        'y,1':  { name: '2U', cw: -1 },
+        'y,0':  { name: 'E',  cw: 1  },
+        'y,-1': { name: '2D', cw: 1  },
+        'y,-2': { name: 'D',  cw: 1  },
+        'z,2':  { name: 'F',  cw: -1 },
+        'z,1':  { name: '2F', cw: -1 },
+        'z,0':  { name: 'S',  cw: -1 },
+        'z,-1': { name: '2B', cw: 1  },
+        'z,-2': { name: 'B',  cw: 1  }
+    };
+
+    function stepToNotation(step) {
+        const info = NOTATION_MAP[step.axis + ',' + step.layer];
+        if (!info) return step.axis + step.layer + (step.dir > 0 ? '+' : '-');
+        if (Math.abs(step.dir) === 2) return info.name + '2';
+        return info.name + (step.dir * info.cw > 0 ? '' : "'");
+    }
+
+    function movesToNotation(moves) {
+        return moves.map(stepToNotation).join(' ');
+    }
+
+    /* ---------------- 9. 弹窗控制 ---------------- */
+    const modalEl = $('snapshot-modal');
+    const modalContent = $('modal-content');
+
+    function openModal(html) {
+        modalContent.innerHTML = html;
+        modalEl.classList.add('show');
+    }
+    function closeModal() {
+        modalEl.classList.remove('show');
+    }
+    modalEl.addEventListener('click', e => {
+        if (e.target === modalEl) closeModal();
+    });
+
+    /* ---------------- 10. 快照系统 ---------------- */
+    const SNAPSHOT_KEY = 'cache_005';
+
+    const getSnapshots = () => loadJSON(SNAPSHOT_KEY, []);
+    const saveSnapshots = list => saveJSON(SNAPSHOT_KEY, list);
+
+    function captureCubeState() {
+        return cubies.map(c => ({
+            pos:  { x: c.position.x,   y: c.position.y,   z: c.position.z },
+            quat: { x: c.quaternion.x, y: c.quaternion.y, z: c.quaternion.z, w: c.quaternion.w }
+        }));
+    }
+
+    function restoreCubeState(state) {
+        if (!Array.isArray(state) || state.length !== cubies.length) return false;
+        state.forEach((s, i) => {
+            const c = cubies[i];
+            c.position.set(s.pos.x, s.pos.y, s.pos.z);
+            c.quaternion.set(s.quat.x, s.quat.y, s.quat.z, s.quat.w);
+            snapCubie(c);
+        });
+        return true;
+    }
+
+    function saveSnapshot(title) {
+        const snaps = getSnapshots();
+        const snap = {
+            id: Date.now(),
+            title: title || `快照 ${snaps.length + 1}`,
+            time: new Date().toLocaleString('zh-CN'),
+            cube: captureCubeState()
+        };
+        snaps.unshift(snap);
+        saveSnapshots(snaps);
+        toast(`✓ 已保存"${snap.title}"`);
+    }
+
+    function deleteSnapshot(id) {
+        saveSnapshots(getSnapshots().filter(s => s.id !== id));
+        openSnapshotList();
+    }
+
+    function restoreSnapshot(id) {
+        const snap = getSnapshots().find(s => s.id === id);
+        if (!snap) return;
+        if (isBusy()) { toast('动画进行中，请稍候…'); return; }
+        if (!restoreCubeState(snap.cube)) { toast('快照数据不兼容'); return; }
+
+        stopTimer();
+        resetTimerDisplay();
+        resetStats();
+        clearHistory();          // 状态已跳变，历史作废
+        closeModal();
+        toast(`✓ 已恢复"${snap.title}"`);
+    }
+
+    function openSaveModal() {
+        if (isBusy()) { toast('动画进行中，请稍候…'); return; }
+
+        openModal(`
+            <h3>📸 保存快照</h3>
+            <input type="text" id="snap-title" placeholder="输入快照标题..." maxlength="30">
+            <div class="modal-actions">
+                <button class="btn gray" id="modal-cancel">取消</button>
+                <button class="btn" id="modal-save">保存</button>
+            </div>
+        `);
+        focusInput('snap-title');
+
+        const doSave = () => {
+            saveSnapshot($('snap-title').value.trim());
+            closeModal();
+        };
+        $('modal-cancel').onclick = closeModal;
+        $('modal-save').onclick = doSave;
+        bindEnter('snap-title', doSave);
+    }
+
+    function openSnapshotList() {
+        const snaps = getSnapshots();
+
+        let html = '<h3>📋 快照库</h3><div class="snapshot-list">';
+        if (snaps.length === 0) {
+            html += '<div class="empty-tip">暂无快照</div>';
+        } else {
+            html += snaps.map(s => `
+                <div class="snapshot-item">
+                    <div class="snapshot-info">
+                        <div class="snapshot-title">${escapeHtml(s.title)}</div>
+                        <div class="snapshot-time">${s.time}</div>
+                    </div>
+                    <div class="snapshot-actions">
+                        <button onclick="window._restore(${s.id})">恢复</button>
+                        <button class="del" onclick="window._delete(${s.id})">删除</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+        html += '</div><div class="modal-actions" style="margin-top:14px">'
+              + '<button class="btn gray" id="modal-close">关闭</button></div>';
+
+        openModal(html);
+        $('modal-close').onclick = closeModal;
+    }
+
+    window._restore = restoreSnapshot;
+    window._delete  = deleteSnapshot;
+
+    $('btn-save-snap').addEventListener('click', openSaveModal);
+    $('btn-list-snap').addEventListener('click', openSnapshotList);
+
+    /* ---------------- 11. 公式（步骤）库 ---------------- */
+    const FORMULA_KEY = 'formula_005';
+
+    const getFormulas = () => loadJSON(FORMULA_KEY, []);
+    const saveFormulas = list => saveJSON(FORMULA_KEY, list);
+
+    function persistFormula(title) {
+        const list = getFormulas();
+        const moves = recordedSteps.map(s => ({ axis: s.axis, layer: s.layer, dir: s.dir }));
+        const formula = {
+            id: Date.now(),
+            title: title || `公式 ${list.length + 1}`,
+            time: new Date().toLocaleString('zh-CN'),
+            moves,
+            notation: movesToNotation(moves),
+            initialState: recordedInitialState  // 保存记录时的初始状态
+        };
+        list.unshift(formula);
+        saveFormulas(list);
+        recordedInitialState = null;
+        toast(`✓ 已保存「${formula.title}」到步骤库`);
+    }
+
+    /* --- 记录按钮 --- */
+    function toggleRecording() {
+        if (!recording) {
+            recording = true;
+            recordedSteps = [];
+            recordedInitialState = captureCubeState();  // 记录当前魔方状态
+            updateRecordUI();
+            toast('⏺ 开始记录步骤，转动魔方即可');
+            return;
+        }
+
+        recording = false;
         updateRecordUI();
 
-        function render(now) {
-            requestAnimationFrame(render);
-
-            // 更新计时器显示
-            if (timing) {
-                document.getElementById('timer').innerText = fmt(now - timeStart);
-            }
-
-            renderer.render(scene, camera);
+        if (recordedSteps.length === 0) {
+            toast('⏹ 已停止（未记录到步骤）');
+            return;
         }
+        openSaveFormulaModal();
+    }
+
+    /* --- 保存公式弹窗（记录停止后触发） --- */
+    function openSaveFormulaModal() {
+        const defaultName = `公式 ${getFormulas().length + 1}`;
+        const notation = movesToNotation(recordedSteps);
+
+        openModal(`
+            <h3>💾 保存公式</h3>
+            <input type="text" id="formula-title-input"
+                   value="${escapeHtml(defaultName)}" placeholder="输入公式名称..." maxlength="30">
+            <div class="notation-box">${escapeHtml(notation)}</div>
+            <div class="modal-actions">
+                <button class="btn gray" id="modal-cancel">取消</button>
+                <button class="btn" id="modal-save">保存</button>
+            </div>
+        `);
+        focusInput('formula-title-input');
+
+        const doSave = () => {
+            const title = $('formula-title-input').value.trim() || defaultName;
+            persistFormula(title);
+            recordedSteps = [];
+            closeModal();
+        };
+        $('modal-cancel').onclick = () => {
+            recordedSteps = [];
+            recordedInitialState = null;
+            closeModal();
+            toast('⏹ 已取消保存');
+        };
+        $('modal-save').onclick = doSave;
+        bindEnter('formula-title-input', doSave);
+    }
+
+    /* --- 步骤库列表 --- */
+    function openFormulaList() {
+        const list = getFormulas();
+
+        let html = '<h3>📜 步骤库</h3><div class="snapshot-list">';
+        if (list.length === 0) {
+            html += '<div class="empty-tip">暂无公式</div>';
+        } else {
+            html += list.map(f => `
+                <div class="snapshot-item">
+                    <div class="snapshot-info">
+                        <div class="snapshot-title">${escapeHtml(f.title)}</div>
+                        <div class="snapshot-time">${f.time} · ${f.moves.length} 步</div>
+                        <div class="snapshot-time" style="color:#7fe3ff;font-family:ui-monospace,Menlo,Consolas,monospace;opacity:.9">${escapeHtml(f.notation || '')}</div>
+                    </div>
+                    <div class="snapshot-actions">
+                        <button onclick="window._viewFormulaSteps(${f.id})">查看步骤</button>
+                        <button onclick="window._playFormula(${f.id})">回放</button>
+                        <button onclick="window._renameFormula(${f.id})">改名</button>
+                        <button class="del" onclick="window._deleteFormula(${f.id})">删除</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+        html += '</div><div class="modal-actions" style="margin-top:14px">'
+              + '<button class="btn gray" id="modal-close">关闭</button></div>';
+
+        openModal(html);
+        $('modal-close').onclick = closeModal;
+    }
+
+    function deleteFormula(id) {
+        saveFormulas(getFormulas().filter(f => f.id !== id));
+        openFormulaList();
+    }
+
+    function renameFormula(id) {
+        const target = getFormulas().find(f => f.id === id);
+        if (!target) return;
+
+        openModal(`
+            <h3>✏ 重命名公式</h3>
+            <input type="text" id="rename-input" value="${escapeHtml(target.title)}"
+                   placeholder="输入新名称..." maxlength="30">
+            <div class="modal-actions">
+                <button class="btn gray" id="modal-cancel">取消</button>
+                <button class="btn" id="modal-save">保存</button>
+            </div>
+        `);
+        focusInput('rename-input');
+
+        const doRename = () => {
+            const newTitle = $('rename-input').value.trim();
+            if (newTitle && newTitle !== target.title) {
+                const list = getFormulas();
+                const item = list.find(x => x.id === id);
+                if (item) {
+                    item.title = newTitle;
+                    saveFormulas(list);
+                    toast(`✓ 已重命名为「${newTitle}」`);
+                }
+            }
+            closeModal();
+            openFormulaList();
+        };
+        $('modal-cancel').onclick = () => { closeModal(); openFormulaList(); };
+        $('modal-save').onclick = doRename;
+        bindEnter('rename-input', doRename);
+    }
+
+    async function playFormula(id) {
+        const formula = getFormulas().find(f => f.id === id);
+        if (!formula) return;
+        if (isBusy()) { toast('动画进行中，请稍候…'); return; }
+
+        closeModal();
+        setControlsDisabled(true);
+
+        // 先恢复到记录时的初始状态
+        if (formula.initialState) {
+            if (!restoreCubeState(formula.initialState)) {
+                toast('快照数据不兼容');
+                setControlsDisabled(false);
+                return;
+            }
+        }
+
+        for (const m of formula.moves) {
+            await performMove(m.axis, m.layer, m.dir, {
+                duration: FAST_DURATION, track: true, record: false
+            });
+        }
+
+        historyIndex = 0;              // 回放完毕，游标归零便于逐步回看
+        setControlsDisabled(false);
+        toast(`✓ 已回放「${formula.title}」，已回到第一步`);
+    }
+
+    /**
+     * 查看步骤：恢复到初始状态，用户可用上一步/下一步逐步浏览
+     */
+    function viewFormulaSteps(id) {
+        const formula = getFormulas().find(f => f.id === id);
+        if (!formula) return;
+        if (isBusy()) { toast('动画进行中，请稍候…'); return; }
+
+        closeModal();
+
+        // 恢复到记录时的初始状态
+        if (formula.initialState) {
+            if (!restoreCubeState(formula.initialState)) {
+                toast('快照数据不兼容');
+                return;
+            }
+        }
+
+        stopTimer();
+        resetTimerDisplay();
+        resetStats();
+
+        // 将步骤写入历史，游标归零，用户可用下一步逐步浏览
+        history = formula.moves.map(m => ({ axis: m.axis, layer: m.layer, dir: m.dir }));
+        historyIndex = 0;
+        updateHistoryUI();
+
+        toast(`📖 已恢复「${formula.title}」初始状态，使用 ◀ ▶ 浏览步骤`);
+    }
+
+    window._playFormula   = playFormula;
+    window._viewFormulaSteps = viewFormulaSteps;
+    window._renameFormula = renameFormula;
+    window._deleteFormula = deleteFormula;
+
+    btnRecord.addEventListener('click', toggleRecording);
+    $('btn-formula-lib').addEventListener('click', openFormulaList);
+
+    /* ---------------- 12. 打乱 ---------------- */
+    function generateScrambleSequence(length = SCRAMBLE_LEN) {
+        const seq = [];
+        let lastAxis = '', lastLayer = null;
+
+        for (let i = 0; i < length; i++) {
+            let axis, layer;
+            do {
+                axis  = AXES[Math.floor(Math.random() * AXES.length)];
+                layer = LAYER_COORDS[Math.floor(Math.random() * LAYER_COORDS.length)];
+            } while (axis === lastAxis && layer === lastLayer);   // 避免同轴同层连打
+
+            seq.push({
+                axis,
+                layer,
+                dir: TURN_DIRS[Math.floor(Math.random() * TURN_DIRS.length)]
+            });
+            lastAxis = axis;
+            lastLayer = layer;
+        }
+        return seq;
+    }
+
+    async function runScramble() {
+        if (isBusy()) return;
+
+        setControlsDisabled(true);
+        stopTimer();
+        resetTimerDisplay();
+        resetStats();
+        toast('🔀 正在打乱...');
+
+        for (const step of generateScrambleSequence()) {
+            const duration = Math.abs(step.dir) === 2 ? 80 : 55;
+            await performMove(step.axis, step.layer, step.dir, {
+                duration, track: true, record: false
+            });
+        }
+
+        toast('🔀 打乱完成！');
+        setControlsDisabled(false);
+    }
+
+    /* ---------------- 13. 控件锁定 ---------------- */
+    const LOCKABLE = '#topbar button, #footer button';
+
+    function setControlsDisabled(disabled) {
+        document.querySelectorAll(LOCKABLE).forEach(b => { b.disabled = disabled; });
+        if (!disabled) updateHistoryUI();
+    }
+
+    /* ---------------- 14. 交互：旋转 / 缩放 / 滑转 ---------------- */
+    const raycaster = new THREE.Raycaster();
+    const ndc = new THREE.Vector2();
+    let drag = null;
+
+    dom.addEventListener('pointerdown', e => {
+        e.preventDefault();
+        dom.setPointerCapture(e.pointerId);
+
+        const rect = dom.getBoundingClientRect();
+        ndc.set(
+            ((e.clientX - rect.left) / rect.width) * 2 - 1,
+            -((e.clientY - rect.top) / rect.height) * 2 + 1
+        );
+        raycaster.setFromCamera(ndc, camera);
+
+        const hits = raycaster.intersectObjects(cubies, false);
+        if (hits.length && !isBusy()) {
+            const hit = hits[0];
+            const normal = hit.face.normal.clone()
+                .transformDirection(hit.object.matrixWorld);
+            normal.set(Math.round(normal.x), Math.round(normal.y), Math.round(normal.z));
+
+            drag = {
+                type: 'layer',
+                cubie: hit.object,
+                normal,
+                point: hit.point.clone(),
+                sx: e.clientX,
+                sy: e.clientY,
+                done: false
+            };
+        } else {
+            drag = { type: 'view', sx: e.clientX, sy: e.clientY };
+        }
+    });
+
+    dom.addEventListener('pointermove', e => {
+        if (!drag) return;
+
+        const dx = e.clientX - drag.sx;
+        const dy = e.clientY - drag.sy;
+
+        if (drag.type === 'view') {
+            theta -= dx * 0.008;
+            phi = clamp(phi - dy * 0.008, 0.15, Math.PI - 0.15);
+            drag.sx = e.clientX;
+            drag.sy = e.clientY;
+            updateCamera();
+            return;
+        }
+
+        if (!drag.done && Math.hypot(dx, dy) > 14) {
+            drag.done = true;
+            handleCubeDrag(drag, dx, dy);
+            drag = null;
+        }
+    });
+
+    window.addEventListener('pointerup', () => { drag = null; });
+    window.addEventListener('pointercancel', () => { drag = null; });
+
+    /* --- 双指捏合缩放 --- */
+    let pinchDist0 = 0, pinchRad0 = RAD;
+
+    dom.addEventListener('touchstart', e => {
+        if (e.touches.length !== 2) return;
+        drag = null;
+        pinchDist0 = Math.hypot(
+            e.touches[0].clientX - e.touches[1].clientX,
+            e.touches[0].clientY - e.touches[1].clientY
+        );
+        pinchRad0 = RAD;
+    }, { passive: false });
+
+    dom.addEventListener('touchmove', e => {
+        if (e.touches.length !== 2 || pinchDist0 <= 0) return;
+        e.preventDefault();
+        const dist = Math.hypot(
+            e.touches[0].clientX - e.touches[1].clientX,
+            e.touches[0].clientY - e.touches[1].clientY
+        );
+        RAD = clamp(pinchRad0 * (pinchDist0 / dist), RAD_MIN, RAD_MAX);
+        updateCamera();
+    }, { passive: false });
+
+    dom.addEventListener('touchend', () => { pinchDist0 = 0; });
+
+    /* --- 滚轮缩放 --- */
+    dom.addEventListener('wheel', e => {
+        e.preventDefault();
+        RAD = clamp(RAD * (1 + e.deltaY * 0.001), RAD_MIN, RAD_MAX);
+        updateCamera();
+    }, { passive: false });
+
+    /* --- 滑转解算 --- */
+    function screenDir(point, vec) {
+        const a = point.clone().project(camera);
+        const b = point.clone().add(vec).project(camera);
+        return new THREE.Vector2(b.x - a.x, b.y - a.y).normalize();
+    }
+
+    function handleCubeDrag(d, dx, dy) {
+        const n = d.normal;
+
+        // 面上两个切向
+        const tangents = [];
+        if (n.x === 0) tangents.push(new THREE.Vector3(1, 0, 0));
+        if (n.y === 0) tangents.push(new THREE.Vector3(0, 1, 0));
+        if (n.z === 0) tangents.push(new THREE.Vector3(0, 0, 1));
+
+        const dragVec = new THREE.Vector2(dx, -dy).normalize();
+
+        // 选屏幕投影方向与滑动最贴合的切向
+        let best = null, bestScore = 0;
+        for (const t of tangents) {
+            const score = screenDir(d.point, t).dot(dragVec);
+            if (Math.abs(score) > Math.abs(bestScore)) {
+                bestScore = score;
+                best = t.clone().multiplyScalar(Math.sign(score));
+            }
+        }
+        if (!best) return;
+
+        // 面上点速度 a × n 与 best 同向  =>  a = n × best
+        const axisVec = new THREE.Vector3().crossVectors(n, best);
+
+        let axis, dir;
+        if (Math.abs(axisVec.x) > 0.5)      { axis = 'x'; dir = Math.sign(axisVec.x); }
+        else if (Math.abs(axisVec.y) > 0.5) { axis = 'y'; dir = Math.sign(axisVec.y); }
+        else                                { axis = 'z'; dir = Math.sign(axisVec.z); }
+
+        const layer = clamp(
+            Math.round(d.cubie.position[axis] / STEP), -MAX_LAYER, MAX_LAYER
+        );
+
+        startTimer();
+        addStep();
+        performMove(axis, layer, dir, { duration: TURN_DURATION });
+    }
+
+    /* ---------------- 15. 计时器 / 步数 ---------------- */
+    let timeStart = 0;
+    let timing = false;
+    let moveCount = 0;
+    let lastTimerText = '';
+
+    const timerEl = $('timer');
+    const stepsEl = $('steps');
+
+    function startTimer() {
+        if (timing) return;
+        timing = true;
+        timeStart = performance.now();
+    }
+    function stopTimer() {
+        timing = false;
+    }
+    function resetTimerDisplay() {
+        lastTimerText = '00:00';
+        timerEl.innerText = lastTimerText;
+    }
+    function resetStats() {
+        moveCount = 0;
+        stepsEl.innerText = '0';
+    }
+    function addStep() {
+        moveCount++;
+        stepsEl.innerText = moveCount;
+    }
+    function fmt(ms) {
+        const s = Math.floor(ms / 1000);
+        return String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
+    }
+
+    /* ---------------- 16. 顶部按钮 ---------------- */
+    $('btn-scramble').addEventListener('click', runScramble);
+
+    $('btn-reset-view').addEventListener('click', () => {
+        resetView();
+        toast('↺ 视角已还原');
+    });
+
+    $('btn-reset').addEventListener('click', () => {
+        if (isBusy()) { toast('动画进行中，请稍候…'); return; }
+
+        stopTimer();
+        resetTimerDisplay();
+        resetStats();
+        resetView();
+        cubeGroup.rotation.set(0, 0, 0);
+        initCube();
+        clearHistory();
+        toast('↺ 已复原');
+    });
+
+    /* ---------------- 17. 主循环 ---------------- */
+    function render(now) {
         requestAnimationFrame(render);
+
+        if (timing) {
+            const text = fmt(now - timeStart);
+            if (text !== lastTimerText) {   // 仅在秒数变化时写 DOM
+                lastTimerText = text;
+                timerEl.innerText = text;
+            }
+        }
+
+        renderer.render(scene, camera);
+    }
+    requestAnimationFrame(render);
+
+    /* ---------------- 18. 启动初始化 ---------------- */
+    updateHistoryUI();
+    updateRecordUI();
     </script>
 </body>
 </html>

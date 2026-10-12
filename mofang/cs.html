@@ -1,0 +1,971 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0e1220">
+<title>3阶魔方 · Vue2</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none}
+  html,body{height:100%;overflow:hidden;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif}
+  body{background:radial-gradient(1200px 800px at 50% 15%,#2b3a67,#1a2238 60%,#10142a);color:#fff}
+  #app{display:flex;flex-direction:column;height:100%}
+
+  /* ===== 工具栏网格 ===== */
+  .toolbar-row{
+    display:grid;
+    grid-template-columns:repeat(4,1fr);
+    gap:8px;
+    padding:10px 12px;
+    align-items:center;
+  }
+  .toolbar-row.bottom{
+    grid-template-columns:1fr 1fr 1fr;
+    padding:10px 12px 14px;
+    background:rgba(0,0,0,.28);
+    border-top:1px solid rgba(255,255,255,.08);
+  }
+
+  /* ===== 按钮 ===== */
+  .btn{
+    border:none;cursor:pointer;color:#fff;font-size:13px;
+    padding:9px 4px;border-radius:10px;text-align:center;
+    background:linear-gradient(135deg,#4f6df5,#7b3ff2);
+    box-shadow:0 4px 14px rgba(79,109,245,.35);
+    transition:transform .1s,opacity .15s;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    font-family:inherit;
+  }
+  .btn:active{transform:scale(.94)}
+  .btn.gray{background:linear-gradient(135deg,#3a4358,#2a3040);box-shadow:0 4px 14px rgba(0,0,0,.35)}
+  .btn:disabled{opacity:.32;cursor:not-allowed;transform:none}
+
+  /* ===== 统计单元格 ===== */
+  .stat-cell{
+    font-size:12px;opacity:.85;text-align:center;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    line-height:1.25;
+  }
+  .stat-cell b{font-size:15px;color:#7fe3ff;margin-left:2px}
+
+  /* ===== 3D 画布 ===== */
+  .cube-canvas{flex:1;position:relative;touch-action:none;min-height:0}
+  canvas{display:block}
+
+  /* ===== Toast ===== */
+  #toast{
+    position:fixed;left:50%;top:16%;transform:translateX(-50%);
+    background:rgba(0,0,0,.78);color:#fff;
+    padding:12px 24px;border-radius:14px;font-size:15px;
+    opacity:0;pointer-events:none;transition:opacity .3s;z-index:200;
+    white-space:nowrap;max-width:92vw;overflow:hidden;text-overflow:ellipsis;
+  }
+  #toast.show{opacity:1}
+
+  /* ===== 模态 ===== */
+  .modal-mask{
+    position:fixed;inset:0;background:rgba(0,0,0,.7);
+    display:flex;align-items:center;justify-content:center;z-index:100;
+  }
+  .modal-box{
+    background:#1e2436;border-radius:16px;padding:20px;
+    width:90%;max-width:400px;max-height:82vh;overflow-y:auto;
+    color:#fff;box-shadow:0 10px 40px rgba(0,0,0,.5);
+  }
+  .modal-box h3{margin:0 0 14px;font-size:18px}
+  .modal-box input{
+    width:100%;padding:12px;border:1px solid #3a4358;border-radius:10px;
+    background:#10142a;color:#fff;font-size:15px;outline:none;margin-bottom:14px;
+  }
+  .modal-box input:focus{border-color:#7b3ff2}
+  .modal-actions{display:flex;gap:10px;justify-content:flex-end}
+  .modal-actions .btn{padding:9px 18px;min-width:70px}
+
+  .snapshot-list{max-height:240px;overflow-y:auto;margin-top:4px}
+  .snapshot-item{
+    display:flex;align-items:center;gap:10px;padding:10px 12px;
+    background:#10142a;border-radius:10px;margin-bottom:8px;
+  }
+  .snapshot-info{flex:1;overflow:hidden;min-width:0}
+  .snapshot-title{font-size:14px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .snapshot-time{font-size:11px;opacity:.5;margin-top:2px}
+  .snapshot-actions{display:flex;gap:6px;flex-shrink:0}
+  .snapshot-actions button{
+    border:none;cursor:pointer;font-size:12px;padding:6px 10px;border-radius:8px;color:#fff;
+    background:linear-gradient(135deg,#4f6df5,#7b3ff2);font-family:inherit;
+  }
+  .snapshot-actions button.del{background:linear-gradient(135deg,#c41e3a,#ff5800)}
+  .empty-tip{text-align:center;opacity:.5;padding:22px 0;font-size:13px}
+  .formula-preview{
+    background:#10142a;border:1px solid #3a4358;border-radius:10px;padding:12px;
+    font-family:ui-monospace,Menlo,Consolas,monospace;font-size:14px;line-height:1.7;
+    word-break:break-all;max-height:120px;overflow-y:auto;margin-bottom:14px;color:#7fe3ff;
+  }
+  .formula-mini{
+    font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11px;color:#7fe3ff;
+    opacity:.75;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:3px;
+  }
+  .tip-text{font-size:11px;opacity:.45;line-height:1.6;margin-bottom:12px}
+
+  [v-cloak]{display:none;}
+</style>
+</head>
+<body>
+
+<div id="app" v-cloak>
+  <!-- ===== 第一行：快照库 | 步骤库 | 步数 | 复原 ===== -->
+  <div class="toolbar-row">
+    <button class="btn gray" @click="openSheet('snaps')">📸 快照库</button>
+    <button class="btn gray" @click="openSheet('formulas')">📐 步骤库</button>
+    <div class="stat-cell">步数<b>{{ steps }}</b></div>
+    <button class="btn" @click="resetCube">↺ 复原</button>
+  </div>
+
+  <!-- ===== 第二行：存快照 | 记录 | 时间 | 打乱 ===== -->
+  <div class="toolbar-row">
+    <button class="btn" @click="saveSnapshot">💾 存快照</button>
+    <button class="btn gray" @click="openSheet('history')">📋 记录</button>
+    <div class="stat-cell">时间<b>{{ timeText }}</b></div>
+    <button class="btn" @click="scramble">🔀 打乱</button>
+  </div>
+
+  <!-- ===== 魔方舞台 ===== -->
+  <div id="stage" ref="stage" class="cube-canvas"></div>
+
+  <!-- ===== 底部：上一步 | 视角 | 下一步 ===== -->
+  <div class="toolbar-row bottom">
+    <button class="btn gray" :disabled="!canUndo" @click="undo">⏪ 上一步</button>
+    <button class="btn gray" @click="cycleView">↺ 视角</button>
+    <button class="btn gray" :disabled="!canRedo" @click="redo">下一步 ⏩</button>
+  </div>
+
+  <!-- ===== Toast ===== -->
+  <div id="toast" :class="{ show: toastShow }">{{ toastMsg }}</div>
+
+  <!-- ===== 模态层 ===== -->
+  <div class="modal-mask" v-if="sheetOpen" @click.self="closeSheet">
+    <div class="modal-box">
+      <h3>{{ sheetTitle }}</h3>
+
+      <!-- 快照库 -->
+      <template v-if="sheetType === 'snaps'">
+        <div v-if="!snapshots.length" class="empty-tip">
+          暂无快照<br>点击「💾 存快照」保存当前状态
+        </div>
+        <div v-for="(s, i) in snapshots" :key="s.id" class="snapshot-item">
+          <div class="snapshot-info">
+            <div class="snapshot-title">快照 {{ i + 1 }}</div>
+            <div class="snapshot-time">步数 {{ s.steps }} · 用时 {{ s.timeText }} · {{ s.dateText }}</div>
+          </div>
+          <div class="snapshot-actions">
+            <button @click="loadSnapshot(s)">载入</button>
+            <button class="del" @click="removeSnapshot(i)">删除</button>
+          </div>
+        </div>
+      </template>
+
+      <!-- 公式库 -->
+      <template v-else-if="sheetType === 'formulas'">
+        <div v-if="!formulas.length" class="empty-tip">暂无公式</div>
+        <div v-for="(f, i) in formulas" :key="i" class="snapshot-item">
+          <div class="snapshot-info">
+            <div class="snapshot-title">{{ f.name }}</div>
+            <div class="formula-mini">{{ f.seq }}</div>
+          </div>
+          <div class="snapshot-actions">
+            <button @click="runFormula(f.seq)">执行</button>
+          </div>
+        </div>
+      </template>
+
+      <!-- 操作记录 -->
+      <template v-else-if="sheetType === 'history'">
+        <div v-if="!moveLog.length" class="empty-tip">还没有任何操作</div>
+        <div v-else class="formula-preview">{{ moveLog.join(' ') }}</div>
+        <div v-if="moveLog.length" class="snapshot-time" style="margin-top:8px">
+          共 {{ moveLog.length }} 步
+        </div>
+      </template>
+
+      <div class="modal-actions" style="margin-top:14px">
+        <button class="btn gray" @click="closeSheet">关闭</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/vue@2.7.16/dist/vue.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+<script>
+/* =========================================================================
+ *  记谱工具（模块级，引擎与 Vue 共用）
+ * ========================================================================= */
+var PI = Math.PI;
+var HALF_PI = PI / 2;
+
+/* 标准转动记号 → 轴 / 层 / 角度符号
+ * 右手系：绕 +x 转 +90° 把 +z 转到 -y，故 R(从+x看顺时针) = 绕 +x 转 -90°
+ */
+var MOVES = {
+  U: { axis: [0, 1, 0], layer:  1, sign: -1 },
+  D: { axis: [0, 1, 0], layer: -1, sign:  1 },
+  R: { axis: [1, 0, 0], layer:  1, sign: -1 },
+  L: { axis: [1, 0, 0], layer: -1, sign:  1 },
+  F: { axis: [0, 0, 1], layer:  1, sign: -1 },
+  B: { axis: [0, 0, 1], layer: -1, sign:  1 }
+};
+
+function notationToMove(s) {
+  var def = MOVES[s.charAt(0)];
+  if (!def) return null;
+  var suffix = s.slice(1);
+  var turns = 1;
+  if (suffix === "'") turns = -1;
+  else if (suffix === '2') turns = 2;
+
+  return {
+    axis: new THREE.Vector3(def.axis[0], def.axis[1], def.axis[2]),
+    angle: def.sign * turns * HALF_PI,
+    layer: def.layer,
+    notation: s
+  };
+}
+
+function invertNotation(s) {
+  if (s.length > 1 && s.charAt(s.length - 1) === '2') return s;
+  if (s.charAt(s.length - 1) === "'") return s.slice(0, -1);
+  return s + "'";
+}
+
+function toNotation(axis, layer, angle) {
+  var arr;
+  if (axis.x !== 0) arr = ['L', 'R', 'M'];
+  else if (axis.y !== 0) arr = ['D', 'U', 'E'];
+  else arr = ['B', 'F', 'S'];
+
+  if (layer === 0) return arr[2];
+
+  var base = layer > 0 ? arr[1] : arr[0];
+  var isTwo = Math.abs(Math.abs(angle) - PI) < 0.1;
+  var isPrime = (layer * angle) > 0;
+  return base + (isTwo ? '2' : (isPrime ? "'" : ''));
+}
+
+function fmtTime(ms) {
+  var total = Math.floor(Math.max(0, ms) / 1000);
+  var m = Math.floor(total / 60);
+  var s = total % 60;
+  return (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
+}
+
+/* =========================================================================
+ *  Three.js 魔方引擎
+ * ========================================================================= */
+function createEngine(stageEl, hooks) {
+  var SIZE = 0.96;
+  var STICKER = 0.84;
+  var HALF = SIZE / 2 + 0.001;
+
+  var COLORS = {
+    R: 0xb71234, L: 0xff5800, U: 0xffffff,
+    D: 0xffd500, F: 0x009b48, B: 0x0046ad, X: 0x14141c
+  };
+  var FACES = [
+    { k: 'x', d:  1, c: COLORS.R }, { k: 'x', d: -1, c: COLORS.L },
+    { k: 'y', d:  1, c: COLORS.U }, { k: 'y', d: -1, c: COLORS.D },
+    { k: 'z', d:  1, c: COLORS.F }, { k: 'z', d: -1, c: COLORS.B }
+  ];
+
+  /* ---------- 场景 ---------- */
+  var scene = new THREE.Scene();
+  var camera = new THREE.PerspectiveCamera(38, 1, 0.1, 100);
+  var renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  stageEl.appendChild(renderer.domElement);
+
+  scene.add(new THREE.AmbientLight(0xffffff, 0.9));
+  var la = new THREE.DirectionalLight(0xffffff, 0.45); la.position.set(6, 10, 8); scene.add(la);
+
+  var cubeGroup = new THREE.Group();
+  scene.add(cubeGroup);
+
+  /* ---------- 几何 ---------- */
+  var boxGeo = new THREE.BoxGeometry(0.96, 0.96, 0.96);
+  var boxMat = new THREE.MeshLambertMaterial({ color: COLORS.X });
+  var stickerGeo = new THREE.PlaneGeometry(STICKER, STICKER);
+  var stickerMat = {};
+  FACES.forEach(function (f) {
+    stickerMat[f.k + f.d] = new THREE.MeshLambertMaterial({ color: f.c });
+  });
+
+  /* ---------- 27 个小块 ---------- */
+  var cubies = [];
+
+  function makeCubie(x, y, z) {
+    var g = new THREE.Group();
+    g.position.set(x, y, z);
+    g.add(new THREE.Mesh(boxGeo, boxMat));
+
+    var p = { x: x, y: y, z: z };
+    FACES.forEach(function (f) {
+      if (p[f.k] !== f.d) return;
+      var s = new THREE.Mesh(stickerGeo, stickerMat[f.k + f.d]);
+      if (f.k === 'x') {
+        s.position.x = f.d * HALF;
+        s.rotation.y = f.d * HALF_PI;
+      } else if (f.k === 'y') {
+        s.position.y = f.d * HALF;
+        s.rotation.x = -f.d * HALF_PI;
+      } else {
+        s.position.z = f.d * HALF;
+        if (f.d === -1) s.rotation.y = PI;
+      }
+      g.add(s);
+    });
+
+    var cubie = {
+      mesh: g,
+      pos: new THREE.Vector3(x, y, z),
+      quat: new THREE.Quaternion(),
+      homePos: new THREE.Vector3(x, y, z),
+      homeQuat: new THREE.Quaternion()
+    };
+    g.userData.cubie = cubie;
+    cubeGroup.add(g);
+    cubies.push(cubie);
+  }
+
+  for (var cx = -1; cx <= 1; cx++)
+    for (var cy = -1; cy <= 1; cy++)
+      for (var cz = -1; cz <= 1; cz++) {
+        if (cx === 0 && cy === 0 && cz === 0) continue;
+        makeCubie(cx, cy, cz);
+      }
+
+  /* ---------- 相机 ---------- */
+  var theta = 0.8, phi = 1.02;
+  var targetTheta = theta, targetPhi = phi;
+  var camDist = 20;
+
+  function updateCamera() {
+    var sp = Math.sin(phi), cp = Math.cos(phi);
+    camera.position.set(
+      camDist * sp * Math.sin(theta),
+      camDist * cp,
+      camDist * sp * Math.cos(theta)
+    );
+    camera.lookAt(0, 0, 0);
+  }
+
+  function resize() {
+    var w = stageEl.clientWidth || 1;
+    var h = stageEl.clientHeight || 1;
+    renderer.setSize(w, h, false);
+    renderer.domElement.style.width = '100%';
+    renderer.domElement.style.height = '100%';
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+
+    var fov = camera.fov * PI / 180;
+    var R = 2.62;
+    var vDist = R / Math.sin(fov / 2);
+    var hFov = 2 * Math.atan(Math.tan(fov / 2) * camera.aspect);
+    var hDist = R / Math.sin(hFov / 2);
+    camDist = Math.max(vDist, hDist) * 1.03;
+    updateCamera();
+  }
+
+  window.addEventListener('resize', resize);
+  window.addEventListener('orientationchange', function () { setTimeout(resize, 120); });
+
+  /* ---------- 转动队列 / 动画 ---------- */
+  var queue = [];
+  var anim = null;
+  var _q1 = new THREE.Quaternion();
+  var _q2 = new THREE.Quaternion();
+  var _m4 = new THREE.Matrix4();
+
+  function snapQuat(q) {
+    _m4.makeRotationFromQuaternion(q);
+    var e = _m4.elements;
+    for (var i = 0; i < 16; i++) e[i] = Math.round(e[i]);
+    q.setFromRotationMatrix(_m4);
+    return q;
+  }
+
+  function startMove(mv) {
+    var axis = mv.axis;
+    var selected = cubies.filter(function (c) {
+      return Math.round(c.pos.dot(axis)) === mv.layer;
+    });
+    if (!selected.length) return false;
+
+    for (var i = 0; i < selected.length; i++) {
+      selected[i]._sp = selected[i].pos.clone();
+      selected[i]._sq = selected[i].quat.clone();
+    }
+
+    anim = {
+      axis: axis,
+      angle: mv.angle,
+      selected: selected,
+      start: performance.now(),
+      duration: mv.duration || 165,
+      mv: mv
+    };
+    return true;
+  }
+
+  function pump() {
+    if (anim) return;
+    while (queue.length) {
+      if (startMove(queue.shift())) return;
+    }
+  }
+
+  function updateAnim(now) {
+    if (!anim) { pump(); return; }
+
+    var t = Math.min(1, (now - anim.start) / anim.duration);
+    var e = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+
+    _q1.setFromAxisAngle(anim.axis, anim.angle * e);
+
+    var sel = anim.selected, i;
+    for (i = 0; i < sel.length; i++) {
+      var c = sel[i];
+      c.mesh.position.copy(c._sp).applyQuaternion(_q1);
+      c.mesh.quaternion.copy(_q1).multiply(c._sq);
+    }
+
+    if (t >= 1) {
+      _q2.setFromAxisAngle(anim.axis, anim.angle);
+      for (i = 0; i < sel.length; i++) {
+        var cc = sel[i];
+        cc.pos.copy(cc._sp).applyQuaternion(_q2);
+        cc.pos.set(Math.round(cc.pos.x), Math.round(cc.pos.y), Math.round(cc.pos.z));
+        cc.quat.copy(_q2).multiply(cc._sq);
+        snapQuat(cc.quat);
+        cc.mesh.position.copy(cc.pos);
+        cc.mesh.quaternion.copy(cc.quat);
+      }
+      var done = anim.mv;
+      anim = null;
+      if (hooks.onMoveDone) hooks.onMoveDone(done);
+      pump();
+    }
+  }
+
+  /* ---------- 指针交互 ---------- */
+  var raycaster = new THREE.Raycaster();
+  var ndc = new THREE.Vector2();
+  var ptr = null;
+
+  function snapAxis(v) {
+    v.set(Math.round(v.x), Math.round(v.y), Math.round(v.z));
+    return v;
+  }
+
+  function tryTurn(dx, dy) {
+    var hit = ptr.hit;
+    if (!hit) return;
+
+    var o = hit.object;
+    while (o && !o.userData.cubie) o = o.parent;
+    if (!o) return;
+    var cubie = o.userData.cubie;
+
+    var n = snapAxis(hit.face.normal.clone().transformDirection(hit.object.matrixWorld));
+    if (!n.x && !n.y && !n.z) return;
+
+    var cands = [
+      new THREE.Vector3(1, 0, 0),
+      new THREE.Vector3(0, 1, 0),
+      new THREE.Vector3(0, 0, 1)
+    ].filter(function (v) { return Math.abs(v.dot(n)) < 0.5; });
+
+    var rect = stageEl.getBoundingClientRect();
+    var origin = hit.point.clone();
+    var proj = origin.clone().project(camera);
+    var ox = (proj.x * 0.5 + 0.5) * rect.width;
+    var oy = (-proj.y * 0.5 + 0.5) * rect.height;
+
+    var drag = new THREE.Vector2(dx, dy);
+    if (drag.length() < 1e-4) return;
+    drag.normalize();
+
+    var best = null, bestAbs = 0;
+    for (var i = 0; i < cands.length; i++) {
+      var t = cands[i];
+      var p = origin.clone().addScaledVector(t, 0.6).project(camera);
+      var px = (p.x * 0.5 + 0.5) * rect.width;
+      var py = (-p.y * 0.5 + 0.5) * rect.height;
+      var d = new THREE.Vector2(px - ox, py - oy);
+      if (d.length() < 1e-4) continue;
+      d.normalize();
+      var score = d.dot(drag);
+      if (Math.abs(score) > bestAbs) {
+        bestAbs = Math.abs(score);
+        best = { t: t, sign: score >= 0 ? 1 : -1 };
+      }
+    }
+    if (!best) return;
+
+    var tSigned = best.t.clone().multiplyScalar(best.sign);
+    var axis = new THREE.Vector3().crossVectors(n, tSigned);
+    var angle = HALF_PI;
+
+    /* 统一到正向轴，便于映射标准记号 */
+    if (axis.x < 0 || axis.y < 0 || axis.z < 0) {
+      axis.negate();
+      angle = -angle;
+    }
+
+    var layer = Math.round(cubie.pos.dot(axis));
+    var notation = toNotation(axis, layer, angle);
+
+    if (hooks.onUserMove) {
+      hooks.onUserMove({
+        axis: axis, angle: angle, layer: layer,
+        notation: notation, duration: 155
+      });
+    }
+  }
+
+  function onPointerDown(e) {
+    e.preventDefault();
+    if (ptr) return;
+
+    var busy = !!anim || queue.length > 0;
+    var rect = stageEl.getBoundingClientRect();
+    var px = e.clientX - rect.left;
+    var py = e.clientY - rect.top;
+
+    var hit = null;
+    if (!busy) {
+      ndc.set((px / rect.width) * 2 - 1, -(py / rect.height) * 2 + 1);
+      raycaster.setFromCamera(ndc, camera);
+      var hits = raycaster.intersectObjects(cubeGroup.children, true);
+      if (hits.length) hit = hits[0];
+    }
+
+    ptr = {
+      id: e.pointerId,
+      sx: e.clientX, sy: e.clientY,
+      lx: e.clientX, ly: e.clientY,
+      hit: hit, mode: null
+    };
+    try { renderer.domElement.setPointerCapture(e.pointerId); } catch (err) {}
+  }
+
+  function onPointerMove(e) {
+    if (!ptr || e.pointerId !== ptr.id) return;
+    e.preventDefault();
+
+    var dx = e.clientX - ptr.lx;
+    var dy = e.clientY - ptr.ly;
+    ptr.lx = e.clientX;
+    ptr.ly = e.clientY;
+
+    if (!ptr.mode) {
+      var tdx = e.clientX - ptr.sx;
+      var tdy = e.clientY - ptr.sy;
+      if (Math.sqrt(tdx * tdx + tdy * tdy) < 10) return;
+
+      if (ptr.hit) {
+        ptr.mode = 'turn';
+        tryTurn(tdx, tdy);
+        return;
+      }
+      ptr.mode = 'orbit';
+    }
+
+    if (ptr.mode === 'orbit') {
+      theta -= dx * 0.0085;
+      phi -= dy * 0.0085;
+      phi = Math.max(0.18, Math.min(PI - 0.18, phi));
+      targetTheta = theta;
+      targetPhi = phi;
+    }
+  }
+
+  function onPointerUp(e) {
+    if (!ptr || (e && e.pointerId !== ptr.id)) return;
+    try { renderer.domElement.releasePointerCapture(ptr.id); } catch (err) {}
+    ptr = null;
+  }
+
+  renderer.domElement.addEventListener('pointerdown', onPointerDown, { passive: false });
+  renderer.domElement.addEventListener('pointermove', onPointerMove, { passive: false });
+  window.addEventListener('pointerup', onPointerUp);
+  window.addEventListener('pointercancel', onPointerUp);
+
+  /* ---------- 视角预设 ---------- */
+  var VIEWS = [
+    { theta: 0.8,       phi: 1.02 },
+    { theta: 0,         phi: PI / 2 },
+    { theta: PI / 2,    phi: PI / 2 },
+    { theta: PI,        phi: PI / 2 },
+    { theta: -PI / 2,   phi: PI / 2 },
+    { theta: 0.8,       phi: 0.30 },
+    { theta: 0.8,       phi: PI - 0.30 }
+  ];
+  var viewIndex = 0;
+
+  function cycleView() {
+    viewIndex = (viewIndex + 1) % VIEWS.length;
+    var t = VIEWS[viewIndex].theta;
+    var p = VIEWS[viewIndex].phi;
+    while (t - theta > PI) t -= PI * 2;
+    while (theta - t > PI) t += PI * 2;
+    targetTheta = t;
+    targetPhi = p;
+  }
+
+  /* ---------- 主循环 ---------- */
+  var lastNow = performance.now();
+
+  function loop(now) {
+    requestAnimationFrame(loop);
+    if (Math.abs(targetTheta - theta) > 1e-4 || Math.abs(targetPhi - phi) > 1e-4) {
+      theta += (targetTheta - theta) * 0.18;
+      phi += (targetPhi - phi) * 0.18;
+      updateCamera();
+    }
+    updateAnim(now);
+    renderer.render(scene, camera);
+  }
+
+  /* ---------- 状态读写 ---------- */
+  function getState() {
+    return cubies.map(function (c) {
+      return {
+        p: [c.pos.x, c.pos.y, c.pos.z],
+        q: [c.quat.x, c.quat.y, c.quat.z, c.quat.w]
+      };
+    });
+  }
+
+  function setState(state) {
+    queue.length = 0;
+    anim = null;
+    cubies.forEach(function (c, i) {
+      var st = state[i];
+      if (!st) return;
+      c.pos.set(st.p[0], st.p[1], st.p[2]);
+      c.quat.set(st.q[0], st.q[1], st.q[2], st.q[3]);
+      c.mesh.position.copy(c.pos);
+      c.mesh.quaternion.copy(c.quat);
+    });
+  }
+
+  function resetAll() {
+    queue.length = 0;
+    anim = null;
+    cubies.forEach(function (c) {
+      c.pos.copy(c.homePos);
+      c.quat.copy(c.homeQuat);
+      c.mesh.position.copy(c.pos);
+      c.mesh.quaternion.copy(c.quat);
+    });
+  }
+
+  function isSolved() {
+    for (var i = 0; i < cubies.length; i++) {
+      var c = cubies[i];
+      if (c.pos.x !== c.homePos.x || c.pos.y !== c.homePos.y || c.pos.z !== c.homePos.z) return false;
+      if (Math.abs(c.quat.dot(c.homeQuat)) < 0.999) return false;
+    }
+    return true;
+  }
+
+  function queueMove(mv) {
+    queue.push(mv);
+    pump();
+  }
+
+  function clearQueue() {
+    queue.length = 0;
+  }
+
+  /* ---------- 启动 ---------- */
+  resize();
+  updateCamera();
+  requestAnimationFrame(loop);
+
+  document.addEventListener('visibilitychange', function () {
+    if (!document.hidden) setTimeout(resize, 60);
+  });
+
+  return {
+    queueMove: queueMove,
+    clearQueue: clearQueue,
+    cycleView: cycleView,
+    getState: getState,
+    setState: setState,
+    resetAll: resetAll,
+    isSolved: isSolved,
+    resize: resize
+  };
+}
+
+/* =========================================================================
+ *  Vue 2 应用
+ * ========================================================================= */
+new Vue({
+  el: '#app',
+
+  data: {
+    steps: 0,
+    timeText: '00:00',
+
+    sheetOpen: false,
+    sheetType: '',
+    sheetTitles: { snaps: '快照库', formulas: '公式库', history: '操作记录' },
+
+    snapshots: [],
+    snapshotSeed: 0,
+
+    moveLog: [],
+    undoneLog: [],
+
+    /* 计时器（响应式，用于渲染） */
+    timerRunning: false,
+    timerStart: 0,
+    timerElapsed: 0,
+
+    wasSolved: true,
+
+    toastShow: false,
+    toastMsg: '',
+
+    formulas: [
+      { name: '小鱼公式（角块翻色）', seq: "R U R' U R U2 R'" },
+      { name: '顶面十字',           seq: "F R U R' U' F'" },
+      { name: '顶层角块归位',       seq: "U R U' L' U R' U' L" },
+      { name: '三棱换（PLL）',      seq: "R U' R U R U R U' R' U' R2" },
+      { name: 'OLL 23',             seq: "R2 D R' U2 R D' R' U2 R'" },
+      { name: 'T 型 PLL',           seq: "R U R' U' R' F R2 U' R' U' R U R' F'" },
+      { name: '底层角块（右手）',   seq: "R U R'" },
+      { name: '底层角块（左手）',   seq: "L' U' L" }
+    ]
+  },
+
+  computed: {
+    sheetTitle: function () {
+      return this.sheetTitles[this.sheetType] || '';
+    },
+    canUndo: function () { return this.moveLog.length > 0; },
+    canRedo: function () { return this.undoneLog.length > 0; }
+  },
+
+  mounted: function () {
+    var self = this;
+
+    this.engine = createEngine(this.$refs.stage, {
+      /* 用户拖拽转层 —— 引擎算好动作后回调，由 Vue 记录并执行 */
+      onUserMove: function (mv) {
+        self.moveLog.push(mv.notation);
+        self.undoneLog = [];
+        self.steps = self.moveLog.length;
+        self.engine.queueMove(mv);
+        self.ensureTimerRunning();
+      },
+      /* 每一步动画完成 */
+      onMoveDone: function () {
+        self.steps = self.moveLog.length;
+        var solved = self.engine.isSolved();
+        if (solved && !self.wasSolved && self.moveLog.length > 0) {
+          self.stopTimer();
+          self.toast('🎉 复原成功！用时 ' + self.timeText);
+        }
+        self.wasSolved = solved;
+      }
+    });
+
+    /* 计时器渲染循环 */
+    this.ticker = setInterval(function () {
+      var ms = self.timerRunning ? (performance.now() - self.timerStart) : self.timerElapsed;
+      var txt = fmtTime(ms);
+      if (txt !== self.timeText) self.timeText = txt;
+    }, 200);
+  },
+
+  beforeDestroy: function () {
+    if (this.ticker) clearInterval(this.ticker);
+  },
+
+  methods: {
+    /* ---------------- 计时 ---------------- */
+    startTimer: function () {
+      this.timerRunning = true;
+      this.timerStart = performance.now() - this.timerElapsed;
+    },
+    ensureTimerRunning: function () {
+      if (!this.timerRunning) this.startTimer();
+    },
+    stopTimer: function () {
+      if (this.timerRunning) {
+        this.timerElapsed = performance.now() - this.timerStart;
+        this.timerRunning = false;
+      }
+      this.timeText = fmtTime(this.timerElapsed);
+    },
+    resetTimer: function () {
+      this.timerRunning = false;
+      this.timerElapsed = 0;
+      this.timerStart = 0;
+      this.timeText = '00:00';
+    },
+
+    /* ---------------- 打乱 ---------------- */
+    scramble: function () {
+      var self = this;
+      this.engine.clearQueue();
+
+      this.moveLog = [];
+      this.undoneLog = [];
+      this.steps = 0;
+      this.resetTimer();
+      this.wasSolved = false;
+
+      var faces = ['U', 'D', 'L', 'R', 'F', 'B'];
+      var sufs = ['', "'", '2'];
+      var seq = [];
+      var last = '';
+
+      for (var i = 0; i < 20; i++) {
+        var f;
+        do { f = faces[Math.floor(Math.random() * 6)]; } while (f === last);
+        last = f;
+        seq.push(f + sufs[Math.floor(Math.random() * 3)]);
+      }
+
+      seq.forEach(function (s) {
+        var mv = notationToMove(s);
+        mv.duration = 105;
+        self.engine.queueMove(mv);
+      });
+
+      this.toast('已打乱，开始挑战！');
+      setTimeout(function () { self.startTimer(); }, seq.length * 105 + 100);
+    },
+
+    /* ---------------- 复原 ---------------- */
+    resetCube: function () {
+      this.engine.resetAll();
+      this.moveLog = [];
+      this.undoneLog = [];
+      this.steps = 0;
+      this.resetTimer();
+      this.wasSolved = true;
+      this.toast('已复原');
+    },
+
+    /* ---------------- 撤销 / 重做 ---------------- */
+    undo: function () {
+      if (!this.moveLog.length) return;
+
+      var n = this.moveLog.pop();
+      this.undoneLog.unshift(n);
+      this.steps = this.moveLog.length;
+
+      var mv = notationToMove(n);
+      if (mv) {
+        mv.angle = -mv.angle;
+        mv.notation = invertNotation(n);
+        mv.duration = 140;
+        this.engine.queueMove(mv);
+      }
+    },
+
+    redo: function () {
+      if (!this.undoneLog.length) return;
+
+      var n = this.undoneLog.shift();
+      this.moveLog.push(n);
+      this.steps = this.moveLog.length;
+
+      var mv = notationToMove(n);
+      if (mv) {
+        mv.duration = 140;
+        this.engine.queueMove(mv);
+      }
+    },
+
+    /* ---------------- 视角 ---------------- */
+    cycleView: function () {
+      this.engine.cycleView();
+    },
+
+    /* ---------------- 快照 ---------------- */
+    saveSnapshot: function () {
+      this.snapshotSeed++;
+      var ms = this.timerRunning ? (performance.now() - this.timerStart) : this.timerElapsed;
+
+      this.snapshots.push({
+        id: this.snapshotSeed,
+        state: this.engine.getState(),
+        steps: this.moveLog.length,
+        timeText: fmtTime(ms),
+        dateText: new Date().toLocaleTimeString('zh-CN', { hour12: false })
+      });
+
+      this.toast('已保存快照 #' + this.snapshots.length);
+    },
+
+    loadSnapshot: function (snap) {
+      this.engine.setState(snap.state);
+      this.moveLog = [];
+      this.undoneLog = [];
+      this.steps = 0;
+      this.resetTimer();
+      this.wasSolved = this.engine.isSolved();
+      this.closeSheet();
+      this.toast('快照已载入');
+    },
+
+    removeSnapshot: function (i) {
+      this.snapshots.splice(i, 1);
+    },
+
+    /* ---------------- 公式 ---------------- */
+    runFormula: function (seq) {
+      var self = this;
+      seq.trim().split(/\s+/).forEach(function (s) {
+        var mv = notationToMove(s);
+        if (!mv) return;
+        mv.duration = 130;
+        self.moveLog.push(mv.notation);
+        self.engine.queueMove(mv);
+      });
+      this.undoneLog = [];
+      this.steps = this.moveLog.length;
+      this.ensureTimerRunning();
+      this.closeSheet();
+      this.toast('执行公式：' + seq);
+    },
+
+    /* ---------------- 抽屉 ---------------- */
+    openSheet: function (type) {
+      this.sheetType = type;
+      this.sheetOpen = true;
+    },
+    closeSheet: function () {
+      this.sheetOpen = false;
+    },
+
+    /* ---------------- Toast ---------------- */
+    toast: function (msg) {
+      var self = this;
+      this.toastMsg = msg;
+      this.toastShow = true;
+      clearTimeout(this._toastTimer);
+      this._toastTimer = setTimeout(function () { self.toastShow = false; }, 1700);
+    }
+  }
+});
+</script>
+</body>
+</html>
