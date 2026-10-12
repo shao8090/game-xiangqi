@@ -10,6 +10,10 @@
     body{display:flex;flex-direction:column;background:radial-gradient(1200px 800px at 50% 15%,#2b3a67,#1a2238 60%,#10142a)}
     #app{display:flex;flex-direction:column;height:100%}
     #hud{display:grid;grid-template-columns:1fr auto auto 1fr;grid-template-rows:auto auto;gap:6px 8px;padding:10px 12px;color:#fff;align-items:center}
+    .fade-enter-active,.fade-leave-active{transition:opacity .25s ease,transform .25s ease}
+    .fade-enter-from,.fade-leave-to{opacity:0;transform:translateY(-6px)}
+    .fade-footer-enter-active,.fade-footer-leave-active{transition:opacity .25s ease,transform .25s ease}
+    .fade-footer-enter-from,.fade-footer-leave-to{opacity:0;transform:translateY(6px)}
     #hud .r1c1{grid-row:1;grid-column:1;justify-self:start}
     #hud .r1c2{grid-row:1;grid-column:2;justify-self:center;white-space:nowrap}
     #hud .r1c3{grid-row:1;grid-column:3;justify-self:center;white-space:nowrap}
@@ -51,7 +55,6 @@
     .formula-preview{background:#10142a;border:1px solid #3a4358;border-radius:10px;padding:12px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:14px;line-height:1.7;word-break:break-all;max-height:120px;overflow-y:auto;margin-bottom:14px;color:#7fe3ff}
     .formula-mini{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11px;color:#7fe3ff;opacity:.75;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:3px}
     .tip-text{font-size:11px;opacity:.45;line-height:1.6;margin-bottom:12px}
-    /* 抽屉面板样式 */
     #drawer-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:150;display:none}
     #drawer-overlay.show{display:block}
     #drawer-panel{position:fixed;top:0;right:0;bottom:0;width:340px;max-width:88vw;background:#1e2436;z-index:151;transform:translateX(100%);transition:transform .3s cubic-bezier(.4,0,.2,1);display:flex;flex-direction:column;box-shadow:-4px 0 24px rgba(0,0,0,.4)}
@@ -61,22 +64,17 @@
     .drawer-close{border:none;background:none;color:#aaa;font-size:22px;cursor:pointer;padding:4px 8px;border-radius:8px;line-height:1}
     .drawer-close:hover{background:#3a4358;color:#fff}
     .drawer-content{flex:1;overflow-y:auto;padding:14px 18px}
-
 </style>
-<!-- <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/vue@2.7.16/dist/vue.min.js"></script> -->
-
-<script src="./../js/three.min.js"></script>
-<script src="./../js/vue.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/vue@2.7.16/dist/vue.min.js"></script>
 </head>
 <body>
 
 <div id="app">
-
-    <!-- ================= HUD ================= -->
-    <div id="hud">
-        <button class="btn gray r1c1" :disabled="uiLocked" @click="openSnapshotList">� 快照库</button>
-        <button class="btn gray r1c2" :disabled="uiLocked" @click="openFormulaList">� 公式库</button>
+    <transition name="fade">
+    <div id="hud" v-show="buttonsVisible">
+        <button class="btn gray r1c1" :disabled="uiLocked" @click="openSnapshotList">📋 快照库</button>
+        <button class="btn gray r1c2" :disabled="uiLocked" @click="openFormulaList">📜 公式库</button>
         <span class="stat r1c3">步数 <b>{{ stepCount }}</b></span>
         <button class="btn r1c4" :disabled="uiLocked" @click="onReset">↺ 复原</button>
 
@@ -86,21 +84,20 @@
         <span class="stat r2c3">时间 <b>{{ timerText }}</b></span>
         <button class="btn r2c4" :disabled="uiLocked" @click="onScramble">🔀 打乱</button>
     </div>
+    </transition>
 
-    <!-- ================= 3D 画布 ================= -->
     <div id="wrap" ref="wrap"></div>
 
-    <!-- ================= 底部导航 ================= -->
-    <div id="footer">
+    <transition name="fade-footer">
+    <div id="footer" v-show="buttonsVisible">
         <button class="btn gray nav-btn" :disabled="!canPrev" @click="onPrev">◀ 上一步</button>
         <button class="btn gray" @click="onResetView">↺ 视角</button>
         <button class="btn gray nav-btn" :disabled="!canNext" @click="onNext">下一步 ▶</button>
     </div>
+    </transition>
 
-    <!-- ================= Toast ================= -->
     <div id="toast" :class="{ show: toastShow }">{{ toastMsg }}</div>
 
-    <!-- ================= 抽屉面板(快照库/步骤库) ================= -->
     <div id="drawer-overlay" :class="{ show: drawerOpen }" @click.self="closeDrawer"></div>
     <div id="drawer-panel" :class="{ open: drawerOpen }">
         <div class="drawer-header">
@@ -109,7 +106,6 @@
             <button class="drawer-close" @click="closeDrawer">✕</button>
         </div>
         <div class="drawer-content">
-            <!-- 快照库列表 -->
             <template v-if="drawerType === 'snapshots'">
                 <div class="snapshot-list">
                     <div v-if="!snapshots.length" class="empty-tip">暂无快照(已加载内置预设)</div>
@@ -126,7 +122,6 @@
                 </div>
             </template>
 
-            <!-- 步骤库列表 -->
             <template v-else-if="drawerType === 'formulas'">
                 <div class="snapshot-list">
                     <div v-if="!formulas.length" class="empty-tip">暂无公式，点击「⏺ 记录」开始录制</div>
@@ -146,11 +141,8 @@
         </div>
     </div>
 
-    <!-- ================= 模态框(保存快照/保存公式) ================= -->
     <div id="snapshot-modal" :class="{ show: modalType !== null }" @click.self="closeModal">
         <div class="modal-box">
-
-            <!-- 保存快照 -->
             <template v-if="modalType === 'saveSnapshot'">
                 <h3>📸 保存快照</h3>
                 <input ref="snapInput" type="text" v-model="snapTitle"
@@ -162,7 +154,6 @@
                 </div>
             </template>
 
-            <!-- 保存公式 -->
             <template v-else-if="modalType === 'saveFormula'">
                 <h3>💾 保存公式</h3>
                 <div class="formula-preview">{{ formulaPreview }}</div>
@@ -178,7 +169,6 @@
                     <button class="btn" @click="doSaveFormula">保存</button>
                 </div>
             </template>
-
         </div>
     </div>
 </div>
@@ -186,8 +176,7 @@
 <script>
 
 /* =========================================================================
- * 1. 魔方 3D 引擎(V2优化版) - 与 Vue 解耦,避免被 Vue 响应式代理污染 Three.js 对象
- * 优化项: 内存泄漏修复、对象池完善、动画队列增强
+ * 1. 魔方 3D 引擎(修复滑动方向与法线投影)
  * ========================================================================= */
 function createCubeEngine(hooks) {
     hooks = hooks || {};
@@ -224,31 +213,40 @@ function createCubeEngine(hooks) {
     cubeGroup.position.y = 0.7;
     scene.add(cubeGroup);
 
-    /* ---------- 预创建材质(优化点1: 避免重复创建) ---------- */
+    /* ---------- 共享材质池 ---------- */
     const materialMap = {
-        [COLORS.R]:    new THREE.MeshLambertMaterial({ color: COLORS.R }),
-        [COLORS.L]:    new THREE.MeshLambertMaterial({ color: COLORS.L }),
-        [COLORS.U]:    new THREE.MeshLambertMaterial({ color: COLORS.U }),
-        [COLORS.D]:    new THREE.MeshLambertMaterial({ color: COLORS.D }),
-        [COLORS.F]:    new THREE.MeshLambertMaterial({ color: COLORS.F }),
-        [COLORS.B]:    new THREE.MeshLambertMaterial({ color: COLORS.B }),
+        [COLORS.R]:     new THREE.MeshLambertMaterial({ color: COLORS.R }),
+        [COLORS.L]:     new THREE.MeshLambertMaterial({ color: COLORS.L }),
+        [COLORS.U]:     new THREE.MeshLambertMaterial({ color: COLORS.U }),
+        [COLORS.D]:     new THREE.MeshLambertMaterial({ color: COLORS.D }),
+        [COLORS.F]:     new THREE.MeshLambertMaterial({ color: COLORS.F }),
+        [COLORS.B]:     new THREE.MeshLambertMaterial({ color: COLORS.B }),
         [COLORS.INNER]: new THREE.MeshLambertMaterial({ color: COLORS.INNER })
     };
+    const COLOR_TO_NUM = {
+        [COLORS.R]: 1, [COLORS.L]: 2, [COLORS.U]: 3,
+        [COLORS.D]: 4, [COLORS.F]: 5, [COLORS.B]: 6,
+        [COLORS.INNER]: 0
+    };
+    const NUM_TO_COLOR = { 0: COLORS.INNER, 1: COLORS.R, 2: COLORS.L,
+                           3: COLORS.U, 4: COLORS.D, 5: COLORS.F, 6: COLORS.B };
 
-    /* ---------- 资源复用(几何体 + 法线预创建) ---------- */
-    const boxGeom   = new THREE.BoxGeometry(CUBE_SIZE, CUBE_SIZE, CUBE_SIZE);
+    /* ---------- 几何体与法线 ---------- */
+    const boxGeom = new THREE.BoxGeometry(CUBE_SIZE, CUBE_SIZE, CUBE_SIZE);
     const faceNormals = [
-        new THREE.Vector3(1, 0, 0),   // right
-        new THREE.Vector3(-1, 0, 0),  // left
-        new THREE.Vector3(0, 1, 0),   // top
-        new THREE.Vector3(0, -1, 0),  // bottom
-        new THREE.Vector3(0, 0, 1),   // front
-        new THREE.Vector3(0, 0, -1)   // back
+        new THREE.Vector3(1, 0, 0), new THREE.Vector3(-1, 0, 0),
+        new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, -1, 0),
+        new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, 0, -1)
     ];
+    const localNormals = [
+        [1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]
+    ];
+    const AXIS_X = new THREE.Vector3(1, 0, 0);
+    const AXIS_Y = new THREE.Vector3(0, 1, 0);
+    const AXIS_Z = new THREE.Vector3(0, 0, 1);
 
-    /* ---------- 对象池(优化点2: 减少GC压力) ---------- */
+    /* ---------- 向量对象池 ---------- */
     const _vecPool = [];
-    const _quatPool = [];
     function getVec(x, y, z) {
         if (_vecPool.length > 0) {
             const v = _vecPool.pop();
@@ -259,17 +257,7 @@ function createCubeEngine(hooks) {
     }
     function returnVec(v) { _vecPool.push(v); }
 
-    function getQuat(x, y, z, w) {
-        if (_quatPool.length > 0) {
-            const q = _quatPool.pop();
-            q.set(x || 0, y || 0, z || 0, w || 1);
-            return q;
-        }
-        return new THREE.Quaternion(x, y, z, w);
-    }
-    function returnQuat(q) { _quatPool.push(q); }
-
-    /* ---------- 状态 ---------- */
+    /* ---------- 引擎状态 ---------- */
     let wrapEl   = null;
     let dom      = null;
     let cubies   = [];
@@ -300,7 +288,7 @@ function createCubeEngine(hooks) {
         updCam();
     }
 
-    /* ---------- 建魔方(优化: 使用预创建材质) ---------- */
+    /* ---------- 建魔方 ---------- */
     function initCube() {
         while (cubeGroup.children.length) cubeGroup.remove(cubeGroup.children[0]);
         cubies = [];
@@ -329,11 +317,9 @@ function createCubeEngine(hooks) {
         }
     }
 
-    /* ---------- 坐标吸附(优化点3: 更精确的吸附逻辑) ---------- */
+    /* ---------- 坐标吸附 ---------- */
     function snapCoord(val) {
-        // 使用更精确的浮点比较
         const raw = val / STEP;
-        // 四舍五入到最近的 0.5 倍数
         let layer = Math.round(raw * 2) / 2;
         layer = Math.max(-1.5, Math.min(1.5, layer));
         return layer * STEP;
@@ -352,26 +338,11 @@ function createCubeEngine(hooks) {
         mesh.updateMatrix();
     }
 
-    /* =====================================================================
-     * 动画队列(优化点4: 支持取消 + 更可靠的执行)
-     * ===================================================================== */
+    /* ---------- 动画队列 ---------- */
     let pendingMoves = 0;
     let animChain = Promise.resolve();
-    let cancelAnimation = false;
 
     function busy() { return pendingMoves > 0; }
-
-    // 创建一个可取消的动画 Promise
-    function cancellablePromise() {
-        let rejectFn = null;
-        const promise = new Promise((resolve, reject) => {
-            rejectFn = reject;
-        });
-        promise.cancel = () => {
-            if (rejectFn) rejectFn(new Error('Animation cancelled'));
-        };
-        return promise;
-    }
 
     function rotateSlice(axis, layerCoord, direction, duration) {
         duration = duration || ANIM_DURATION;
@@ -386,7 +357,7 @@ function createCubeEngine(hooks) {
     }
 
     function animateSlice(axis, layerCoord, direction, duration) {
-        return new Promise((resolve, reject) => {
+        return new Promise((resolve) => {
             const rotationGroup = new THREE.Group();
             cubeGroup.add(rotationGroup);
 
@@ -413,12 +384,10 @@ function createCubeEngine(hooks) {
                 } else {
                     rotationGroup.rotation[axis] = targetAngle;
                     rotationGroup.updateMatrixWorld();
-
                     activeCubies.forEach(c => {
                         cubeGroup.attach(c);
                         snapCubie(c);
                     });
-
                     cubeGroup.remove(rotationGroup);
                     resolve();
                 }
@@ -427,9 +396,7 @@ function createCubeEngine(hooks) {
         });
     }
 
-    /* =====================================================================
-     * 历史记录(优化: 更安全的操作)
-     * ===================================================================== */
+    /* ---------- 历史记录 ---------- */
     let moveHistory  = [];
     let historyIndex = 0;
 
@@ -472,36 +439,28 @@ function createCubeEngine(hooks) {
         notifyNav();
     }
 
-    /* =====================================================================
-     * 打乱序列(优化点5: 更好的随机性 + 避免重复模式)
-     * ===================================================================== */
+    /* ---------- 打乱序列 ---------- */
     function generateScrambleSequence(length) {
         length = length || 24;
         const axes   = ['x', 'y', 'z'];
         const coords = [-1.5, -0.5, 0.5, 1.5];
         const dirs   = [1, -1, 2];
         const seq = [];
-        let lastAxis = '', lastLayer = null, lastDir = null;
+        let lastAxis = '', lastLayer = null;
 
         for (let i = 0; i < length; i++) {
             let axis, layer, dir;
             let attempts = 0;
             do {
-                axis  = axes[Math.floor(Math.random() * axes.length)];
-                layer = coords[Math.floor(Math.random() * coords.length)];
-                dir = dirs[Math.floor(Math.random() * dirs.length)];
+                axis  = axes[(Math.random() * 3) | 0];
+                layer = coords[(Math.random() * 4) | 0];
+                dir   = dirs[(Math.random() * 3) | 0];
                 attempts++;
-                // 避免连续相同轴+层 + 避免立即撤销上一步
-            } while (
-                (axis === lastAxis && layer === lastLayer) ||
-                (axis === lastAxis && dir === -lastDir && layer === lastLayer)
-                && attempts < 10
-            );
+            } while (attempts < 12 && axis === lastAxis && layer === lastLayer);
 
             seq.push({ axis, layer, dir });
             lastAxis = axis;
             lastLayer = layer;
-            lastDir = dir;
         }
         return seq;
     }
@@ -515,9 +474,7 @@ function createCubeEngine(hooks) {
         }
     }
 
-    /* =====================================================================
-     * 快照: 状态捕获/恢复(优化: 深拷贝避免引用问题)
-     * ===================================================================== */
+    /* ---------- 快照: 状态捕获 ---------- */
     function captureState() {
         return cubies.map(c => ({
             pos:  { x: c.position.x, y: c.position.y, z: c.position.z },
@@ -525,156 +482,77 @@ function createCubeEngine(hooks) {
         }));
     }
 
-    /* ---------- 快照: 面片网格格式(6面×4×4颜色数字) ---------- */
+    /* ---------- 快照: 面片网格(6面×4×4) ---------- */
+    const _tmpWN = new THREE.Vector3();
     function captureFaceGrid() {
-        // 颜色到数字映射
-        const colorToNum = {};
-        colorToNum[COLORS.R] = 1;
-        colorToNum[COLORS.L] = 2;
-        colorToNum[COLORS.U] = 3;
-        colorToNum[COLORS.D] = 4;
-        colorToNum[COLORS.F] = 5;
-        colorToNum[COLORS.B] = 6;
-        colorToNum[COLORS.INNER] = 0;
-
-        // 局部面法线(与materials数组顺序一致: right, left, top, bottom, front, back)
-        const localNormals = [
-            [1, 0, 0],   // right
-            [-1, 0, 0],  // left
-            [0, 1, 0],   // top
-            [0, -1, 0],  // bottom
-            [0, 0, 1],   // front
-            [0, 0, -1]   // back
-        ];
-
-        // 初始化6个面, 每个面4×4网格
         const faces = [];
         for (let f = 0; f < 6; f++) {
             faces.push(Array(4).fill(null).map(() => Array(4).fill(0)));
         }
 
         for (const cubie of cubies) {
-            // 获取层坐标(0-3)
             const px = Math.round(cubie.position.x / STEP + OFFSET);
             const py = Math.round(cubie.position.y / STEP + OFFSET);
             const pz = Math.round(cubie.position.z / STEP + OFFSET);
 
-            // 对每个局部面, 旋转法线看它指向哪个全局方向
             for (let lf = 0; lf < 6; lf++) {
                 const ln = localNormals[lf];
-                const wn = new THREE.Vector3(ln[0], ln[1], ln[2]).applyQuaternion(cubie.quaternion);
+                _tmpWN.set(ln[0], ln[1], ln[2]).applyQuaternion(cubie.quaternion);
 
-                // 判断全局面编号和网格坐标
                 let gf = -1, r = 0, c = 0;
-                if (Math.abs(wn.x - 1) < 0.5) { gf = 0; r = py; c = pz; }          // Red(+x)
-                else if (Math.abs(wn.x + 1) < 0.5) { gf = 1; r = py; c = pz; }      // Orange(-x)
-                else if (Math.abs(wn.y - 1) < 0.5) { gf = 2; r = px; c = pz; }      // White(+y)
-                else if (Math.abs(wn.y + 1) < 0.5) { gf = 3; r = px; c = pz; }      // Yellow(-y)
-                else if (Math.abs(wn.z - 1) < 0.5) { gf = 4; r = px; c = py; }      // Green(+z)
-                else if (Math.abs(wn.z + 1) < 0.5) { gf = 5; r = px; c = py; }      // Blue(-z)
+                if (Math.abs(_tmpWN.x - 1) < 0.5)      { gf = 0; r = py; c = pz; }
+                else if (Math.abs(_tmpWN.x + 1) < 0.5) { gf = 1; r = py; c = pz; }
+                else if (Math.abs(_tmpWN.y - 1) < 0.5) { gf = 2; r = px; c = pz; }
+                else if (Math.abs(_tmpWN.y + 1) < 0.5) { gf = 3; r = px; c = pz; }
+                else if (Math.abs(_tmpWN.z - 1) < 0.5) { gf = 4; r = px; c = py; }
+                else if (Math.abs(_tmpWN.z + 1) < 0.5) { gf = 5; r = px; c = py; }
                 else continue;
 
-                // 读取材质颜色(安全读取,兼容标准材质和被替换的材质)
                 const mat = cubie.material[lf];
-                let colorHex = COLORS.INNER;
-                if (mat && mat.color) {
-                    colorHex = mat.color.getHex ? mat.color.getHex() : COLORS.INNER;
-                }
-                faces[gf][r][c] = colorToNum[colorHex] || 0;
+                const colorHex = (mat && mat.color && mat.color.getHex)
+                    ? mat.color.getHex() : COLORS.INNER;
+                faces[gf][r][c] = COLOR_TO_NUM[colorHex] || 0;
             }
         }
-
         return faces;
     }
 
-    /* ---------- 快照: 从面片网格恢复(兼容旧格式) ---------- */
     function restoreFromFaceGrid(grid) {
-        // 判断是面片网格格式还是旧的位置/四元数格式
         if (grid.length === 6 && Array.isArray(grid[0]) && Array.isArray(grid[0][0])) {
-            // 面片网格格式: 需要转换为内部状态格式再恢复
-            // 先捕获当前状态作为基准, 然后通过颜色匹配重建
             return restoreFromFaceGridInternal(grid);
-        } else {
-            // 旧的位置/四元数格式
-            return restoreState(grid);
         }
+        return restoreState(grid);
     }
 
     function restoreFromFaceGridInternal(grid) {
-        // 颜色数字到颜色值的映射
-        const numToColor = {};
-        numToColor[1] = COLORS.R;
-        numToColor[2] = COLORS.L;
-        numToColor[3] = COLORS.U;
-        numToColor[4] = COLORS.D;
-        numToColor[5] = COLORS.F;
-        numToColor[6] = COLORS.B;
-        numToColor[0] = COLORS.INNER;
-
-        // 构建目标颜色映射: 每个面片位置期望的颜色
-        // faceMap 定义每个全局面对应的 cubie 位置映射
-        const faceMap = [
-            // Face 0: Red(+x) -> cubies with px=3, varying py,pz
-            { faceDir: 'x', sign: 1, coord: 3, v1: 'py', v2: 'pz' },
-            // Face 1: Orange(-x) -> cubies with px=0
-            { faceDir: 'x', sign: -1, coord: 0, v1: 'py', v2: 'pz' },
-            // Face 2: White(+y) -> cubies with py=3, varying px,pz
-            { faceDir: 'y', sign: 1, coord: 3, v1: 'px', v2: 'pz' },
-            // Face 3: Yellow(-y) -> cubies with py=0
-            { faceDir: 'y', sign: -1, coord: 0, v1: 'px', v2: 'pz' },
-            // Face 4: Green(+z) -> cubies with pz=3, varying px,py
-            { faceDir: 'z', sign: 1, coord: 3, v1: 'px', v2: 'py' },
-            // Face 5: Blue(-z) -> cubies with pz=0
-            { faceDir: 'z', sign: -1, coord: 0, v1: 'px', v2: 'py' },
-        ];
-
-        // 对每个 cubie, 确定其home位置和可见面, 然后从网格中读取期望颜色
-        // 设置 cubie 的位置和材质颜色以匹配目标状态
         for (let i = 0; i < cubies.length; i++) {
             const cubie = cubies[i];
-            
-            // Home位置 (从创建顺序)
             const pz0 = Math.floor(i / 16);
             const py0 = Math.floor((i % 16) / 4);
             const px0 = i % 4;
 
-            // 设置位置到home
             cubie.position.set(
                 (px0 - OFFSET) * STEP,
                 (py0 - OFFSET) * STEP,
                 (pz0 - OFFSET) * STEP
             );
-
-            // 确定哪些面可见, 并设置材质颜色
-            // 重置旋转为恒等
             cubie.quaternion.set(0, 0, 0, 1);
 
-            // 根据home位置确定可见面及其颜色
-            // materials数组顺序: [right, left, top, bottom, front, back]
-            const newMats = [
-                px0 === 3 ? numToColor[grid[0][py0][pz0]] : COLORS.INNER,  // right -> Face 0 (Red)
-                px0 === 0 ? numToColor[grid[1][py0][pz0]] : COLORS.INNER,  // left -> Face 1 (Orange)
-                py0 === 3 ? numToColor[grid[2][px0][pz0]] : COLORS.INNER,  // top -> Face 2 (White)
-                py0 === 0 ? numToColor[grid[3][px0][pz0]] : COLORS.INNER,  // bottom -> Face 3 (Yellow)
-                pz0 === 3 ? numToColor[grid[4][px0][py0]] : COLORS.INNER,  // front -> Face 4 (Green)
-                pz0 === 0 ? numToColor[grid[5][px0][py0]] : COLORS.INNER,  // back -> Face 5 (Blue)
-            ];
-
-            // 更新材质颜色(创建新实例避免修改共享材质)
-            for (let f = 0; f < 6; f++) {
-                cubie.material[f] = new THREE.MeshLambertMaterial({ color: newMats[f] });
-            }
+            cubie.material[0] = materialMap[px0 === 3 ? NUM_TO_COLOR[grid[0][py0][pz0]] : COLORS.INNER];
+            cubie.material[1] = materialMap[px0 === 0 ? NUM_TO_COLOR[grid[1][py0][pz0]] : COLORS.INNER];
+            cubie.material[2] = materialMap[py0 === 3 ? NUM_TO_COLOR[grid[2][px0][pz0]] : COLORS.INNER];
+            cubie.material[3] = materialMap[py0 === 0 ? NUM_TO_COLOR[grid[3][px0][pz0]] : COLORS.INNER];
+            cubie.material[4] = materialMap[pz0 === 3 ? NUM_TO_COLOR[grid[4][px0][py0]] : COLORS.INNER];
+            cubie.material[5] = materialMap[pz0 === 0 ? NUM_TO_COLOR[grid[5][px0][py0]] : COLORS.INNER];
 
             snapCubie(cubie);
         }
 
-        // 清除历史记录
         moveHistory = [];
         historyIndex = 0;
         notifyNav();
         return true;
     }
-
 
     function restoreState(state) {
         if (!state || state.length !== cubies.length) return false;
@@ -686,19 +564,25 @@ function createCubeEngine(hooks) {
         return true;
     }
 
-    /* =====================================================================
-     * 交互(优化点6: 改进触摸处理 + 减少临时对象)
-     * ===================================================================== */
+    /* ---------- 交互 ---------- */
     const raycaster = new THREE.Raycaster();
     const ndc       = new THREE.Vector2();
     let drag = null;
     let pinchDist0 = 0, pinchRad0 = RAD;
+
+    /* 双击(轻点两下)检测 */
+    let downTime = 0, downX = 0, downY = 0, tapMoved = false;
+    let lastTapTime = 0, lastTapX = 0, lastTapY = 0;
 
     const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
 
     function onPointerDown(e) {
         e.preventDefault();
         dom.setPointerCapture(e.pointerId);
+
+        downTime = performance.now();
+        downX = e.clientX; downY = e.clientY;
+        tapMoved = false;
 
         const rect = dom.getBoundingClientRect();
         ndc.set(
@@ -710,8 +594,10 @@ function createCubeEngine(hooks) {
 
         if (hits.length && !busy()) {
             const h = hits[0];
-            // 使用预创建的法线数组
-            const n = faceNormals[h.face.materialIndex].clone();
+            // ✅ 修复点 1：将局部面法线转换到世界坐标系并取整，避免旋转后法向量错误
+            const localN = (h.face && h.face.normal) ? h.face.normal : faceNormals[h.face.materialIndex];
+            const n = localN.clone().applyQuaternion(h.object.quaternion).round();
+
             drag = {
                 type: 'layer', cubie: h.object, n,
                 point: h.point.clone(),
@@ -723,6 +609,9 @@ function createCubeEngine(hooks) {
     }
 
     function onPointerMove(e) {
+        /* 记录本次按压是否有明显位移，用于区分「点击」与「拖动」 */
+        if (Math.hypot(e.clientX - downX, e.clientY - downY) > 8) tapMoved = true;
+
         if (!drag) return;
         const dx = e.clientX - drag.sx, dy = e.clientY - drag.sy;
 
@@ -739,7 +628,24 @@ function createCubeEngine(hooks) {
         }
     }
 
-    function onPointerUp() { drag = null; }
+    function onPointerUp(e) {
+        /* ---- 双击(轻点两下)空白处 → 切换按钮显示 ---- */
+        if (drag && e && e.type === 'pointerup' && !tapMoved &&
+            performance.now() - downTime < 350) {
+
+            const now = performance.now();
+            if (now - lastTapTime < 320 &&
+                Math.hypot(e.clientX - lastTapX, e.clientY - lastTapY) < 40) {
+                lastTapTime = 0;                 // 消费掉这次配对，避免三击再触发
+                if (hooks.onDoubleTap) hooks.onDoubleTap();
+            } else {
+                lastTapTime = now;
+                lastTapX = e.clientX;
+                lastTapY = e.clientY;
+            }
+        }
+        drag = null;
+    }
 
     function onTouchStart(e) {
         if (e.touches.length === 2) {
@@ -772,9 +678,8 @@ function createCubeEngine(hooks) {
         updCam();
     }
 
-    /* ---------- 屏幕方向转换(优化: 减少向量创建) ---------- */
+    /* ---------- 屏幕方向投影 ---------- */
     function scrDir(p, v) {
-        // 优化: 避免p.clone()造成内存泄漏，直接用对象池
         const a = getVec(p.x, p.y, p.z);
         a.project(camera);
         const b = getVec(p.x + v.x, p.y + v.y, p.z + v.z);
@@ -785,32 +690,36 @@ function createCubeEngine(hooks) {
         return result;
     }
 
+    /* ---------- 拖动核心 ---------- */
     function handleCubeDrag(d, dx, dy) {
         const n = d.n;
         const ts = [];
-        if (n.x === 0) ts.push(new THREE.Vector3(1, 0, 0));
-        if (n.y === 0) ts.push(new THREE.Vector3(0, 1, 0));
-        if (n.z === 0) ts.push(new THREE.Vector3(0, 0, 1));
+        if (n.x === 0) ts.push(AXIS_X);
+        if (n.y === 0) ts.push(AXIS_Y);
+        if (n.z === 0) ts.push(AXIS_Z);
 
         const dragV = getVec(dx, -dy, 0).normalize();
 
         let best = null, bs = 0;
         for (const t of ts) {
-            const s = scrDir(d.point, t).dot(dragV);
+            const sd = scrDir(d.point, t);
+            const s = sd.dot(dragV);
+            returnVec(sd);
             if (Math.abs(s) > Math.abs(bs)) {
                 bs = s;
+                if (best) returnVec(best);
                 best = getVec(t.x * Math.sign(s), t.y * Math.sign(s), t.z * Math.sign(s));
             }
         }
         if (!best) { returnVec(dragV); return; }
 
+        // ✅ 修复点 2：满足右手法则 v = ω × r，正确旋转轴 = n × best（面法线 × 拖动方向）
         const axisVec = getVec().crossVectors(n, best);
 
         let comp, dir;
-        // ✅ 修正滑动方向：绕轴正向旋转即可，不需要取负号
-        if (Math.abs(axisVec.x) > 0.5)      { comp = 'x'; dir =  Math.sign(axisVec.x); }
-        else if (Math.abs(axisVec.y) > 0.5) { comp = 'y'; dir =  Math.sign(axisVec.y); }
-        else                                { comp = 'z'; dir =  Math.sign(axisVec.z); }
+        if (Math.abs(axisVec.x) > 0.5)      { comp = 'x'; dir = Math.sign(axisVec.x); }
+        else if (Math.abs(axisVec.y) > 0.5) { comp = 'y'; dir = Math.sign(axisVec.y); }
+        else                                { comp = 'z'; dir = Math.sign(axisVec.z); }
 
         const rawLayer = d.cubie.position[comp] / STEP;
         let layerCoord = Math.round(rawLayer - 0.5) + 0.5;
@@ -822,15 +731,12 @@ function createCubeEngine(hooks) {
         if (hooks.onUserMove) hooks.onUserMove(step);
         rotateSlice(comp, layerCoord, dir);
 
-        // 归还池对象
         returnVec(best);
         returnVec(axisVec);
         returnVec(dragV);
     }
 
-    /* =====================================================================
-     * 事件绑定(优化: 统一事件处理)
-     * ===================================================================== */
+    /* ---------- 事件绑定 ---------- */
     function bindEvents() {
         dom.addEventListener('pointerdown', onPointerDown);
         dom.addEventListener('pointermove', onPointerMove);
@@ -857,9 +763,7 @@ function createCubeEngine(hooks) {
         window.removeEventListener('resize', resize);
     }
 
-    /* =====================================================================
-     * 渲染循环
-     * ===================================================================== */
+    /* ---------- 渲染循环 ---------- */
     let rafId = 0;
     function loop(now) {
         if (disposed) return;
@@ -868,9 +772,7 @@ function createCubeEngine(hooks) {
         renderer.render(scene, camera);
     }
 
-    /* =====================================================================
-     * 对外 API(优化点9: 改进清理逻辑)
-     * ===================================================================== */
+    /* ---------- 对外 API ---------- */
     function mount(el) {
         wrapEl = el;
         dom = renderer.domElement;
@@ -889,29 +791,16 @@ function createCubeEngine(hooks) {
         cancelAnimationFrame(rafId);
         unbindEvents();
 
-        // 清理 cubeGroup 中的所有子对象
         while (cubeGroup.children.length) {
-            const child = cubeGroup.children[0];
-            cubeGroup.remove(child);
-            if (child.geometry) child.geometry.dispose();
-            if (child.material) {
-                if (Array.isArray(child.material)) {
-                    child.material.forEach(m => m.dispose());
-                } else {
-                    child.material.dispose();
-                }
-            }
+            cubeGroup.remove(cubeGroup.children[0]);
         }
+        boxGeom.dispose();
+        Object.values(materialMap).forEach(m => m.dispose());
 
-        // 清理 renderer
         if (dom && dom.parentNode) dom.parentNode.removeChild(dom);
         renderer.dispose();
 
-        // 清空对象池
         _vecPool.length = 0;
-        _quatPool.length = 0;
-
-        // 清理事件引用
         cubies = [];
         moveHistory = [];
     }
@@ -936,42 +825,40 @@ function createCubeEngine(hooks) {
 }
 
 /* =========================================================================
- * 2. Vue 应用(优化版)
+ * 2. Vue 应用
  * ========================================================================= */
 const FORMULA_KEY  = 'mfv4_formulas';
 const SNAPSHOT_KEY = 'mfv4_snapshots';
 
-// ===== 预设快照库(内置图案) =====
-// 颜色映射: 1=红(R) 2=橙(L) 3=白(U) 4=黄(D) 5=绿(F) 6=蓝(B) 0=内芯
 var PRESET_SNAPSHOTS = [
     {
         id: '01',
-        title: '反棱体', 
+        title: '反棱体',
         cube: [
-            [[3,3,3,3],[3,3,3,3],[3,3,3,3],[3,3,3,3]],  // 上
-            [[2,2,2,2],[2,2,2,2],[2,2,2,2],[2,2,2,2]],   // 左
-            [[5,5,5,5],[5,5,5,5],[5,5,5,5],[5,5,5,5]],   // 前
-            [[1,1,1,1],[1,1,1,1],[1,1,1,1],[1,1,1,1]],   // 右
-            [[6,6,6,6],[6,6,6,6],[6,6,6,6],[6,6,6,6]],   // 后
-            [[4,4,4,4],[4,4,4,4],[4,4,4,4],[4,4,4,4]],   // 下
+            [[3,3,3,3],[3,3,3,3],[3,3,3,3],[3,3,3,3]],
+            [[2,2,2,2],[2,2,2,2],[2,2,2,2],[2,2,2,2]],
+            [[5,5,5,5],[5,5,5,5],[5,5,5,5],[5,5,5,5]],
+            [[1,1,1,1],[1,1,1,1],[1,1,1,1],[1,1,1,1]],
+            [[6,6,6,6],[6,6,6,6],[6,6,6,6],[6,6,6,6]],
+            [[4,4,4,4],[4,4,4,4],[4,4,4,4],[4,4,4,4]],
         ],
         isPreset: true
     },
     {
         id: '02',
-        title: '调角', 
+        title: '调角',
         cube: [
-            [[3,3,3,3],[3,3,3,3],[3,3,3,3],[3,3,3,3]],  // 上
-            [[2,2,2,2],[2,2,2,2],[2,2,2,2],[2,2,2,2]],   // 左
-            [[5,5,5,5],[5,5,5,5],[5,5,5,5],[5,5,5,5]],   // 前
-            [[1,1,1,1],[1,1,1,1],[1,1,1,1],[1,1,1,1]],   // 右
-            [[6,6,6,6],[6,6,6,6],[6,6,6,6],[6,6,6,6]],   // 后
-            [[4,4,4,4],[4,4,4,4],[4,4,4,4],[4,4,4,4]],   // 下
+            [[3,3,3,3],[3,3,3,3],[3,3,3,3],[3,3,3,3]],
+            [[2,2,2,2],[2,2,2,2],[2,2,2,2],[2,2,2,2]],
+            [[5,5,5,5],[5,5,5,5],[5,5,5,5],[5,5,5,5]],
+            [[1,1,1,1],[1,1,1,1],[1,1,1,1],[1,1,1,1]],
+            [[6,6,6,6],[6,6,6,6],[6,6,6,6],[6,6,6,6]],
+            [[4,4,4,4],[4,4,4,4],[4,4,4,4],[4,4,4,4]],
         ],
         isPreset: true
     },
-    
 ];
+
 new Vue({
     el: '#app',
 
@@ -982,6 +869,7 @@ new Vue({
             recording: false,
             recordedMoves: [],
             uiLocked: false,
+            buttonsVisible: true,
             navIndex: 0,
             navLen: 0,
             toastMsg: '',
@@ -1005,9 +893,7 @@ new Vue({
         canPrev() { return this.navIndex > 0; },
         canNext() { return this.navIndex < this.navLen; },
         recordLabel() {
-            return this.recording
-                ? '结束(' + this.recordedMoves.length + ')'
-                : '记录';
+            return this.recording ? '结束(' + this.recordedMoves.length + ')' : '记录';
         },
         sortedSnapshots() {
             return [...this.snapshots].sort((a, b) => {
@@ -1018,77 +904,58 @@ new Vue({
     },
 
     created() {
-        // 读取用户数据
         this.snapshots = this.readStorage(SNAPSHOT_KEY, []);
         this.formulas  = this.readStorage(FORMULA_KEY, []);
-        
-        // 如果用户没有任何快照，加载预设快照作为初始数据
+
         if (!this.snapshots.length) {
             this.snapshots = PRESET_SNAPSHOTS.map(p => ({
-                ...p,
-                time: '内置预设',
-                _state: null
+                ...p, time: '内置预设', _state: null
             }));
             this.writeStorage(SNAPSHOT_KEY, this.snapshots);
         } else {
-            // 已有用户数据，确保isPreset属性存在
             this.snapshots = this.snapshots.map(s => ({...s, isPreset: s.isPreset || false}));
         }
-        
+
         this._timing = false;
         this._timeStart = 0;
         this._recordStartState = null;
         this._toastTimer = null;
         this.engine = null;
-        this._fpsTimer = null;
     },
 
     mounted() {
         this.engine = createCubeEngine({
-            onNav: (idx, len) => {
-                this.navIndex = idx;
-                this.navLen   = len;
-            },
+            onNav: (idx, len) => { this.navIndex = idx; this.navLen = len; },
             onUserMove: (step) => {
                 if (this.recording) this.recordedMoves.push(step);
                 this.startTimer();
                 this.stepCount++;
             },
+            /* 双击空白处 → 切换按钮显示 */
+            onDoubleTap: () => { this.toggleButtons(); },
             onFrame: (now) => {
                 this.tickTimer(now);
                 this.updateFPS(now);
             }
         });
-
         this.$nextTick(() => this.engine.mount(this.$refs.wrap));
-
-        /* 键盘快捷键 */
         window.addEventListener('keydown', this.onKeyDown);
     },
 
     beforeDestroy() {
         if (this.engine) this.engine.destroy();
         clearTimeout(this._toastTimer);
-        clearTimeout(this._fpsTimer);
         window.removeEventListener('keydown', this.onKeyDown);
     },
 
     methods: {
-        isShowDelete(row) {
-            // 预设快照不可删除，用户快照可删除
-            return !row?.isPreset;
-        },
+        isShowDelete(row) { return !row?.isPreset; },
         readStorage(key, fallback) {
-            try {
-                return JSON.parse(localStorage.getItem(key)) || fallback;
-            } catch (e) {
-                return fallback;
-            }
+            try { return JSON.parse(localStorage.getItem(key)) || fallback; }
+            catch (e) { return fallback; }
         },
         writeStorage(key, value) {
-            try {
-                localStorage.setItem(key, JSON.stringify(value));
-            } catch (e) { /* 忽略配额错误 */ }
+            try { localStorage.setItem(key, JSON.stringify(value)); } catch (e) {}
         },
         toast(msg) {
             this.toastMsg = msg;
@@ -1119,10 +986,7 @@ new Vue({
             return String(Math.floor(s / 60)).padStart(2, '0') + ':' +
                    String(s % 60).padStart(2, '0');
         },
-        resetStats() {
-            this.stepCount = 0;
-            this.timerText = '00:00';
-        },
+        resetStats() { this.stepCount = 0; this.timerText = '00:00'; },
         updateFPS(now) {
             this.frameCount++;
             if (now - this.lastFpsTime >= 1000) {
@@ -1134,35 +998,13 @@ new Vue({
         onKeyDown(e) {
             if (e.target.tagName === 'INPUT') return;
             switch (e.key) {
-                case 'ArrowLeft':
-                case 'z':
-                    e.preventDefault();
-                    this.onPrev();
-                    break;
-                case 'ArrowRight':
-                case 'x':
-                    e.preventDefault();
-                    this.onNext();
-                    break;
-                case 'r':
-                    e.preventDefault();
-                    this.onReset();
-                    break;
-                case 's':
-                    e.preventDefault();
-                    this.onScramble();
-                    break;
-                case 'v':
-                    e.preventDefault();
-                    this.onResetView();
-                    break;
-                case ' ':
-                    e.preventDefault();
-                    this.toggleRecord();
-                    break;
-                case 'Escape':
-                    this.closeModal();
-                    break;
+                case 'ArrowLeft': case 'z': e.preventDefault(); this.onPrev(); break;
+                case 'ArrowRight': case 'x': e.preventDefault(); this.onNext(); break;
+                case 'r': e.preventDefault(); this.onReset(); break;
+                case 's': e.preventDefault(); this.onScramble(); break;
+                case 'v': e.preventDefault(); this.onResetView(); break;
+                case ' ': e.preventDefault(); this.toggleRecord(); break;
+                case 'Escape': this.closeModal(); break;
             }
         },
         onReset() {
@@ -1188,10 +1030,19 @@ new Vue({
                 this.uiLocked = false;
             }
         },
-        onResetView() {
-            this.engine.resetView();
-            this.toast('视角已还原');
+        onResetView() { this.engine.resetView(); this.toast('视角已还原'); },
+
+        /* 双击空白处：隐藏 / 显示按钮 */
+        toggleButtons() {
+            this.buttonsVisible = !this.buttonsVisible;
+            this.$nextTick(() => {
+                if (this.engine) this.engine.resize();
+            });
+            if (!this.buttonsVisible) {
+                this.toast('按钮已隐藏，再次双击空白处可恢复');
+            }
         },
+
         onPrev() { this.engine.goPrev(); },
         onNext() { this.engine.goNext(); },
         toggleRecord() {
@@ -1245,7 +1096,6 @@ new Vue({
             this.closeModal();
         },
         saveSnapshot(title) {
-            // 用户快照同时保存面片网格和内部状态
             const snap = {
                 id: Date.now(),
                 title: title || '快照 ' + (this.snapshots.length + 1),
@@ -1264,7 +1114,6 @@ new Vue({
             if (!snap) return;
             if (this.busyGuard()) return;
             try {
-                // 使用cube面片网格格式恢复(兼容预设和用户快照)
                 const state = snap.cube;
                 if (state && state.length === 6) {
                     if (this.engine.restoreFromFaceGrid(state)) {
@@ -1286,10 +1135,7 @@ new Vue({
         },
         deleteSnapshot(id) {
             const snap = this.snapshots.find(s => s.id === id);
-            if (snap?.isPreset) {
-                this.toast('内置预设快照不可删除');
-                return;
-            }
+            if (snap?.isPreset) { this.toast('内置预设快照不可删除'); return; }
             this.snapshots = this.snapshots.filter(s => s.id !== id);
             this.writeStorage(SNAPSHOT_KEY, this.snapshots);
             this.toast('已删除快照');
