@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -803,14 +802,15 @@ function createCubeEngine(hooks) {
                 best = getVec(t.x * Math.sign(s), t.y * Math.sign(s), t.z * Math.sign(s));
             }
         }
-        if (!best) { return; }
+        if (!best) { returnVec(dragV); return; }
 
         const axisVec = getVec().crossVectors(n, best);
 
         let comp, dir;
-        if (Math.abs(axisVec.x) > 0.5)      { comp = 'x'; dir = -Math.sign(axisVec.x); }
-        else if (Math.abs(axisVec.y) > 0.5) { comp = 'y'; dir = -Math.sign(axisVec.y); }
-        else                                { comp = 'z'; dir = -Math.sign(axisVec.z); }
+        // ✅ 修正滑动方向：绕轴正向旋转即可，不需要取负号
+        if (Math.abs(axisVec.x) > 0.5)      { comp = 'x'; dir =  Math.sign(axisVec.x); }
+        else if (Math.abs(axisVec.y) > 0.5) { comp = 'y'; dir =  Math.sign(axisVec.y); }
+        else                                { comp = 'z'; dir =  Math.sign(axisVec.z); }
 
         const rawLayer = d.cubie.position[comp] / STEP;
         let layerCoord = Math.round(rawLayer - 0.5) + 0.5;
