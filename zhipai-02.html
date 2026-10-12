@@ -173,7 +173,7 @@
             const colDiv = document.createElement('div');
             colDiv.className = 'column';
             colDiv.onclick = (e) => {
-                if (e.target === colDiv && selected) {
+                if (selected) {
                     handleMove(colIdx);
                 }
             };
