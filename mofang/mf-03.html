@@ -17,6 +17,7 @@
     gap:8px;
     padding:10px 12px;
     align-items:center;
+    transition:opacity .2s;
   }
   .toolbar-row.bottom{
     grid-template-columns:1fr 1fr 1fr;
@@ -116,7 +117,7 @@
 
 <div id="app">
   <!-- ===== 第一行：快照库 | 步骤库 | 步数 | 复原 ===== -->
-  <div class="toolbar-row">
+  <div class="toolbar-row" v-show="uiVisible">
     <button class="btn gray" @click="openSnapshotLibrary">📸 快照库</button>
     <button class="btn gray" @click="openFormulaLibrary">📐 步骤库</button>
     <div class="stat-cell">步数<b>{{ moves }}</b></div>
@@ -124,7 +125,7 @@
   </div>
 
   <!-- ===== 第二行：存快照 | 记录 | 时间 | 打乱 ===== -->
-  <div class="toolbar-row">
+  <div class="toolbar-row" v-show="uiVisible">
     <button class="btn" :disabled="locked" @click="openSnapshotModal">💾 存快照</button>
     <button class="btn rec" :class="{active: recording}" :disabled="locked" @click="onRecord">
       {{ recording ? '⏹ ' + recordedMoves.length : '⏺ 记录' }}
@@ -137,7 +138,7 @@
   <cube-canvas @ready="onEngineReady"></cube-canvas>
 
   <!-- ===== 底部：上一步 | 视角 | 下一步 ===== -->
-  <div class="toolbar-row bottom">
+  <div class="toolbar-row bottom" v-show="uiVisible">
     <button class="btn gray" :disabled="locked || !canPrev" @click="onPrev">⏪ 上一步</button>
     <button class="btn gray" @click="onResetView">↺ 视角</button>
     <button class="btn gray" :disabled="locked || !canNext" @click="onNext">下一步 ⏩</button>
@@ -180,6 +181,7 @@
       @close="closeModal"></library-modal>
   </modal-layer>
 </div>
+
 
 <!-- <script src="https://cdn.jsdelivr.net/npm/vue@2.7.16/dist/vue.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script> -->
@@ -283,7 +285,7 @@ function genScramble(count){
 }
 
 /* =========================================================================
-   CubeEngine —— Three.js 魔方引擎（与 Vue 完全解耦）
+   CubeEngine —— Three.js 魔方引擎
    ========================================================================= */
 class CubeEngine {
   constructor(container){
@@ -291,15 +293,16 @@ class CubeEngine {
 
     /* --- 状态 --- */
     this.cubies     = [];
-    this._pending   = 0;              // 进行中的动画数
+    this._pending   = 0;
     this._chain     = Promise.resolve();
-    this._history   = [];             // 转动历史
-    this._cursor    = 0;              // 历史游标
+    this._history   = [];
+    this._cursor    = 0;
 
     /* --- 回调 --- */
     this.onHistoryChange = null;
     this.onUserTurn      = null;
     this.onUserTurnEnd   = null;
+    this.onBlankDblClick = null;      // 双击空白区域回调
 
     /* --- 视角 --- */
     this.DEFAULT_VIEW  = { theta: 0.8, phi: 1.02, radius: 20 };
@@ -315,6 +318,11 @@ class CubeEngine {
     this._drag  = null;
     this._pinch = null;
 
+    /* --- 双击空白判定缓存 --- */
+    this._potentialBlankClick = null;
+    this._lastBlankClickTime  = 0;
+    this._lastBlankClickPos   = { x: 0, y: 0 };
+
     /* --- 初始化 --- */
     this._initRenderer();
     this._initScene();
@@ -327,7 +335,6 @@ class CubeEngine {
     this._rafId = requestAnimationFrame(this._tick);
   }
 
-  /* ---------------- Three.js 基础 ---------------- */
   _initRenderer(){
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
@@ -345,7 +352,6 @@ class CubeEngine {
     this.scene.add(dl);
   }
 
-  /* ---------------- 构建魔方 ---------------- */
   _buildCube(){
     this.geometry  = new THREE.BoxGeometry(0.96, 0.96, 0.96);
     this.materials = {};
@@ -360,14 +366,11 @@ class CubeEngine {
       if(!x && !y && !z) continue;
 
       const pos = { x, y, z };
-
-      // 材质顺序：+x, -x, +y, -y, +z, -z
       const mats = FACES.map(f => pos[f.axis] === f.sign
         ? this.materials[f.key]
         : this.materials.X
       );
 
-      // 贴纸信息（用于还原判定）
       const stickers = FACES
         .filter(f => pos[f.axis] === f.sign)
         .map(f => ({
@@ -388,7 +391,6 @@ class CubeEngine {
     }
   }
 
-  /* ---------------- 相机 ---------------- */
   _updateCamera(){
     this.camera.position.setFromSphericalCoords(this.radius, this.phi, this.theta);
     this.camera.lookAt(0, 0, 0);
@@ -410,12 +412,11 @@ class CubeEngine {
     this.camera.updateProjectionMatrix();
   }
 
-  /* ---------------- 事件绑定 ---------------- */
   _bindEvents(){
     this._h = {
       down:   e => this._onPointerDown(e),
       move:   e => this._onPointerMove(e),
-      up:     () => { this._drag = null; },
+      up:     e => this._onPointerUp(e),
       wheel:  e => this._onWheel(e),
       ts:     e => this._onTouchStart(e),
       tm:     e => this._onTouchMove(e),
@@ -443,6 +444,7 @@ class CubeEngine {
   _onTouchStart(e){
     if(e.touches.length !== 2) return;
     this._drag = null;
+    this._potentialBlankClick = null;
     const [a, b] = e.touches;
     this._pinch = {
       dist:   Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY),
@@ -466,7 +468,6 @@ class CubeEngine {
     this._updateCamera();
   }
 
-  /* ---------------- 指针拾取 ---------------- */
   _onPointerDown(e){
     e.preventDefault();
     this.dom.setPointerCapture(e.pointerId);
@@ -481,6 +482,7 @@ class CubeEngine {
     const hits = this._ray.intersectObjects(this.cubies, false);
 
     if(hits.length && !this.isBusy()){
+      this._potentialBlankClick = null;
       const hit = hits[0];
       const normal = hit.face.normal.clone().transformDirection(hit.object.matrixWorld);
       normal.set(Math.round(normal.x), Math.round(normal.y), Math.round(normal.z));
@@ -495,6 +497,12 @@ class CubeEngine {
         resolved: false
       };
     } else {
+      // 记录潜在的空白点击
+      this._potentialBlankClick = {
+        x: e.clientX,
+        y: e.clientY,
+        time: performance.now()
+      };
       this._drag = { type: 'view', lastX: e.clientX, lastY: e.clientY };
     }
   }
@@ -528,7 +536,30 @@ class CubeEngine {
     }
   }
 
-  /** 把屏幕拖动方向投影到面上的切向，决定转哪一层、往哪个方向 */
+  _onPointerUp(e){
+    // 双击空白处检测：释放时未发生明显位移且在规定时间内
+    if(this._potentialBlankClick){
+      const dx = e.clientX - this._potentialBlankClick.x;
+      const dy = e.clientY - this._potentialBlankClick.y;
+      const dt = performance.now() - this._potentialBlankClick.time;
+
+      if(Math.hypot(dx, dy) < 14 && dt < 320){
+        const now = performance.now();
+        const distToLast = Math.hypot(e.clientX - this._lastBlankClickPos.x, e.clientY - this._lastBlankClickPos.y);
+
+        if(now - this._lastBlankClickTime < 360 && distToLast < 30){
+          if(this.onBlankDblClick) this.onBlankDblClick();
+          this._lastBlankClickTime = 0; // 重置防止多次连续触发
+        } else {
+          this._lastBlankClickTime = now;
+          this._lastBlankClickPos  = { x: e.clientX, y: e.clientY };
+        }
+      }
+      this._potentialBlankClick = null;
+    }
+    this._drag = null;
+  }
+
   _applyDrag(drag, dx, dy){
     const n = drag.normal;
     const tangents = [];
@@ -565,20 +596,14 @@ class CubeEngine {
     if(this.onUserTurnEnd) p.then(() => this.onUserTurnEnd(), () => {});
   }
 
-  /** 世界向量 → 屏幕方向（NDC 空间） */
   _screenDir(point, vec){
     const a = point.clone().project(this.camera);
     const b = point.clone().add(vec).project(this.camera);
     return new THREE.Vector2(b.x - a.x, b.y - a.y).normalize();
   }
 
-  /* ---------------- 转动 ---------------- */
   isBusy(){ return this._pending > 0; }
 
-  /**
-   * 转动某一层（串行排队）
-   * @returns {Promise}
-   */
   turn(axis, layer, dir, duration = 200){
     this._pending++;
     const run = () => this._animateMove(axis, layer, dir, duration);
@@ -616,7 +641,6 @@ class CubeEngine {
     });
   }
 
-  /* ---------------- 历史记录 ---------------- */
   pushHistory(step){
     this._history.length = this._cursor;
     this._history.push(step);
@@ -654,7 +678,6 @@ class CubeEngine {
     return p;
   }
 
-  /* ---------------- 复位 / 快照 ---------------- */
   reset(){
     for(const c of this.cubies){
       c.position.copy(c.userData.home);
@@ -680,7 +703,6 @@ class CubeEngine {
     return true;
   }
 
-  /** 还原判定：同一朝向的所有贴纸颜色必须一致 */
   isSolved(){
     const faces = new Map();
     const n = new THREE.Vector3();
@@ -702,7 +724,6 @@ class CubeEngine {
     return true;
   }
 
-  /* ---------------- 渲染循环 ---------------- */
   _tick(){
     this._rafId = requestAnimationFrame(this._tick);
     this.renderer.render(this.scene, this.camera);
@@ -733,7 +754,6 @@ class CubeEngine {
    Vue 组件
    ========================================================================= */
 
-/* ---------- 3D 画布 ---------- */
 Vue.component('cube-canvas', {
   template: '<div class="cube-canvas" ref="wrap"></div>',
   mounted(){
@@ -745,7 +765,6 @@ Vue.component('cube-canvas', {
   }
 });
 
-/* ---------- Toast ---------- */
 Vue.component('toast-msg', {
   props: {
     show: { type: Boolean, default: false },
@@ -754,7 +773,6 @@ Vue.component('toast-msg', {
   template: '<div id="toast" :class="{ show: show }">{{ msg }}</div>'
 });
 
-/* ---------- 模态遮罩 ---------- */
 Vue.component('modal-layer', {
   template: `
     <div class="modal-mask" @click.self="$emit('close')">
@@ -763,7 +781,6 @@ Vue.component('modal-layer', {
   `
 });
 
-/* ---------- 保存快照 ---------- */
 Vue.component('save-snapshot-modal', {
   data(){ return { title: '' }; },
   template: `
@@ -784,7 +801,6 @@ Vue.component('save-snapshot-modal', {
   }
 });
 
-/* ---------- 保存公式 ---------- */
 Vue.component('save-formula-modal', {
   props: { moves: { type: Array, default: () => [] } },
   data(){ return { title: '' }; },
@@ -813,7 +829,6 @@ Vue.component('save-formula-modal', {
   }
 });
 
-/* ---------- 通用库列表（快照库 / 步骤库共用） ---------- */
 Vue.component('library-modal', {
   props: {
     title:       { type: String, default: '' },
@@ -856,6 +871,9 @@ new Vue({
   data(){
     return {
       engine: null,
+
+      /* 界面显隐 */
+      uiVisible: true,
 
       /* 计分 */
       moves: 0,
@@ -917,13 +935,26 @@ new Vue({
         }
       };
 
+      // 绑定双击空白处事件
+      engine.onBlankDblClick = () => {
+        this.toggleUI();
+      };
+
       const { index, length } = engine.getHistoryState();
       this.canPrev = index > 0;
       this.canNext = index < length;
     },
 
+    /* ================= 切换界面显示 ================= */
+    toggleUI(){
+      this.uiVisible = !this.uiVisible;
+      this.$nextTick(() => {
+        if(this.engine) this.engine.resize();
+      });
+      this.showToast(this.uiVisible ? '已显示按钮' : '已隐藏按钮，双击空白处恢复');
+    },
+
     /* ================= 通用守卫 ================= */
-    /** 动画进行中则提示并返回 true */
     blockIfBusy(){
       if(this.engine && this.engine.isBusy()){
         this.showToast('动画进行中，请稍候…');
@@ -957,7 +988,6 @@ new Vue({
       }
     },
 
-    /** 重置本局所有统计 */
     resetRun(){
       this.stopTimer();
       this.timing   = false;

@@ -65,8 +65,11 @@
     .drawer-close:hover{background:#3a4358;color:#fff}
     .drawer-content{flex:1;overflow-y:auto;padding:14px 18px}
 </style>
-<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/vue@2.7.16/dist/vue.min.js"></script>
+
+<!-- <script src="https://cdn.jsdelivr.net/npm/vue@2.7.16/dist/vue.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script> -->
+<script src="./../js/three.min.js"></script>
+<script src="./../js/vue.min.js"></script>
 </head>
 <body>
 
@@ -108,7 +111,7 @@
         <div class="drawer-content">
             <template v-if="drawerType === 'snapshots'">
                 <div class="snapshot-list">
-                    <div v-if="!snapshots.length" class="empty-tip">暂无快照(已加载内置预设)</div>
+                    <div v-if="!snapshots.length" class="empty-tip">暂无快照</div>
                     <div v-for="s in sortedSnapshots" :key="s.id" class="snapshot-item">
                         <div class="snapshot-info">
                             <div class="snapshot-title">{{ s.title }}</div>
@@ -116,7 +119,7 @@
                         </div>
                         <div class="snapshot-actions">
                             <button @click="restoreSnapshot(s.id)">恢复</button>
-                            <button class="del" @click="deleteSnapshot(s.id)" v-if="isShowDelete(s)">删除</button>
+                            <button class="del" @click="deleteSnapshot(s.id)">删除</button>
                         </div>
                     </div>
                 </div>
@@ -830,35 +833,6 @@ function createCubeEngine(hooks) {
 const FORMULA_KEY  = 'mfv4_formulas';
 const SNAPSHOT_KEY = 'mfv4_snapshots';
 
-var PRESET_SNAPSHOTS = [
-    {
-        id: '01',
-        title: '反棱体',
-        cube: [
-            [[3,3,3,3],[3,3,3,3],[3,3,3,3],[3,3,3,3]],
-            [[2,2,2,2],[2,2,2,2],[2,2,2,2],[2,2,2,2]],
-            [[5,5,5,5],[5,5,5,5],[5,5,5,5],[5,5,5,5]],
-            [[1,1,1,1],[1,1,1,1],[1,1,1,1],[1,1,1,1]],
-            [[6,6,6,6],[6,6,6,6],[6,6,6,6],[6,6,6,6]],
-            [[4,4,4,4],[4,4,4,4],[4,4,4,4],[4,4,4,4]],
-        ],
-        isPreset: true
-    },
-    {
-        id: '02',
-        title: '调角',
-        cube: [
-            [[3,3,3,3],[3,3,3,3],[3,3,3,3],[3,3,3,3]],
-            [[2,2,2,2],[2,2,2,2],[2,2,2,2],[2,2,2,2]],
-            [[5,5,5,5],[5,5,5,5],[5,5,5,5],[5,5,5,5]],
-            [[1,1,1,1],[1,1,1,1],[1,1,1,1],[1,1,1,1]],
-            [[6,6,6,6],[6,6,6,6],[6,6,6,6],[6,6,6,6]],
-            [[4,4,4,4],[4,4,4,4],[4,4,4,4],[4,4,4,4]],
-        ],
-        isPreset: true
-    },
-];
-
 new Vue({
     el: '#app',
 
@@ -896,25 +870,13 @@ new Vue({
             return this.recording ? '结束(' + this.recordedMoves.length + ')' : '记录';
         },
         sortedSnapshots() {
-            return [...this.snapshots].sort((a, b) => {
-                if (a.isPreset === b.isPreset) return 0;
-                return a.isPreset ? -1 : 1;
-            });
+            return [...this.snapshots];
         }
     },
 
     created() {
         this.snapshots = this.readStorage(SNAPSHOT_KEY, []);
         this.formulas  = this.readStorage(FORMULA_KEY, []);
-
-        if (!this.snapshots.length) {
-            this.snapshots = PRESET_SNAPSHOTS.map(p => ({
-                ...p, time: '内置预设', _state: null
-            }));
-            this.writeStorage(SNAPSHOT_KEY, this.snapshots);
-        } else {
-            this.snapshots = this.snapshots.map(s => ({...s, isPreset: s.isPreset || false}));
-        }
 
         this._timing = false;
         this._timeStart = 0;
@@ -949,7 +911,6 @@ new Vue({
     },
 
     methods: {
-        isShowDelete(row) { return !row?.isPreset; },
         readStorage(key, fallback) {
             try { return JSON.parse(localStorage.getItem(key)) || fallback; }
             catch (e) { return fallback; }
@@ -1101,8 +1062,7 @@ new Vue({
                 title: title || '快照 ' + (this.snapshots.length + 1),
                 time: new Date().toLocaleString('zh-CN'),
                 cube: this.engine.captureFaceGrid(),
-                _state: this.engine.captureState(),
-                isPreset: false
+                _state: this.engine.captureState()
             };
             this.snapshots.unshift(snap);
             this.writeStorage(SNAPSHOT_KEY, this.snapshots);
@@ -1134,8 +1094,6 @@ new Vue({
             }
         },
         deleteSnapshot(id) {
-            const snap = this.snapshots.find(s => s.id === id);
-            if (snap?.isPreset) { this.toast('内置预设快照不可删除'); return; }
             this.snapshots = this.snapshots.filter(s => s.id !== id);
             this.writeStorage(SNAPSHOT_KEY, this.snapshots);
             this.toast('已删除快照');
