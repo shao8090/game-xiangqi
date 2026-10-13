@@ -34,6 +34,8 @@
     .stat b{font-size:14px;color:#7fe3ff}
     #wrap{flex:1;position:relative;touch-action:none;min-height:0}
     canvas{display:block}
+    /* ✅ 强制 canvas 始终铺满容器，避免尺寸更新滞后时画面偏到左上角 */
+    #wrap > canvas{width:100% !important;height:100% !important;display:block}
     #toast{position:fixed;left:50%;top:16%;transform:translateX(-50%);background:rgba(0,0,0,.78);color:#fff;padding:12px 24px;border-radius:14px;font-size:15px;opacity:0;pointer-events:none;transition:opacity .3s;z-index:200;white-space:nowrap;max-width:92vw;overflow:hidden;text-overflow:ellipsis}
     #toast.show{opacity:1}
     #snapshot-modal{position:fixed;inset:0;background:rgba(0,0,0,.7);display:none;align-items:center;justify-content:center;z-index:100}
@@ -265,6 +267,8 @@ function createCubeEngine(hooks) {
     let dom      = null;
     let cubies   = [];
     let disposed = false;
+    let resizeObserver = null;   // ✅ 新增：容器尺寸监听
+    let lastW = 0, lastH = 0;    // ✅ 新增：尺寸去重
 
     /* ---------- 相机轨道 ---------- */
     let RAD = 20;
@@ -277,10 +281,14 @@ function createCubeEngine(hooks) {
         camera.lookAt(0, 0, 0);
     }
 
+    /* ✅ 修复：尺寸未变时直接返回，避免 ResizeObserver 与 setSize 相互触发造成死循环 */
     function resize() {
         if (!wrapEl) return;
         const w = wrapEl.clientWidth, h = wrapEl.clientHeight;
         if (!w || !h) return;
+        if (w === lastW && h === lastH) return;
+        lastW = w; lastH = h;
+
         renderer.setSize(w, h);
         camera.aspect = w / h;
         camera.updateProjectionMatrix();
@@ -750,6 +758,7 @@ function createCubeEngine(hooks) {
         dom.addEventListener('touchend', onTouchEnd);
         dom.addEventListener('wheel', onWheel, { passive: false });
         window.addEventListener('resize', resize);
+        window.addEventListener('orientationchange', resize);
     }
 
     function unbindEvents() {
@@ -764,6 +773,7 @@ function createCubeEngine(hooks) {
         window.removeEventListener('pointerup', onPointerUp);
         window.removeEventListener('pointercancel', onPointerUp);
         window.removeEventListener('resize', resize);
+        window.removeEventListener('orientationchange', resize);
     }
 
     /* ---------- 渲染循环 ---------- */
@@ -784,6 +794,16 @@ function createCubeEngine(hooks) {
         updCam();
         initCube();
         bindEvents();
+
+        /* ✅ 核心修复：用 ResizeObserver 监听 #wrap 的真实尺寸变化。
+         * 因为 <transition> + v-show 时，display:none 会等到过渡动画结束
+         * (0.25s) 之后才生效，$nextTick 里读到的仍是旧尺寸，
+         * 导致 canvas 没跟着变大，魔方就偏到左上了。 */
+        if (typeof ResizeObserver !== 'undefined') {
+            resizeObserver = new ResizeObserver(() => resize());
+            resizeObserver.observe(wrapEl);
+        }
+
         notifyNav();
         rafId = requestAnimationFrame(loop);
     }
@@ -793,6 +813,8 @@ function createCubeEngine(hooks) {
         disposed = true;
         cancelAnimationFrame(rafId);
         unbindEvents();
+
+        if (resizeObserver) { resizeObserver.disconnect(); resizeObserver = null; }
 
         while (cubeGroup.children.length) {
             cubeGroup.remove(cubeGroup.children[0]);
@@ -882,6 +904,7 @@ new Vue({
         this._timeStart = 0;
         this._recordStartState = null;
         this._toastTimer = null;
+        this._resizeTimer = null;
         this.engine = null;
     },
 
@@ -907,6 +930,7 @@ new Vue({
     beforeDestroy() {
         if (this.engine) this.engine.destroy();
         clearTimeout(this._toastTimer);
+        clearTimeout(this._resizeTimer);
         window.removeEventListener('keydown', this.onKeyDown);
     },
 
@@ -996,9 +1020,16 @@ new Vue({
         /* 双击空白处：隐藏 / 显示按钮 */
         toggleButtons() {
             this.buttonsVisible = !this.buttonsVisible;
-            this.$nextTick(() => {
+
+            /* ✅ 修复：<transition> + v-show 时，元素要等过渡动画(0.25s)结束后
+             * 才真正 display:none，容器尺寸也到那时才变化，
+             * 所以这里除了 nextTick 立即校正一次，还要在动画结束后再校正一次。 */
+            this.$nextTick(() => { if (this.engine) this.engine.resize(); });
+            clearTimeout(this._resizeTimer);
+            this._resizeTimer = setTimeout(() => {
                 if (this.engine) this.engine.resize();
-            });
+            }, 320);
+
             if (!this.buttonsVisible) {
                 this.toast('按钮已隐藏，再次双击空白处可恢复');
             }
