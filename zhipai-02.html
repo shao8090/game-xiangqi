@@ -48,7 +48,7 @@ footer{height:46px;display:flex;align-items:center;padding:0 12px;flex-shrink:0;
         <div class="controls">
             <select id="diff-select" onchange="changeDifficulty(this.value)">
                 <option value="1">单花色 (初级 ♠)</option>
-                <option value="2">双花色 (中级 ♠♥)</option>
+                <option value="2" selected>双花色 (中级 ♠♥)</option>
                 <option value="4">四花色 (高级 ♠♥♣♦)</option>
             </select>
             <button onclick="initGame()">重新开始</button>
@@ -96,7 +96,7 @@ function autoForceLandscape() {
 const SUITS = { SPADE: '♠', HEART: '♥', CLUB: '♣', DIAMOND: '♦' };
 const RANKS = ['A','2','3','4','5','6','7','8','9','10','J','Q','K'];
 
-let difficulty    = 1;
+let difficulty    = 2;
 let columns       = [[],[],[],[],[],[],[],[],[],[]];
 let stock         = [];
 let completedSets = 0;
