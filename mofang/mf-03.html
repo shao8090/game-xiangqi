@@ -8,22 +8,57 @@
   *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none}
   html,body{height:100%;overflow:hidden;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif}
   body{background:radial-gradient(1200px 800px at 50% 15%,#2b3a67,#1a2238 60%,#10142a);color:#fff}
-  #app{display:flex;flex-direction:column;height:100%}
+  #app{position:relative;width:100%;height:100%;overflow:hidden}
+
+  /* ===== 3D 画布容器（全屏常驻，杜绝重排拉伸） ===== */
+  .cube-canvas{
+    position:absolute;inset:0;width:100%;height:100%;
+    z-index:1;touch-action:none;overflow:hidden;
+  }
+  .cube-canvas canvas{
+    display:block;width:100%;height:100%;
+    touch-action:none;outline:none;
+  }
+
+  /* ===== UI 悬浮层 (HUD) ===== */
+  .hud-overlay{
+    position:absolute;inset:0;z-index:10;
+    display:flex;flex-direction:column;justify-content:space-between;
+    pointer-events:none;
+    transition:opacity .25s cubic-bezier(.25,.8,.25,1), transform .25s cubic-bezier(.25,.8,.25,1);
+  }
+  .hud-overlay.hud-hidden{
+    opacity:0;
+    pointer-events:none !important;
+    transform:scale(0.98);
+  }
+
+  .hud-top{
+    pointer-events:auto;
+    background:linear-gradient(180deg, rgba(16,20,42,0.85) 0%, rgba(16,20,42,0.55) 75%, transparent 100%);
+    backdrop-filter:blur(10px);
+    -webkit-backdrop-filter:blur(10px);
+    padding-bottom:12px;
+  }
+  .hud-bottom{
+    pointer-events:auto;
+    background:linear-gradient(0deg, rgba(16,20,42,0.85) 0%, rgba(16,20,42,0.55) 75%, transparent 100%);
+    backdrop-filter:blur(10px);
+    -webkit-backdrop-filter:blur(10px);
+    padding-top:10px;
+  }
 
   /* ===== 工具栏网格 ===== */
   .toolbar-row{
     display:grid;
     grid-template-columns:repeat(4,1fr);
     gap:8px;
-    padding:10px 12px;
+    padding:8px 12px;
     align-items:center;
-    transition:opacity .2s;
   }
   .toolbar-row.bottom{
     grid-template-columns:1fr 1fr 1fr;
-    padding:10px 12px 14px;
-    background:rgba(0,0,0,.28);
-    border-top:1px solid rgba(255,255,255,.08);
+    padding:6px 12px 14px;
   }
 
   /* ===== 按钮 ===== */
@@ -32,7 +67,7 @@
     padding:9px 4px;border-radius:10px;text-align:center;
     background:linear-gradient(135deg,#4f6df5,#7b3ff2);
     box-shadow:0 4px 14px rgba(79,109,245,.35);
-    transition:transform .1s,opacity .15s;
+    transition:transform .1s,opacity .15s,box-shadow .15s;
     white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
     font-family:inherit;
   }
@@ -46,37 +81,44 @@
   }
   @keyframes pulse{0%,100%{opacity:1}50%{opacity:.6}}
 
+  /* ===== 悬浮快捷呼出浮标 ===== */
+  .wake-btn{
+    position:absolute;top:14px;right:14px;z-index:9;
+    background:rgba(20,24,42,0.6);border:1px solid rgba(255,255,255,0.15);
+    color:rgba(255,255,255,0.85);font-size:12px;padding:6px 10px;border-radius:20px;
+    backdrop-filter:blur(8px);cursor:pointer;transition:opacity .2s;
+  }
+
   /* ===== 统计单元格 ===== */
   .stat-cell{
-    font-size:12px;opacity:.85;text-align:center;
+    font-size:12px;opacity:.9;text-align:center;
     white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
-    line-height:1.25;
+    line-height:1.25;text-shadow:0 1px 3px rgba(0,0,0,0.5);
   }
   .stat-cell b{font-size:15px;color:#7fe3ff;margin-left:2px}
 
-  /* ===== 3D 画布 ===== */
-  .cube-canvas{flex:1;position:relative;touch-action:none;min-height:0;display:flex;align-items:center;justify-content:center}
-  canvas{display:block;max-width:100%;max-height:100%}
-
   /* ===== Toast ===== */
   #toast{
-    position:fixed;left:50%;top:16%;transform:translateX(-50%);
-    background:rgba(0,0,0,.78);color:#fff;
-    padding:12px 24px;border-radius:14px;font-size:15px;
-    opacity:0;pointer-events:none;transition:opacity .3s;z-index:200;
-    white-space:nowrap;max-width:92vw;overflow:hidden;text-overflow:ellipsis;
+    position:fixed;left:50%;top:18%;transform:translateX(-50%);
+    background:rgba(10,14,28,.88);border:1px solid rgba(255,255,255,.1);
+    color:#fff;padding:10px 22px;border-radius:20px;font-size:14px;
+    opacity:0;pointer-events:none;transition:opacity .3s, transform .3s;
+    z-index:200;white-space:nowrap;max-width:90vw;overflow:hidden;
+    text-overflow:ellipsis;box-shadow:0 8px 30px rgba(0,0,0,.5);
   }
-  #toast.show{opacity:1}
+  #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 
-  /* ===== 模态 ===== */
+  /* ===== 模态窗 ===== */
   .modal-mask{
     position:fixed;inset:0;background:rgba(0,0,0,.7);
     display:flex;align-items:center;justify-content:center;z-index:100;
+    backdrop-filter:blur(4px);
   }
   .modal-box{
     background:#1e2436;border-radius:16px;padding:20px;
     width:90%;max-width:400px;max-height:82vh;overflow-y:auto;
     color:#fff;box-shadow:0 10px 40px rgba(0,0,0,.5);
+    border:1px solid rgba(255,255,255,0.08);
   }
   .modal-box h3{margin:0 0 14px;font-size:18px}
   .modal-box input{
@@ -116,38 +158,47 @@
 <body>
 
 <div id="app">
-  <!-- ===== 第一行：快照库 | 步骤库 | 步数 | 复原 ===== -->
-  <div class="toolbar-row" v-show="uiVisible">
-    <button class="btn gray" @click="openSnapshotLibrary">📸 快照库</button>
-    <button class="btn gray" @click="openFormulaLibrary">📐 步骤库</button>
-    <div class="stat-cell">步数<b>{{ moves }}</b></div>
-    <button class="btn" :disabled="locked" @click="onReset">↺ 复原</button>
-  </div>
-
-  <!-- ===== 第二行：存快照 | 记录 | 时间 | 打乱 ===== -->
-  <div class="toolbar-row" v-show="uiVisible">
-    <button class="btn" :disabled="locked" @click="openSnapshotModal">💾 存快照</button>
-    <button class="btn rec" :class="{active: recording}" :disabled="locked" @click="onRecord">
-      {{ recording ? '⏹ ' + recordedMoves.length : '⏺ 记录' }}
-    </button>
-    <div class="stat-cell">时间<b>{{ timeText }}</b></div>
-    <button class="btn" :disabled="locked" @click="onShuffle">🔀 打乱</button>
-  </div>
-
-  <!-- ===== 魔方舞台 ===== -->
+  <!-- 3D 魔方全景渲染舞台 -->
   <cube-canvas @ready="onEngineReady"></cube-canvas>
 
-  <!-- ===== 底部：上一步 | 视角 | 下一步 ===== -->
-  <div class="toolbar-row bottom" v-show="uiVisible">
-    <button class="btn gray" :disabled="locked || !canPrev" @click="onPrev">⏪ 上一步</button>
-    <button class="btn gray" @click="onResetView">↺ 视角</button>
-    <button class="btn gray" :disabled="locked || !canNext" @click="onNext">下一步 ⏩</button>
+  <!-- 隐藏状态下的唤醒浮标 -->
+  <div v-show="!uiVisible" class="wake-btn" @click="toggleUI">
+    👁️ 显示面板
   </div>
 
-  <!-- ===== Toast ===== -->
+  <!-- HUD 工具交互悬浮层 -->
+  <div class="hud-overlay" :class="{ 'hud-hidden': !uiVisible }">
+    <!-- 顶部操作区 -->
+    <div class="hud-top">
+      <div class="toolbar-row">
+        <button class="btn gray" @click="openSnapshotLibrary">📸 快照库</button>
+        <button class="btn gray" @click="openFormulaLibrary">📐 步骤库</button>
+        <div class="stat-cell">步数<b>{{ moves }}</b></div>
+        <button class="btn" :disabled="locked" @click="onReset">↺ 复原</button>
+      </div>
+
+      <div class="toolbar-row">
+        <button class="btn" :disabled="locked" @click="openSnapshotModal">💾 存快照</button>
+        <button class="btn rec" :class="{active: recording}" :disabled="locked" @click="onRecord">
+          {{ recording ? '⏹ ' + recordedMoves.length : '⏺ 记录' }}
+        </button>
+        <div class="stat-cell">时间<b>{{ timeText }}</b></div>
+        <button class="btn" :disabled="locked" @click="onShuffle">🔀 打乱</button>
+      </div>
+    </div>
+
+    <!-- 底部操作区 -->
+    <div class="hud-bottom">
+      <div class="toolbar-row bottom">
+        <button class="btn gray" :disabled="locked || !canPrev" @click="onPrev">⏪ 上一步</button>
+        <button class="btn gray" @click="onResetView">↺ 视角</button>
+        <button class="btn gray" :disabled="locked || !canNext" @click="onNext">下一步 ⏩</button>
+      </div>
+    </div>
+  </div>
+
   <toast-msg :show="toast.show" :msg="toast.msg"></toast-msg>
 
-  <!-- ===== 模态层 ===== -->
   <modal-layer v-if="activeModal" @close="closeModal">
     <save-snapshot-modal
       v-if="activeModal === 'snapshot-save'"
@@ -182,9 +233,6 @@
   </modal-layer>
 </div>
 
-
-<!-- <script src="https://cdn.jsdelivr.net/npm/vue@2.7.16/dist/vue.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script> -->
 <script src="./../js/three.min.js"></script>
 <script src="./../js/vue.min.js"></script>
 <script>
@@ -195,10 +243,7 @@ const FACE_COLOR = {
   R: 0xb71234, L: 0xff5800, U: 0xffffff,
   D: 0xffd500, F: 0x009b48, B: 0x0046ad, X: 0x14141c
 };
-const FORMULA_KEY  = 'mf03_formulas';
-const SNAPSHOT_KEY = 'mf03_snapshots';
 
-/** 六个外表面的元数据（顺序 = BoxGeometry 材质顺序） */
 const FACES = [
   { key:'R', axis:'x', sign: 1 },
   { key:'L', axis:'x', sign:-1 },
@@ -208,12 +253,20 @@ const FACES = [
   { key:'B', axis:'z', sign:-1 }
 ];
 
+const FORMULA_KEY  = 'mf03_formulas';
+const SNAPSHOT_KEY = 'mf03_snapshots';
+const CUBE_HALF    = 1.5;
+
 const clamp = (v, min, max) => Math.min(max, Math.max(min, v));
 const pad2  = n => String(n).padStart(2, '0');
 
 function loadJSON(key, fallback){
-  try { return JSON.parse(localStorage.getItem(key)) || fallback; }
-  catch(e){ return fallback; }
+  try {
+    const v = JSON.parse(localStorage.getItem(key));
+    return v || fallback;
+  } catch(e){
+    return fallback;
+  }
 }
 
 function fmtTime(ms){
@@ -221,46 +274,41 @@ function fmtTime(ms){
   return pad2(Math.floor(s / 60)) + ':' + pad2(s % 60);
 }
 
-/** 缓动：easeInOutQuad */
 const easeInOut = k => k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
 
-/** 基于 rAF 的补间，返回 Promise */
 function tween(duration, onUpdate){
   return new Promise(resolve => {
     const t0 = performance.now();
     const step = now => {
       const k = Math.min(1, (now - t0) / duration);
       onUpdate(easeInOut(k), k);
-      k < 1 ? requestAnimationFrame(step) : resolve();
+      if (k < 1) requestAnimationFrame(step);
+      else resolve();
     };
     requestAnimationFrame(step);
   });
 }
 
-/** 把一步转动转换成魔方记法（R / U' / F2 …） */
-function stepToNotation(step){
-  const { axis, layer, dir } = step;
-  let face, cw;
-
-  if(axis.x !== 0){
-    if(layer > 0){ face = 'R'; cw = -1; }
-    else if(layer < 0){ face = 'L'; cw = 1; }
-    else { face = 'M'; cw = 1; }
-  } else if(axis.y !== 0){
-    if(layer > 0){ face = 'U'; cw = -1; }
-    else if(layer < 0){ face = 'D'; cw = 1; }
-    else { face = 'E'; cw = 1; }
+function stepToNotation({ axis, layer, dir }){
+  const comp = axis.x ? 'x' : axis.y ? 'y' : 'z';
+  let letter, cw;
+  if (comp === 'x'){
+    if (layer > 0){ letter = 'R'; cw = -1; }
+    else if (layer < 0){ letter = 'L'; cw = 1; }
+    else { letter = 'M'; cw = 1; }
+  } else if (comp === 'y'){
+    if (layer > 0){ letter = 'U'; cw = -1; }
+    else if (layer < 0){ letter = 'D'; cw = 1; }
+    else { letter = 'E'; cw = 1; }
   } else {
-    if(layer > 0){ face = 'F'; cw = -1; }
-    else if(layer < 0){ face = 'B'; cw = 1; }
-    else { face = 'S'; cw = -1; }
+    if (layer > 0){ letter = 'F'; cw = -1; }
+    else if (layer < 0){ letter = 'B'; cw = 1; }
+    else { letter = 'S'; cw = -1; }
   }
-
-  if(Math.abs(dir) === 2) return face + '2';
-  return dir === cw ? face : face + "'";
+  if (Math.abs(dir) === 2) return letter + '2';
+  return dir === cw ? letter : letter + "'";
 }
 
-/** 生成随机打乱序列（避免相邻同层重复） */
 function genScramble(count){
   const axes = [
     { x:1, y:0, z:0 },
@@ -269,15 +317,13 @@ function genScramble(count){
   ];
   const seq = [];
   let lastKey = '';
-
-  while(seq.length < count){
+  while (seq.length < count){
     const axis  = axes[(Math.random() * 3) | 0];
     const layer = ((Math.random() * 3) | 0) - 1;
     const dir   = Math.random() < 0.5 ? 1 : -1;
     const comp  = axis.x !== 0 ? 'x' : (axis.y !== 0 ? 'y' : 'z');
     const key   = comp + layer;
-
-    if(key === lastKey) continue;
+    if (key === lastKey) continue;
     lastKey = key;
     seq.push({ axis, layer, dir });
   }
@@ -285,51 +331,45 @@ function genScramble(count){
 }
 
 /* =========================================================================
-   CubeEngine —— Three.js 魔方引擎
+   CubeEngine —— 重构升级的 Three.js 魔方引擎
    ========================================================================= */
 class CubeEngine {
   constructor(container){
     this.container = container;
 
-    /* --- 状态 --- */
-    this.cubies     = [];
-    this._pending   = 0;
-    this._chain     = Promise.resolve();
-    this._history   = [];
-    this._cursor    = 0;
+    this.cubies   = [];
+    this._pending = 0;
+    this._chain   = Promise.resolve();
+    this._history = [];
+    this._cursor  = 0;
 
-    /* --- 回调 --- */
     this.onHistoryChange = null;
     this.onUserTurn      = null;
     this.onUserTurnEnd   = null;
-    this.onBlankDblClick = null;      // 双击空白区域回调
+    this.onBlankDblClick = null;
 
-    /* --- 视角 --- */
-    this.DEFAULT_VIEW  = { theta: 0.8, phi: 1.02, radius: 20 };
-    this.RADIUS_MIN    = 4.5;
-    this.RADIUS_MAX    = 22;
-    this.theta  = this.DEFAULT_VIEW.theta;
-    this.phi    = this.DEFAULT_VIEW.phi;
-    this.radius = this.DEFAULT_VIEW.radius;
+    this.DEFAULT_THETA = 0.8;
+    this.DEFAULT_PHI   = 1.02;
+    this.FILL_RATIO    = 0.58; 
+    this.MIN_ZOOM      = 0.5;
+    this.MAX_ZOOM      = 2.5;
 
-    /* --- 拾取 / 交互 --- */
+    this.theta = this.DEFAULT_THETA;
+    this.phi   = this.DEFAULT_PHI;
+    this.zoom  = 1;
+    this._baseDistance = 20;
+
     this._ndc   = new THREE.Vector2();
     this._ray   = new THREE.Raycaster();
     this._drag  = null;
     this._pinch = null;
+    this._lastTap = null;
 
-    /* --- 双击空白判定缓存 --- */
-    this._potentialBlankClick = null;
-    this._lastBlankClickTime  = 0;
-    this._lastBlankClickPos   = { x: 0, y: 0 };
-
-    /* --- 初始化 --- */
     this._initRenderer();
     this._initScene();
     this._buildCube();
     this._bindEvents();
     this.resize();
-    this._updateCamera();
 
     this._tick = this._tick.bind(this);
     this._rafId = requestAnimationFrame(this._tick);
@@ -344,7 +384,7 @@ class CubeEngine {
 
   _initScene(){
     this.scene  = new THREE.Scene();
-    this.camera = new THREE.PerspectiveCamera(38, 1, 0.1, 100);
+    this.camera = new THREE.PerspectiveCamera(38, 1, 0.1, 200);
 
     this.scene.add(new THREE.AmbientLight(0xffffff, 0.9));
     const dl = new THREE.DirectionalLight(0xffffff, 0.45);
@@ -355,20 +395,19 @@ class CubeEngine {
   _buildCube(){
     this.geometry  = new THREE.BoxGeometry(0.96, 0.96, 0.96);
     this.materials = {};
-    for(const f of FACES){
+    for (const f of FACES){
       this.materials[f.key] = new THREE.MeshLambertMaterial({ color: FACE_COLOR[f.key] });
     }
     this.materials.X = new THREE.MeshLambertMaterial({ color: FACE_COLOR.X });
 
-    for(let x = -1; x <= 1; x++)
-    for(let y = -1; y <= 1; y++)
-    for(let z = -1; z <= 1; z++){
-      if(!x && !y && !z) continue;
+    for (let x = -1; x <= 1; x++)
+    for (let y = -1; y <= 1; y++)
+    for (let z = -1; z <= 1; z++){
+      if (!x && !y && !z) continue;
 
       const pos = { x, y, z };
-      const mats = FACES.map(f => pos[f.axis] === f.sign
-        ? this.materials[f.key]
-        : this.materials.X
+      const mats = FACES.map(f =>
+        pos[f.axis] === f.sign ? this.materials[f.key] : this.materials.X
       );
 
       const stickers = FACES
@@ -391,32 +430,51 @@ class CubeEngine {
     }
   }
 
+  /**
+   * 改进的相机适配算法：根据屏幕短边等比缩放，彻底消除拉伸及大小异常变动
+   */
   _updateCamera(){
-    this.camera.position.setFromSphericalCoords(this.radius, this.phi, this.theta);
+    const w = this.container.clientWidth  || 1;
+    const h = this.container.clientHeight || 1;
+    const aspect = w / h;
+
+    this.camera.aspect = aspect;
+    this.camera.updateProjectionMatrix();
+
+    const fovRad = (this.camera.fov * Math.PI) / 180;
+    const tanHalf = Math.tan(fovRad / 2);
+    // 以视口短边为基准，确保横竖屏或视图切换时魔方视觉尺寸完全稳定
+    const effectiveTan = aspect < 1 ? tanHalf * aspect : tanHalf;
+    this._baseDistance = (CUBE_HALF / effectiveTan) / this.FILL_RATIO;
+
+    const dist = this._baseDistance / this.zoom;
+    this.camera.position.setFromSphericalCoords(dist, this.phi, this.theta);
     this.camera.lookAt(0, 0, 0);
   }
 
   resetView(){
-    this.theta  = this.DEFAULT_VIEW.theta;
-    this.phi    = this.DEFAULT_VIEW.phi;
-    this.radius = this.DEFAULT_VIEW.radius;
+    this.theta = this.DEFAULT_THETA;
+    this.phi   = this.DEFAULT_PHI;
+    this.zoom  = 1;
     this._updateCamera();
   }
 
   resize(){
     const w = this.container.clientWidth;
     const h = this.container.clientHeight;
-    if(!w || !h) return;
-    this.renderer.setSize(w, h);
-    this.camera.aspect = w / h;
-    this.camera.updateProjectionMatrix();
+    if (w <= 0 || h <= 0) return;
+
+    // 严谨同步物理渲染尺寸与 CSS 显示尺寸，杜绝形变拉伸
+    this.renderer.setSize(w, h, true);
+    this._updateCamera();
   }
 
   _bindEvents(){
+    const dom = this.dom;
     this._h = {
-      down:   e => this._onPointerDown(e),
-      move:   e => this._onPointerMove(e),
-      up:     e => this._onPointerUp(e),
+      down:   e => this._onDown(e),
+      move:   e => this._onMove(e),
+      up:     e => this._onUp(e),
       wheel:  e => this._onWheel(e),
       ts:     e => this._onTouchStart(e),
       tm:     e => this._onTouchMove(e),
@@ -424,51 +482,57 @@ class CubeEngine {
       resize: () => this.resize()
     };
 
-    this.dom.addEventListener('pointerdown', this._h.down);
-    this.dom.addEventListener('pointermove', this._h.move);
-    window.addEventListener('pointerup', this._h.up);
+    dom.addEventListener('pointerdown',   this._h.down);
+    dom.addEventListener('pointermove',   this._h.move);
+    window.addEventListener('pointerup',    this._h.up);
     window.addEventListener('pointercancel', this._h.up);
-    this.dom.addEventListener('wheel', this._h.wheel, { passive: false });
-    this.dom.addEventListener('touchstart', this._h.ts, { passive: false });
-    this.dom.addEventListener('touchmove', this._h.tm, { passive: false });
-    this.dom.addEventListener('touchend', this._h.te);
-    window.addEventListener('resize', this._h.resize);
+    dom.addEventListener('wheel',      this._h.wheel, { passive: false });
+    dom.addEventListener('touchstart', this._h.ts,    { passive: false });
+    dom.addEventListener('touchmove',  this._h.tm,    { passive: false });
+    dom.addEventListener('touchend',   this._h.te);
+    window.addEventListener('resize',  this._h.resize);
+
+    if (window.ResizeObserver) {
+      this._ro = new ResizeObserver(() => this.resize());
+      this._ro.observe(this.container);
+    }
   }
 
   _onWheel(e){
     e.preventDefault();
-    this.radius = clamp(this.radius * (1 + e.deltaY * 0.001), this.RADIUS_MIN, this.RADIUS_MAX);
+    this.zoom = clamp(this.zoom * (1 - e.deltaY * 0.001), this.MIN_ZOOM, this.MAX_ZOOM);
     this._updateCamera();
   }
 
   _onTouchStart(e){
-    if(e.touches.length !== 2) return;
+    if (e.touches.length !== 2) return;
     this._drag = null;
-    this._potentialBlankClick = null;
+    this._lastTap = null;
+
     const [a, b] = e.touches;
     this._pinch = {
-      dist:   Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY),
-      radius: this.radius
+      dist: Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY),
+      zoom: this.zoom
     };
   }
 
   _onTouchMove(e){
-    if(e.touches.length !== 2 || !this._pinch) return;
+    if (e.touches.length !== 2 || !this._pinch) return;
     e.preventDefault();
 
     const [a, b] = e.touches;
     const dist = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
-    if(dist <= 0) return;
+    if (dist <= 0) return;
 
-    this.radius = clamp(
-      this._pinch.radius * (this._pinch.dist / dist),
-      this.RADIUS_MIN,
-      this.RADIUS_MAX
+    this.zoom = clamp(
+      this._pinch.zoom * (dist / this._pinch.dist),
+      this.MIN_ZOOM,
+      this.MAX_ZOOM
     );
     this._updateCamera();
   }
 
-  _onPointerDown(e){
+  _onDown(e){
     e.preventDefault();
     this.dom.setPointerCapture(e.pointerId);
 
@@ -479,10 +543,9 @@ class CubeEngine {
     );
     this._ray.setFromCamera(this._ndc, this.camera);
 
-    const hits = this._ray.intersectObjects(this.cubies, false);
+    const hits = this.isBusy() ? [] : this._ray.intersectObjects(this.cubies, false);
 
-    if(hits.length && !this.isBusy()){
-      this._potentialBlankClick = null;
+    if (hits.length){
       const hit = hits[0];
       const normal = hit.face.normal.clone().transformDirection(hit.object.matrixWorld);
       normal.set(Math.round(normal.x), Math.round(normal.y), Math.round(normal.z));
@@ -497,26 +560,31 @@ class CubeEngine {
         resolved: false
       };
     } else {
-      // 记录潜在的空白点击
-      this._potentialBlankClick = {
-        x: e.clientX,
-        y: e.clientY,
-        time: performance.now()
+      this._drag = {
+        type: 'view',
+        startX: e.clientX,
+        startY: e.clientY,
+        lastX: e.clientX,
+        lastY: e.clientY,
+        moved: false
       };
-      this._drag = { type: 'view', lastX: e.clientX, lastY: e.clientY };
     }
   }
 
-  _onPointerMove(e){
-    const drag = this._drag;
-    if(!drag) return;
+  _onMove(e){
+    const d = this._drag;
+    if (!d) return;
 
-    /* ---- 旋转视角 ---- */
-    if(drag.type === 'view'){
-      const dx = e.clientX - drag.lastX;
-      const dy = e.clientY - drag.lastY;
-      drag.lastX = e.clientX;
-      drag.lastY = e.clientY;
+    if (d.type === 'view'){
+      const dx = e.clientX - d.lastX;
+      const dy = e.clientY - d.lastY;
+      d.lastX = e.clientX;
+      d.lastY = e.clientY;
+
+      if (!d.moved && Math.hypot(e.clientX - d.startX, e.clientY - d.startY) > 5){
+        d.moved = true;
+      }
+      if (!d.moved) return;
 
       this.theta -= dx * 0.008;
       this.phi    = clamp(this.phi - dy * 0.008, 0.15, Math.PI - 0.15);
@@ -524,64 +592,64 @@ class CubeEngine {
       return;
     }
 
-    /* ---- 转动层 ---- */
-    if(drag.resolved) return;
+    if (d.resolved) return;
 
-    const dx = e.clientX - drag.startX;
-    const dy = e.clientY - drag.startY;
-    if(Math.hypot(dx, dy) > 14){
-      drag.resolved = true;
+    const dx = e.clientX - d.startX;
+    const dy = e.clientY - d.startY;
+    if (Math.hypot(dx, dy) > 14){
+      d.resolved = true;
       this._drag = null;
-      this._applyDrag(drag, dx, dy);
+      this._applyDrag(d, dx, dy);
     }
   }
 
-  _onPointerUp(e){
-    // 双击空白处检测：释放时未发生明显位移且在规定时间内
-    if(this._potentialBlankClick){
-      const dx = e.clientX - this._potentialBlankClick.x;
-      const dy = e.clientY - this._potentialBlankClick.y;
-      const dt = performance.now() - this._potentialBlankClick.time;
-
-      if(Math.hypot(dx, dy) < 14 && dt < 320){
-        const now = performance.now();
-        const distToLast = Math.hypot(e.clientX - this._lastBlankClickPos.x, e.clientY - this._lastBlankClickPos.y);
-
-        if(now - this._lastBlankClickTime < 360 && distToLast < 30){
-          if(this.onBlankDblClick) this.onBlankDblClick();
-          this._lastBlankClickTime = 0; // 重置防止多次连续触发
-        } else {
-          this._lastBlankClickTime = now;
-          this._lastBlankClickPos  = { x: e.clientX, y: e.clientY };
-        }
-      }
-      this._potentialBlankClick = null;
-    }
+  _onUp(e){
+    const d = this._drag;
     this._drag = null;
+    this._pinch = null;
+    if (!d) return;
+
+    const isTap = d.type === 'layer' ? !d.resolved : !d.moved;
+    if (!isTap){
+      this._lastTap = null;
+      return;
+    }
+
+    const now = performance.now();
+    const last = this._lastTap;
+    if (last && now - last.time < 350 &&
+        Math.hypot(e.clientX - last.x, e.clientY - last.y) < 30){
+      this._lastTap = null;
+      if (this.onBlankDblClick) this.onBlankDblClick();
+    } else {
+      this._lastTap = { x: e.clientX, y: e.clientY, time: now };
+    }
   }
 
   _applyDrag(drag, dx, dy){
     const n = drag.normal;
     const tangents = [];
-    if(n.x === 0) tangents.push(new THREE.Vector3(1, 0, 0));
-    if(n.y === 0) tangents.push(new THREE.Vector3(0, 1, 0));
-    if(n.z === 0) tangents.push(new THREE.Vector3(0, 0, 1));
+    if (n.x === 0) tangents.push(new THREE.Vector3(1, 0, 0));
+    if (n.y === 0) tangents.push(new THREE.Vector3(0, 1, 0));
+    if (n.z === 0) tangents.push(new THREE.Vector3(0, 0, 1));
 
     const dragVec = new THREE.Vector2(dx, -dy).normalize();
-    let best = null;
-    let bestScore = 0;
 
-    for(const t of tangents){
-      const score = this._screenDir(drag.point, t).dot(dragVec);
-      if(Math.abs(score) > Math.abs(bestScore)){
-        bestScore = score;
-        best = t.clone().multiplyScalar(Math.sign(score));
+    let best = null;
+    let bestAbs = 0;
+    for (const t of tangents){
+      const s = this._screenDir(drag.point, t).dot(dragVec);
+      if (Math.abs(s) > bestAbs){
+        bestAbs = Math.abs(s);
+        best = t.clone().multiplyScalar(Math.sign(s));
       }
     }
-    if(!best) return;
+    if (!best) return;
 
     const axisVec = new THREE.Vector3().crossVectors(n, best);
-    const comp = axisVec.x !== 0 ? 'x' : (axisVec.y !== 0 ? 'y' : 'z');
+    const comp = Math.abs(axisVec.x) > 0.5 ? 'x'
+               : Math.abs(axisVec.y) > 0.5 ? 'y'
+               : 'z';
 
     const step = {
       axis:  { x: axisVec.x, y: axisVec.y, z: axisVec.z },
@@ -590,10 +658,12 @@ class CubeEngine {
     };
 
     this.pushHistory(step);
-    if(this.onUserTurn) this.onUserTurn(step);
+    if (this.onUserTurn) this.onUserTurn(step);
 
     const p = this.turn(step.axis, step.layer, step.dir, 200);
-    if(this.onUserTurnEnd) p.then(() => this.onUserTurnEnd(), () => {});
+    if (this.onUserTurnEnd){
+      p.then(() => this.onUserTurnEnd(), () => {});
+    }
   }
 
   _screenDir(point, vec){
@@ -608,7 +678,7 @@ class CubeEngine {
     this._pending++;
     const run = () => this._animateMove(axis, layer, dir, duration);
     const p = this._chain.then(run, run);
-    this._chain = p.then(() => {}, () => {});
+    this._chain = p.catch(() => {});
     return p.finally(() => { this._pending--; });
   }
 
@@ -617,8 +687,8 @@ class CubeEngine {
     const pivot = new THREE.Group();
     this.scene.add(pivot);
 
-    for(const c of this.cubies){
-      if(Math.round(c.position[comp]) === layer) pivot.attach(c);
+    for (const c of this.cubies){
+      if (Math.round(c.position[comp]) === layer) pivot.attach(c);
     }
 
     const target = (Math.PI / 2) * dir;
@@ -629,7 +699,7 @@ class CubeEngine {
       pivot.rotation[comp] = target;
       pivot.updateMatrixWorld(true);
 
-      for(const child of pivot.children.slice()){
+      for (const child of pivot.children.slice()){
         this.scene.attach(child);
         child.position.set(
           Math.round(child.position.x),
@@ -659,11 +729,13 @@ class CubeEngine {
   }
 
   _emitHistory(){
-    if(this.onHistoryChange) this.onHistoryChange(this._cursor, this._history.length);
+    if (this.onHistoryChange){
+      this.onHistoryChange(this._cursor, this._history.length);
+    }
   }
 
   goPrev(){
-    if(this._cursor <= 0 || this.isBusy()) return null;
+    if (this._cursor <= 0 || this.isBusy()) return null;
     const step = this._history[--this._cursor];
     const p = this.turn(step.axis, step.layer, -step.dir, 140);
     this._emitHistory();
@@ -671,7 +743,7 @@ class CubeEngine {
   }
 
   goNext(){
-    if(this._cursor >= this._history.length || this.isBusy()) return null;
+    if (this._cursor >= this._history.length || this.isBusy()) return null;
     const step = this._history[this._cursor++];
     const p = this.turn(step.axis, step.layer, step.dir, 140);
     this._emitHistory();
@@ -679,7 +751,7 @@ class CubeEngine {
   }
 
   reset(){
-    for(const c of this.cubies){
+    for (const c of this.cubies){
       c.position.copy(c.userData.home);
       c.quaternion.identity();
     }
@@ -695,7 +767,7 @@ class CubeEngine {
   }
 
   restore(state){
-    if(!state || state.length !== this.cubies.length) return false;
+    if (!state || state.length !== this.cubies.length) return false;
     state.forEach((s, i) => {
       this.cubies[i].position.set(s.pos.x, s.pos.y, s.pos.z);
       this.cubies[i].quaternion.set(s.quat.x, s.quat.y, s.quat.z, s.quat.w);
@@ -707,19 +779,19 @@ class CubeEngine {
     const faces = new Map();
     const n = new THREE.Vector3();
 
-    for(const c of this.cubies){
-      for(const s of c.userData.stickers){
+    for (const c of this.cubies){
+      for (const s of c.userData.stickers){
         n.copy(s.normal).applyQuaternion(c.quaternion);
         const key = `${Math.round(n.x)},${Math.round(n.y)},${Math.round(n.z)}`;
 
         let set = faces.get(key);
-        if(!set) faces.set(key, set = new Set());
+        if (!set) faces.set(key, set = new Set());
         set.add(s.color);
       }
     }
 
-    for(const set of faces.values()){
-      if(set.size > 1) return false;
+    for (const set of faces.values()){
+      if (set.size > 1) return false;
     }
     return true;
   }
@@ -732,21 +804,23 @@ class CubeEngine {
   dispose(){
     cancelAnimationFrame(this._rafId);
 
-    this.dom.removeEventListener('pointerdown', this._h.down);
-    this.dom.removeEventListener('pointermove', this._h.move);
-    window.removeEventListener('pointerup', this._h.up);
-    window.removeEventListener('pointercancel', this._h.up);
-    this.dom.removeEventListener('wheel', this._h.wheel);
-    this.dom.removeEventListener('touchstart', this._h.ts);
-    this.dom.removeEventListener('touchmove', this._h.tm);
-    this.dom.removeEventListener('touchend', this._h.te);
-    window.removeEventListener('resize', this._h.resize);
+    if (this._ro) this._ro.disconnect();
+
+    this.dom.removeEventListener('pointerdown',   this._h.down);
+    this.dom.removeEventListener('pointermove',   this._h.move);
+    window.removeEventListener('pointerup',       this._h.up);
+    window.removeEventListener('pointercancel',   this._h.up);
+    this.dom.removeEventListener('wheel',         this._h.wheel);
+    this.dom.removeEventListener('touchstart',    this._h.ts);
+    this.dom.removeEventListener('touchmove',     this._h.tm);
+    this.dom.removeEventListener('touchend',      this._h.te);
+    window.removeEventListener('resize',          this._h.resize);
 
     this.geometry.dispose();
-    for(const key in this.materials) this.materials[key].dispose();
+    for (const k in this.materials) this.materials[k].dispose();
     this.renderer.dispose();
 
-    if(this.dom.parentNode) this.dom.parentNode.removeChild(this.dom);
+    if (this.dom.parentNode) this.dom.parentNode.removeChild(this.dom);
   }
 }
 
@@ -761,7 +835,7 @@ Vue.component('cube-canvas', {
     this.$emit('ready', this.engine);
   },
   beforeDestroy(){
-    if(this.engine) this.engine.dispose();
+    if (this.engine) this.engine.dispose();
   }
 });
 
@@ -871,11 +945,8 @@ new Vue({
   data(){
     return {
       engine: null,
-
-      /* 界面显隐 */
       uiVisible: true,
 
-      /* 计分 */
       moves: 0,
       timeText: '00:00',
       timing: false,
@@ -883,16 +954,13 @@ new Vue({
       timerId: null,
       started: false,
 
-      /* 历史导航 */
       canPrev: false,
       canNext: false,
       locked: false,
 
-      /* 录制 */
       recording: false,
       recordedMoves: [],
 
-      /* UI */
       activeModal: null,
       snapshots: [],
       formulas: [],
@@ -912,7 +980,6 @@ new Vue({
   },
 
   methods: {
-    /* ================= 引擎就绪 ================= */
     onEngineReady(engine){
       this.engine = engine;
 
@@ -924,59 +991,40 @@ new Vue({
       engine.onUserTurn = step => {
         this.startTimer();
         this.moves++;
-        if(this.recording) this.recordedMoves.push(step);
+        if (this.recording) this.recordedMoves.push(step);
       };
 
       engine.onUserTurnEnd = () => {
-        if(this.started && engine.isSolved()){
+        if (this.started && engine.isSolved()){
           this.stopTimer();
           this.started = false;
           this.showToast(`🎉 还原成功！步数 ${this.moves}，用时 ${this.timeText}`);
         }
       };
 
-      // 绑定双击空白处事件
-      engine.onBlankDblClick = () => {
-        this.toggleUI();
-      };
+      // 双击空白处切换 UI 显隐
+      engine.onBlankDblClick = () => this.toggleUI();
 
       const { index, length } = engine.getHistoryState();
       this.canPrev = index > 0;
       this.canNext = index < length;
     },
 
-    /* ================= 切换界面显示 ================= */
     toggleUI(){
-      // 记录当前画布尺寸，保持魔方视觉大小不变
-      let prevW = 0, prevH = 0;
-      if(this.engine && this.engine.dom){
-        prevW = this.engine.dom.width;
-        prevH = this.engine.dom.height;
-      }
-
       this.uiVisible = !this.uiVisible;
-
-      this.$nextTick(() => {
-        if(this.engine && prevW > 0 && prevH > 0){
-          // 恢复画布尺寸，魔方大小保持不变
-          this.engine.renderer.setSize(prevW, prevH);
-        }
-      });
-      this.showToast(this.uiVisible ? '已显示按钮' : '已隐藏按钮，双击空白处恢复');
+      this.showToast(this.uiVisible ? '已显示面板' : '已隐藏面板，双击空白处可恢复');
     },
 
-    /* ================= 通用守卫 ================= */
     blockIfBusy(){
-      if(this.engine && this.engine.isBusy()){
+      if (this.engine && this.engine.isBusy()){
         this.showToast('动画进行中，请稍候…');
         return true;
       }
       return false;
     },
 
-    /* ================= 计时 ================= */
     startTimer(){
-      if(this.timing) return;
+      if (this.timing) return;
       this.timing = true;
       this.tStart = performance.now();
       this._tickTimer();
@@ -984,16 +1032,16 @@ new Vue({
     },
 
     _tickTimer(){
-      if(!this.timing) return;
+      if (!this.timing) return;
       this.timeText = fmtTime(performance.now() - this.tStart);
     },
 
     stopTimer(){
-      if(this.timerId){
+      if (this.timerId){
         clearInterval(this.timerId);
         this.timerId = null;
       }
-      if(this.timing){
+      if (this.timing){
         this.timing = false;
         this.timeText = fmtTime(performance.now() - this.tStart);
       }
@@ -1008,7 +1056,6 @@ new Vue({
       this.started  = false;
     },
 
-    /* ================= Toast ================= */
     showToast(msg){
       this.toast = { show: true, msg };
       clearTimeout(this._toastTimer);
@@ -1017,18 +1064,17 @@ new Vue({
       }, 2600);
     },
 
-    /* ================= 打乱 ================= */
     async onShuffle(){
       const engine = this.engine;
-      if(!engine || engine.isBusy()) return;
+      if (!engine || engine.isBusy()) return;
 
       this.locked = true;
       this.resetRun();
       engine.clearHistory();
       this.showToast('🔀 正在打乱…');
 
-      try{
-        for(const m of genScramble(20)){
+      try {
+        for (const m of genScramble(20)){
           engine.pushHistory(m);
           await engine.turn(m.axis, m.layer, m.dir, 80);
         }
@@ -1040,10 +1086,9 @@ new Vue({
       }
     },
 
-    /* ================= 复原 ================= */
     onReset(){
-      if(!this.engine) return;
-      if(this.blockIfBusy()) return;
+      if (!this.engine) return;
+      if (this.blockIfBusy()) return;
 
       this.engine.reset();
       this.resetRun();
@@ -1051,28 +1096,26 @@ new Vue({
     },
 
     onResetView(){
-      if(!this.engine) return;
+      if (!this.engine) return;
       this.engine.resetView();
       this.showToast('↺ 视角已还原');
     },
 
-    /* ================= 历史导航 ================= */
     onPrev(){
-      if(!this.engine || this.engine.isBusy()) return;
+      if (!this.engine || this.engine.isBusy()) return;
       this.engine.goPrev();
     },
 
     onNext(){
-      if(!this.engine || this.engine.isBusy()) return;
+      if (!this.engine || this.engine.isBusy()) return;
       this.engine.goNext();
     },
 
-    /* ================= 录制 ================= */
     onRecord(){
-      if(!this.engine) return;
-      if(this.blockIfBusy()) return;
+      if (!this.engine) return;
+      if (this.blockIfBusy()) return;
 
-      if(!this.recording){
+      if (!this.recording){
         this.recording = true;
         this.recordedMoves = [];
         this.showToast('🔴 开始记录步骤，转动魔方吧');
@@ -1080,14 +1123,13 @@ new Vue({
       }
 
       this.recording = false;
-      if(this.recordedMoves.length === 0){
+      if (this.recordedMoves.length === 0){
         this.showToast('未记录到任何步骤');
         return;
       }
       this.activeModal = 'formula-save';
     },
 
-    /* ================= 公式 ================= */
     onSaveFormula(title){
       const moves = this.recordedMoves;
       const formula = {
@@ -1112,13 +1154,13 @@ new Vue({
 
     async onPlayFormula(id){
       const formula = this.formulas.find(f => f.id === id);
-      if(!formula || !this.engine) return;
-      if(this.blockIfBusy()) return;
+      if (!formula || !this.engine) return;
+      if (this.blockIfBusy()) return;
 
       this.closeModal();
       this.showToast('▶ 执行「' + formula.title + '」');
 
-      for(const m of formula.moves){
+      for (const m of formula.moves){
         this.engine.pushHistory(m);
         this.moves++;
         await this.engine.turn(m.axis, m.layer, m.dir, 130);
@@ -1135,9 +1177,8 @@ new Vue({
       localStorage.setItem(FORMULA_KEY, JSON.stringify(this.formulas));
     },
 
-    /* ================= 快照 ================= */
     openSnapshotModal(){
-      if(this.blockIfBusy()) return;
+      if (this.blockIfBusy()) return;
       this.activeModal = 'snapshot-save';
     },
 
@@ -1157,10 +1198,10 @@ new Vue({
 
     onRestoreSnapshot(id){
       const snap = this.snapshots.find(s => s.id === id);
-      if(!snap || !this.engine) return;
-      if(this.blockIfBusy()) return;
+      if (!snap || !this.engine) return;
+      if (this.blockIfBusy()) return;
 
-      if(!this.engine.restore(snap.cube)){
+      if (!this.engine.restore(snap.cube)){
         this.showToast('快照数据不兼容');
         return;
       }
@@ -1180,14 +1221,13 @@ new Vue({
       localStorage.setItem(SNAPSHOT_KEY, JSON.stringify(this.snapshots));
     },
 
-    /* ================= 模态控制 ================= */
     openSnapshotLibrary(){
-      if(this.blockIfBusy()) return;
+      if (this.blockIfBusy()) return;
       this.activeModal = 'snapshot-lib';
     },
 
     openFormulaLibrary(){
-      if(this.blockIfBusy()) return;
+      if (this.blockIfBusy()) return;
       this.activeModal = 'formula-lib';
     },
 
