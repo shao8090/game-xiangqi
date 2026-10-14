@@ -14,6 +14,9 @@
     .fade-enter-from,.fade-leave-to{opacity:0;transform:translateY(-6px)}
     .fade-footer-enter-active,.fade-footer-leave-active{transition:opacity .25s ease,transform .25s ease}
     .fade-footer-enter-from,.fade-footer-leave-to{opacity:0;transform:translateY(6px)}
+    /* ✅ 隐藏按钮时不影响布局，魔方尺寸不变 */
+    #hud.buttons-hidden,#footer.buttons-hidden{opacity:0;pointer-events:none;transform:scale(.96)}
+    #hud,#footer{transition:opacity .28s ease,transform .28s ease;will-change:opacity,transform}
     #hud .r1c1{grid-row:1;grid-column:1;justify-self:start}
     #hud .r1c2{grid-row:1;grid-column:2;justify-self:center;white-space:nowrap}
     #hud .r1c3{grid-row:1;grid-column:3;justify-self:center;white-space:nowrap}
@@ -76,8 +79,7 @@
 <body>
 
 <div id="app">
-    <transition name="fade">
-    <div id="hud" v-show="buttonsVisible">
+    <div id="hud" :class="{ 'buttons-hidden': !buttonsVisible }">
         <button class="btn gray r1c1" :disabled="uiLocked" @click="openSnapshotList">📋 快照库</button>
         <button class="btn gray r1c2" :disabled="uiLocked" @click="openFormulaList">📜 公式库</button>
         <span class="stat r1c3">步数 <b>{{ stepCount }}</b></span>
@@ -89,17 +91,14 @@
         <span class="stat r2c3">时间 <b>{{ timerText }}</b></span>
         <button class="btn r2c4" :disabled="uiLocked" @click="onScramble">🔀 打乱</button>
     </div>
-    </transition>
 
     <div id="wrap" ref="wrap"></div>
 
-    <transition name="fade-footer">
-    <div id="footer" v-show="buttonsVisible">
+    <div id="footer" :class="{ 'buttons-hidden': !buttonsVisible }">
         <button class="btn gray nav-btn" :disabled="!canPrev" @click="onPrev">◀ 上一步</button>
         <button class="btn gray" @click="onResetView">↺ 视角</button>
         <button class="btn gray nav-btn" :disabled="!canNext" @click="onNext">下一步 ▶</button>
     </div>
-    </transition>
 
     <div id="toast" :class="{ show: toastShow }">{{ toastMsg }}</div>
 
@@ -904,7 +903,6 @@ new Vue({
         this._timeStart = 0;
         this._recordStartState = null;
         this._toastTimer = null;
-        this._resizeTimer = null;
         this.engine = null;
     },
 
@@ -930,7 +928,6 @@ new Vue({
     beforeDestroy() {
         if (this.engine) this.engine.destroy();
         clearTimeout(this._toastTimer);
-        clearTimeout(this._resizeTimer);
         window.removeEventListener('keydown', this.onKeyDown);
     },
 
@@ -1017,18 +1014,9 @@ new Vue({
         },
         onResetView() { this.engine.resetView(); this.toast('视角已还原'); },
 
-        /* 双击空白处：隐藏 / 显示按钮 */
+        /* 双击空白处：隐藏 / 显示按钮（使用 opacity 不影响布局，魔方尺寸不变） */
         toggleButtons() {
             this.buttonsVisible = !this.buttonsVisible;
-
-            /* ✅ 修复：<transition> + v-show 时，元素要等过渡动画(0.25s)结束后
-             * 才真正 display:none，容器尺寸也到那时才变化，
-             * 所以这里除了 nextTick 立即校正一次，还要在动画结束后再校正一次。 */
-            this.$nextTick(() => { if (this.engine) this.engine.resize(); });
-            clearTimeout(this._resizeTimer);
-            this._resizeTimer = setTimeout(() => {
-                if (this.engine) this.engine.resize();
-            }, 320);
 
             if (!this.buttonsVisible) {
                 this.toast('按钮已隐藏，再次双击空白处可恢复');

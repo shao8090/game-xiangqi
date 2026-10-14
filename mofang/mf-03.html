@@ -55,8 +55,8 @@
   .stat-cell b{font-size:15px;color:#7fe3ff;margin-left:2px}
 
   /* ===== 3D 画布 ===== */
-  .cube-canvas{flex:1;position:relative;touch-action:none;min-height:0}
-  canvas{display:block}
+  .cube-canvas{flex:1;position:relative;touch-action:none;min-height:0;display:flex;align-items:center;justify-content:center}
+  canvas{display:block;max-width:100%;max-height:100%}
 
   /* ===== Toast ===== */
   #toast{
@@ -947,9 +947,20 @@ new Vue({
 
     /* ================= 切换界面显示 ================= */
     toggleUI(){
+      // 记录当前画布尺寸，保持魔方视觉大小不变
+      let prevW = 0, prevH = 0;
+      if(this.engine && this.engine.dom){
+        prevW = this.engine.dom.width;
+        prevH = this.engine.dom.height;
+      }
+
       this.uiVisible = !this.uiVisible;
+
       this.$nextTick(() => {
-        if(this.engine) this.engine.resize();
+        if(this.engine && prevW > 0 && prevH > 0){
+          // 恢复画布尺寸，魔方大小保持不变
+          this.engine.renderer.setSize(prevW, prevH);
+        }
       });
       this.showToast(this.uiVisible ? '已显示按钮' : '已隐藏按钮，双击空白处恢复');
     },
