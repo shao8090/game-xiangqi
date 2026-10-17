@@ -36,13 +36,13 @@
     #wrap > canvas{width:100% !important;height:100% !important;display:block}
     #toast{position:fixed;left:50%;top:16%;transform:translateX(-50%);background:rgba(0,0,0,.78);color:#fff;padding:12px 24px;border-radius:14px;font-size:15px;opacity:0;pointer-events:none;transition:opacity .3s;z-index:200;white-space:nowrap;max-width:92vw;overflow:hidden;text-overflow:ellipsis}
     #toast.show{opacity:1}
-    #snapshot-modal{position:fixed;inset:0;background:rgba(0,0,0,.7);display:none;align-items:center;justify-content:center;z-index:100}
-    #snapshot-modal.show{display:flex}
     .modal-box{background:#1e2436;border-radius:16px;padding:20px;width:90%;max-width:400px;max-height:82vh;overflow-y:auto;color:#fff;box-shadow:0 10px 40px rgba(0,0,0,.5)}
     .modal-box h3{margin:0 0 14px;font-size:18px}
     .modal-box input{width:100%;padding:12px;border:1px solid #3a4358;border-radius:10px;background:#10142a;color:#fff;font-size:15px;outline:none;margin-bottom:14px}
     .modal-box input:focus{border-color:#7b3ff2}
     .modal-actions{display:flex;gap:10px;justify-content:flex-end}
+    #snapshot-modal{position:fixed;inset:0;background:rgba(0,0,0,.7);display:none;align-items:center;justify-content:center;z-index:100}
+    #snapshot-modal.show{display:flex}
     .snapshot-list{max-height:none;overflow-y:auto;margin-top:4px}
     .snapshot-item{display:flex;align-items:center;gap:10px;padding:10px 12px;background:#10142a;border-radius:10px;margin-bottom:8px}
     .snapshot-info{flex:1;overflow:hidden;min-width:0}
@@ -184,40 +184,41 @@
  *   - 按需渲染（dirty flag）
  *   - 复用临时对象 / 复用 mesh
  *   - 多指针追踪，避免双指缩放误触发旋转
+ *   - ★ 快照采集改为「仅采集外表面贴纸」，修复恢复快照后显示异常
  * ========================================================================= */
 function createCubeEngine(hooks) {
     hooks = hooks || {};
 
     /* ---------- 常量 ---------- */
-    const SIZE         = 3;
-    const CUBE_SIZE    = 1.0;
-    const GAP          = 0.04;
-    const STEP         = CUBE_SIZE + GAP;        // 1.04
-    const OFFSET       = (SIZE - 1) / 2;         // 1
-    const ANIM_DURATION = 160;
-    const NAV_DURATION  = 140;
+    const SIZE              = 3;
+    const CUBE_SIZE         = 1.0;
+    const GAP               = 0.04;
+    const STEP              = CUBE_SIZE + GAP;        // 1.04
+    const OFFSET            = (SIZE - 1) / 2;         // 1
+    const ANIM_DURATION     = 160;
+    const NAV_DURATION      = 140;
     const SCRAMBLE_DUR_SINGLE = 55;
     const SCRAMBLE_DUR_DOUBLE = 80;
-    const VEC_POOL_MAX = 64;
-    const TOTAL_CUBIES = SIZE * SIZE * SIZE;     // 27
+    const VEC_POOL_MAX      = 64;
+    const TOTAL_CUBIES      = SIZE * SIZE * SIZE;     // 27
 
-    /* ---------- 配色 ---------- */
+    /* ---------- 配色 & 颜色编号 ---------- */
+    // 编号约定：0 = 内部，1 = R，2 = L，3 = U，4 = D，5 = F，6 = B
     const COLORS = {
-        R: 0x0051ba,   // 右：蓝
-        L: 0xc41e3a,   // 左：红
-        U: 0xffd500,   // 上：黄
-        D: 0xffffff,   // 下：白
-        F: 0x009e60,   // 前：绿
-        B: 0xff5800,   // 后：橙
+        R: 0x0051ba, L: 0xc41e3a, U: 0xffd500,
+        D: 0xffffff, F: 0x009e60, B: 0xff5800,
         INNER: 0x1a1a1a
     };
-    const FACE_ORDER = ['R', 'L', 'U', 'D', 'F', 'B'];
-    const COLOR_TO_NUM = {};
-    const NUM_TO_COLOR = { 0: COLORS.INNER };
-    FACE_ORDER.forEach((f, i) => {
-        COLOR_TO_NUM[COLORS[f]] = i + 1;
-        NUM_TO_COLOR[i + 1] = COLORS[f];
-    });
+    const ID_COLORS = [
+        COLORS.INNER,
+        COLORS.R, COLORS.L, COLORS.U,
+        COLORS.D, COLORS.F, COLORS.B
+    ];
+    // MATS[n] 直接按颜色编号索引，避免「颜色 hex ↔ 材质」来回查表
+    const MATS = ID_COLORS.map(c => new THREE.MeshLambertMaterial({ color: c }));
+    MATS.forEach((m, i) => { m.userData.cid = i; });
+
+    const MAT_INNER = MATS[0];
 
     /* ---------- 场景 ---------- */
     const scene    = new THREE.Scene();
@@ -232,12 +233,6 @@ function createCubeEngine(hooks) {
 
     const cubeGroup = new THREE.Group();
     scene.add(cubeGroup);
-
-    /* ---------- 共享材质池 ---------- */
-    const materialMap = {};
-    Object.keys(COLORS).forEach(k => {
-        materialMap[COLORS[k]] = new THREE.MeshLambertMaterial({ color: COLORS[k] });
-    });
 
     /* ---------- 几何体 ---------- */
     const boxGeom = new THREE.BoxGeometry(CUBE_SIZE, CUBE_SIZE, CUBE_SIZE);
@@ -275,13 +270,13 @@ function createCubeEngine(hooks) {
     let needRender = true;
     function markDirty() { needRender = true; }
 
-      /* ---------- 相机轨道 ---------- */
-    let RAD = 14;                                   // 原来 11
-    const RAD_MIN = 4.5, RAD_MAX = 30;              // RAD_MAX 由 26 提到 30
+    /* ---------- 相机轨道 ---------- */
+    let RAD = 14;
+    const RAD_MIN = 4.5, RAD_MAX = 30;
     let theta = 0.8, phi = 1.02;
-    const DEF = { theta: 0.8, phi: 1.02, rad: 14 }; // 原来 11
+    const DEF = { theta: 0.8, phi: 1.02, rad: 14 };
 
-    /* 魔方在画面中的占比：数值越小，默认显示越小（0.78 ≈ 缩小到 78%） */
+    /* 魔方在画面中的占比 */
     const CUBE_VISUAL_SCALE = 1.3;
 
     function updCam() {
@@ -290,13 +285,12 @@ function createCubeEngine(hooks) {
         markDirty();
     }
 
-    /* 根据视口自适应初始距离（保证竖屏也能完整显示） */
     function computeFitRadius() {
         const w = wrapEl ? wrapEl.clientWidth : 0;
         const h = wrapEl ? wrapEl.clientHeight : 0;
         if (!w || !h) return DEF.rad;
         const aspect = w / h;
-        const halfExtent = SIZE * STEP * 0.70 * CUBE_VISUAL_SCALE;  // 乘上视觉缩放
+        const halfExtent = SIZE * STEP * 0.70 * CUBE_VISUAL_SCALE;
         const tanHalf = Math.tan((camera.fov * Math.PI / 180) / 2);
         const distV = halfExtent / tanHalf;
         const distH = halfExtent / (tanHalf * Math.max(aspect, 0.15));
@@ -334,11 +328,7 @@ function createCubeEngine(hooks) {
         }
         cubies = [];
         for (let i = 0; i < TOTAL_CUBIES; i++) {
-            const materials = [
-                materialMap[COLORS.INNER], materialMap[COLORS.INNER],
-                materialMap[COLORS.INNER], materialMap[COLORS.INNER],
-                materialMap[COLORS.INNER], materialMap[COLORS.INNER]
-            ];
+            const materials = new Array(6).fill(MAT_INNER);
             const mesh = new THREE.Mesh(boxGeom, materials);
             cubeGroup.add(mesh);
             cubies.push(mesh);
@@ -357,12 +347,12 @@ function createCubeEngine(hooks) {
                 (z - OFFSET) * STEP
             );
             c.quaternion.set(0, 0, 0, 1);
-            c.material[0] = materialMap[x === SIZE - 1 ? COLORS.R : COLORS.INNER];
-            c.material[1] = materialMap[x === 0        ? COLORS.L : COLORS.INNER];
-            c.material[2] = materialMap[y === SIZE - 1 ? COLORS.U : COLORS.INNER];
-            c.material[3] = materialMap[y === 0        ? COLORS.D : COLORS.INNER];
-            c.material[4] = materialMap[z === SIZE - 1 ? COLORS.F : COLORS.INNER];
-            c.material[5] = materialMap[z === 0        ? COLORS.B : COLORS.INNER];
+            c.material[0] = (x === SIZE - 1) ? MATS[1] : MAT_INNER;  // +X  R
+            c.material[1] = (x === 0)        ? MATS[2] : MAT_INNER;  // -X  L
+            c.material[2] = (y === SIZE - 1) ? MATS[3] : MAT_INNER;  // +Y  U
+            c.material[3] = (y === 0)        ? MATS[4] : MAT_INNER;  // -Y  D
+            c.material[4] = (z === SIZE - 1) ? MATS[5] : MAT_INNER;  // +Z  F
+            c.material[5] = (z === 0)        ? MATS[6] : MAT_INNER;  // -Z  B
             c.updateMatrix();
         }
         markDirty();
@@ -532,43 +522,96 @@ function createCubeEngine(hooks) {
         }));
     }
 
-    /* ---------- 快照：面片网格（6面 × 3×3） ---------- */
+    /* =======================================================================
+     * ★ 快照：面片网格（6 面 × 3×3）
+     *   核心修复：只有「位于该外表面」的小块的贴纸才允许写入网格。
+     *   旧实现只判断法线方向，导致内部块（例如 z=0 的块其 +Z 面朝向内部）
+     *   也会写入 F 面网格，并可能覆盖真实贴纸，恢复后出现「黑块/错色」。
+     * ===================================================================== */
     function captureFaceGrid() {
         const faces = [];
         for (let f = 0; f < 6; f++) {
-            faces.push(Array(SIZE).fill(null).map(() => Array(SIZE).fill(0)));
+            const grid = [];
+            for (let r = 0; r < SIZE; r++) grid.push(new Array(SIZE).fill(0));
+            faces.push(grid);
         }
 
-        for (const cubie of cubies) {
+        for (let i = 0; i < cubies.length; i++) {
+            const cubie = cubies[i];
+
             const px = Math.round(cubie.position.x / STEP + OFFSET);
             const py = Math.round(cubie.position.y / STEP + OFFSET);
             const pz = Math.round(cubie.position.z / STEP + OFFSET);
 
+            // 位置越界（动画中/异常态）直接跳过
+            if (px < 0 || px >= SIZE || py < 0 || py >= SIZE || pz < 0 || pz >= SIZE) continue;
+
+            const onR = px === SIZE - 1, onL = px === 0;
+            const onU = py === SIZE - 1, onD = py === 0;
+            const onF = pz === SIZE - 1, onB = pz === 0;
+
             for (let lf = 0; lf < 6; lf++) {
-                _tmpWN.set(0, 0, 0);
-                if (lf === 0) _tmpWN.set(1, 0, 0);
+                if (lf === 0)      _tmpWN.set(1, 0, 0);
                 else if (lf === 1) _tmpWN.set(-1, 0, 0);
                 else if (lf === 2) _tmpWN.set(0, 1, 0);
                 else if (lf === 3) _tmpWN.set(0, -1, 0);
                 else if (lf === 4) _tmpWN.set(0, 0, 1);
-                else _tmpWN.set(0, 0, -1);
+                else               _tmpWN.set(0, 0, -1);
+
                 _tmpWN.applyQuaternion(cubie.quaternion);
 
                 let gf = -1, r = 0, c = 0;
-                if (Math.abs(_tmpWN.x - 1) < 0.5)      { gf = 0; r = py; c = pz; }
-                else if (Math.abs(_tmpWN.x + 1) < 0.5) { gf = 1; r = py; c = pz; }
-                else if (Math.abs(_tmpWN.y - 1) < 0.5) { gf = 2; r = px; c = pz; }
-                else if (Math.abs(_tmpWN.y + 1) < 0.5) { gf = 3; r = px; c = pz; }
-                else if (Math.abs(_tmpWN.z - 1) < 0.5) { gf = 4; r = px; c = py; }
-                else if (Math.abs(_tmpWN.z + 1) < 0.5) { gf = 5; r = px; c = py; }
-                else continue;
+
+                if (_tmpWN.x > 0.5) {
+                    if (!onR) continue;
+                    gf = 0; r = py; c = pz;
+                } else if (_tmpWN.x < -0.5) {
+                    if (!onL) continue;
+                    gf = 1; r = py; c = pz;
+                } else if (_tmpWN.y > 0.5) {
+                    if (!onU) continue;
+                    gf = 2; r = px; c = pz;
+                } else if (_tmpWN.y < -0.5) {
+                    if (!onD) continue;
+                    gf = 3; r = px; c = pz;
+                } else if (_tmpWN.z > 0.5) {
+                    if (!onF) continue;
+                    gf = 4; r = px; c = py;
+                } else if (_tmpWN.z < -0.5) {
+                    if (!onB) continue;
+                    gf = 5; r = px; c = py;
+                } else {
+                    continue;
+                }
 
                 const mat = cubie.material[lf];
-                const hex = (mat && mat.color) ? mat.color.getHex() : COLORS.INNER;
-                faces[gf][r][c] = COLOR_TO_NUM[hex] || 0;
+                faces[gf][r][c] = (mat && mat.userData && mat.userData.cid) || 0;
             }
         }
         return faces;
+    }
+
+    /* ---------- 快照数据校验 ---------- */
+    function isFaceGrid(g) {
+        if (!Array.isArray(g) || g.length !== 6) return false;
+        for (let f = 0; f < 6; f++) {
+            const face = g[f];
+            if (!Array.isArray(face) || face.length !== SIZE) return false;
+            for (let r = 0; r < SIZE; r++) {
+                const row = face[r];
+                if (!Array.isArray(row) || row.length !== SIZE) return false;
+            }
+        }
+        return true;
+    }
+
+    function cellId(grid, f, r, c) {
+        const face = grid[f];
+        if (!face) return 0;
+        const row = face[r];
+        if (!row) return 0;
+        const v = row[c];
+        return (typeof v === 'number' && v >= 0 && v <= 6) ? v : 0;
     }
 
     /* ---------- 恢复：面片网格 ---------- */
@@ -584,42 +627,49 @@ function createCubeEngine(hooks) {
             );
             c.quaternion.set(0, 0, 0, 1);
 
-            // 各面索引：0=R(+X) 1=L(-X) 2=U(+Y) 3=D(-Y) 4=F(+Z) 5=B(-Z)
-            c.material[0] = materialMap[x === SIZE - 1 ? NUM_TO_COLOR[grid[0][y][z]] : COLORS.INNER];
-            c.material[1] = materialMap[x === 0        ? NUM_TO_COLOR[grid[1][y][z]] : COLORS.INNER];
-            c.material[2] = materialMap[y === SIZE - 1 ? NUM_TO_COLOR[grid[2][x][z]] : COLORS.INNER];
-            c.material[3] = materialMap[y === 0        ? NUM_TO_COLOR[grid[3][x][z]] : COLORS.INNER];
-            c.material[4] = materialMap[z === SIZE - 1 ? NUM_TO_COLOR[grid[4][x][y]] : COLORS.INNER];
-            c.material[5] = materialMap[z === 0        ? NUM_TO_COLOR[grid[5][x][y]] : COLORS.INNER];
+            const atR = x === SIZE - 1, atL = x === 0;
+            const atU = y === SIZE - 1, atD = y === 0;
+            const atF = z === SIZE - 1, atB = z === 0;
+
+            // 面索引：0=R(+X) 1=L(-X) 2=U(+Y) 3=D(-Y) 4=F(+Z) 5=B(-Z)
+            c.material[0] = MATS[atR ? cellId(grid, 0, y, z) : 0];
+            c.material[1] = MATS[atL ? cellId(grid, 1, y, z) : 0];
+            c.material[2] = MATS[atU ? cellId(grid, 2, x, z) : 0];
+            c.material[3] = MATS[atD ? cellId(grid, 3, x, z) : 0];
+            c.material[4] = MATS[atF ? cellId(grid, 4, x, y) : 0];
+            c.material[5] = MATS[atB ? cellId(grid, 5, x, y) : 0];
 
             c.updateMatrix();
         }
         markDirty();
 
-        moveHistory = [];
-        historyIndex = 0;
-        notifyNav();
+        clearHistory();
         return true;
-    }
-
-    function restoreFromFaceGrid(grid) {
-        if (grid && grid.length === 6 && Array.isArray(grid[0]) && Array.isArray(grid[0][0])) {
-            return restoreFromFaceGridInternal(grid);
-        }
-        return restoreState(grid);
     }
 
     /* ---------- 恢复：位姿 ---------- */
     function restoreState(state) {
-        if (!state || state.length !== cubies.length) return false;
-        state.forEach((s, i) => {
+        if (!Array.isArray(state) || state.length !== cubies.length) return false;
+
+        for (let i = 0; i < cubies.length; i++) {
+            const s = state[i];
+            if (!s || !s.pos || !s.quat) return false;
             const c = cubies[i];
             c.position.set(s.pos.x, s.pos.y, s.pos.z);
             c.quaternion.set(s.quat.x, s.quat.y, s.quat.z, s.quat.w);
             snapCubie(c);
-        });
+        }
         markDirty();
+
+        clearHistory();
         return true;
+    }
+
+    /* ---------- 统一入口 ---------- */
+    function restoreFromFaceGrid(data) {
+        if (isFaceGrid(data)) return restoreFromFaceGridInternal(data);
+        if (Array.isArray(data)) return restoreState(data);
+        return false;
     }
 
     /* ---------- 交互 ---------- */
@@ -868,7 +918,7 @@ function createCubeEngine(hooks) {
 
         while (cubeGroup.children.length) cubeGroup.remove(cubeGroup.children[0]);
         boxGeom.dispose();
-        Object.values(materialMap).forEach(m => m.dispose());
+        MATS.forEach(m => m.dispose());
 
         if (dom && dom.parentNode) dom.parentNode.removeChild(dom);
         renderer.dispose();
@@ -928,13 +978,9 @@ function notationToMoves(notation) {
 
 const DEFAULT_SNAPSHOT_ID = '';
 
-var preset03 = [
-  
-]
-/* 预设快照（可自行添加 cube 网格数据） */
-const PRESET_SNAPSHOTS = [
-    { id: 'preset-03', title: '复棱',  time: '预设快照', preset: true, cube: preset03 },
-];
+/* 预设快照：如需内置局面，请在 cube 里填入 6×3×3 的颜色编号网格
+ * 编号：0=内部 1=R 2=L 3=U 4=D 5=F 6=B */
+const PRESET_SNAPSHOTS = [];
 
 /* 预设公式：从复原状态起播放 */
 const PRESET_FORMULAS = [
@@ -1012,8 +1058,8 @@ new Vue({
     },
 
     created() {
-        this.snapshots = this.readStorage(SNAPSHOT_KEY, []).filter(s => !s.preset);
-        this.formulas  = this.readStorage(FORMULA_KEY, []).filter(f => !f.preset);
+        this.snapshots = this.readStorage(SNAPSHOT_KEY, []).filter(s => s && !s.preset);
+        this.formulas  = this.readStorage(FORMULA_KEY, []).filter(f => f && !f.preset);
 
         this._timing = false;
         this._timeStart = 0;
@@ -1051,8 +1097,10 @@ new Vue({
 
     methods: {
         readStorage(key, fallback) {
-            try { return JSON.parse(localStorage.getItem(key)) || fallback; }
-            catch (e) { return fallback; }
+            try {
+                const v = JSON.parse(localStorage.getItem(key));
+                return Array.isArray(v) ? v : fallback;
+            } catch (e) { return fallback; }
         },
         writeStorage(key, value) {
             try { localStorage.setItem(key, JSON.stringify(value)); } catch (e) {}
@@ -1240,18 +1288,20 @@ new Vue({
             const snap = this.sortedSnapshots.find(s => s.id === id);
             if (!snap) return;
             if (this.busyGuard()) return;
+
+            if (!snap.cube || !(snap.cube.length === 6 || snap.cube.length === 27)) {
+                this.toast('该快照暂无可用数据');
+                return;
+            }
+
             try {
-                if (snap.cube && snap.cube.length === 6) {
-                    if (this.engine.restoreFromFaceGrid(snap.cube)) {
-                        this.stopTimer();
-                        this.resetStats();
-                        this.toast('已恢复"' + snap.title + '"');
-                        this.closeDrawer();
-                    } else {
-                        this.toast('快照数据不兼容');
-                    }
+                if (this.engine.restoreFromFaceGrid(snap.cube)) {
+                    this.stopTimer();
+                    this.resetStats();
+                    this.toast('已恢复"' + snap.title + '"');
+                    this.closeDrawer();
                 } else {
-                    this.toast('快照数据格式错误');
+                    this.toast('快照数据不兼容');
                 }
             } catch (e) {
                 this.toast('恢复快照时出错');

@@ -51,6 +51,7 @@
     .snapshot-actions{display:flex;gap:6px;flex-shrink:0}
     .snapshot-actions button{border:none;cursor:pointer;font-size:12px;padding:6px 10px;border-radius:8px;color:#fff;background:linear-gradient(135deg,#4f6df5,#7b3ff2)}
     .snapshot-actions button.del{background:linear-gradient(135deg,#c41e3a,#ff5800)}
+    .snapshot-actions button.copy{background:linear-gradient(135deg,#16a34a,#22c55e)}
     .empty-tip{text-align:center;opacity:.5;padding:18px 0;font-size:13px}
     .formula-preview{background:#10142a;border:1px solid #3a4358;border-radius:10px;padding:12px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:14px;line-height:1.7;word-break:break-all;max-height:120px;overflow-y:auto;margin-bottom:14px;color:#7fe3ff}
     .formula-mini{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11px;color:#7fe3ff;opacity:.75;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:3px}
@@ -118,6 +119,7 @@
                             <div class="snapshot-time">{{ s.time }}</div>
                         </div>
                         <div class="snapshot-actions">
+                            <!-- <button class="copy" @click="copySnapshot(s.id)">复制</button> -->
                             <button @click="restoreSnapshot(s.id)">恢复</button>
                             <button v-if="!s.preset" class="del" @click="deleteSnapshot(s.id)">删除</button>
                         </div>
@@ -518,7 +520,11 @@ function createCubeEngine(hooks) {
         }));
     }
 
-    /* ---------- 快照：面片网格（6面 × 5×5） ---------- */
+    /* ---------- 快照：面片网格（6面 × 5×5） ----------
+     * 修复点：只有"确实位于该表面"的小块才允许写入对应面的网格。
+     * 原实现遍历全部 125 块，内部块旋转后法线可能指向 ±x/±y/±z，
+     * 会把颜色写进 L/D/B 等面，导致快照恢复后颜色错乱。
+     */
     function captureFaceGrid() {
         const faces = [];
         for (let f = 0; f < 6; f++) {
@@ -541,13 +547,27 @@ function createCubeEngine(hooks) {
                 _tmpWN.applyQuaternion(cubie.quaternion);
 
                 let gf = -1, r = 0, c = 0;
-                if (Math.abs(_tmpWN.x - 1) < 0.5)      { gf = 0; r = py; c = pz; }
-                else if (Math.abs(_tmpWN.x + 1) < 0.5) { gf = 1; r = py; c = pz; }
-                else if (Math.abs(_tmpWN.y - 1) < 0.5) { gf = 2; r = px; c = pz; }
-                else if (Math.abs(_tmpWN.y + 1) < 0.5) { gf = 3; r = px; c = pz; }
-                else if (Math.abs(_tmpWN.z - 1) < 0.5) { gf = 4; r = px; c = py; }
-                else if (Math.abs(_tmpWN.z + 1) < 0.5) { gf = 5; r = px; c = py; }
-                else continue;
+                if (Math.abs(_tmpWN.x - 1) < 0.5) {
+                    if (px !== SIZE - 1) continue;
+                    gf = 0; r = py; c = pz;
+                } else if (Math.abs(_tmpWN.x + 1) < 0.5) {
+                    if (px !== 0) continue;
+                    gf = 1; r = py; c = pz;
+                } else if (Math.abs(_tmpWN.y - 1) < 0.5) {
+                    if (py !== SIZE - 1) continue;
+                    gf = 2; r = px; c = pz;
+                } else if (Math.abs(_tmpWN.y + 1) < 0.5) {
+                    if (py !== 0) continue;
+                    gf = 3; r = px; c = pz;
+                } else if (Math.abs(_tmpWN.z - 1) < 0.5) {
+                    if (pz !== SIZE - 1) continue;
+                    gf = 4; r = px; c = py;
+                } else if (Math.abs(_tmpWN.z + 1) < 0.5) {
+                    if (pz !== 0) continue;
+                    gf = 5; r = px; c = py;
+                } else {
+                    continue;
+                }
 
                 const mat = cubie.material[lf];
                 const hex = (mat && mat.color) ? mat.color.getHex() : COLORS.INNER;
@@ -558,6 +578,11 @@ function createCubeEngine(hooks) {
     }
 
     /* ---------- 恢复：面片网格 ---------- */
+    function colorOf(v) {
+        // 兜底：非法值（0 / undefined / 越界）回落到内部色，避免材质变 undefined
+        return NUM_TO_COLOR[v] || COLORS.INNER;
+    }
+
     function restoreFromFaceGridInternal(grid) {
         for (let i = 0; i < cubies.length; i++) {
             const { x, y, z } = idxToXYZ(i);
@@ -570,12 +595,12 @@ function createCubeEngine(hooks) {
             );
             c.quaternion.set(0, 0, 0, 1);
 
-            c.material[0] = materialMap[x === SIZE - 1 ? NUM_TO_COLOR[grid[0][y][z]] : COLORS.INNER];
-            c.material[1] = materialMap[x === 0        ? NUM_TO_COLOR[grid[1][y][z]] : COLORS.INNER];
-            c.material[2] = materialMap[y === SIZE - 1 ? NUM_TO_COLOR[grid[2][x][z]] : COLORS.INNER];
-            c.material[3] = materialMap[y === 0        ? NUM_TO_COLOR[grid[3][x][z]] : COLORS.INNER];
-            c.material[4] = materialMap[z === SIZE - 1 ? NUM_TO_COLOR[grid[4][x][y]] : COLORS.INNER];
-            c.material[5] = materialMap[z === 0        ? NUM_TO_COLOR[grid[5][x][y]] : COLORS.INNER];
+            c.material[0] = materialMap[x === SIZE - 1 ? colorOf(grid[0][y][z]) : COLORS.INNER];
+            c.material[1] = materialMap[x === 0        ? colorOf(grid[1][y][z]) : COLORS.INNER];
+            c.material[2] = materialMap[y === SIZE - 1 ? colorOf(grid[2][x][z]) : COLORS.INNER];
+            c.material[3] = materialMap[y === 0        ? colorOf(grid[3][x][z]) : COLORS.INNER];
+            c.material[4] = materialMap[z === SIZE - 1 ? colorOf(grid[4][x][y]) : COLORS.INNER];
+            c.material[5] = materialMap[z === 0        ? colorOf(grid[5][x][y]) : COLORS.INNER];
 
             c.updateMatrix();
         }
@@ -587,8 +612,21 @@ function createCubeEngine(hooks) {
         return true;
     }
 
+    function isValidFaceGrid(grid) {
+        if (!Array.isArray(grid) || grid.length !== 6) return false;
+        for (let f = 0; f < 6; f++) {
+            const face = grid[f];
+            if (!Array.isArray(face) || face.length !== SIZE) return false;
+            for (let r = 0; r < SIZE; r++) {
+                const row = face[r];
+                if (!Array.isArray(row) || row.length !== SIZE) return false;
+            }
+        }
+        return true;
+    }
+
     function restoreFromFaceGrid(grid) {
-        if (grid && grid.length === 6 && Array.isArray(grid[0]) && grid[0].length === SIZE) {
+        if (isValidFaceGrid(grid)) {
             return restoreFromFaceGridInternal(grid);
         }
         return restoreState(grid);
@@ -936,28 +974,31 @@ const preset01_flip = [
     ],
     Array(5).fill(null).map(() => Array(5).fill(6))
 ];
-
-// 预设快照 2: 十字花样
-const makeCrossFace = (c1, c2) => [
-    [c1, c1, c2, c1, c1],
-    [c1, c1, c2, c1, c1],
-    [c2, c2, c2, c2, c2],
-    [c1, c1, c2, c1, c1],
-    [c1, c1, c2, c1, c1]
+var preset02_cross = [
+    Array(5).fill(null).map(() => Array(5).fill(1)), 
+    Array(5).fill(null).map(() => Array(5).fill(2)),
+    [
+        [3, 3, 3, 3, 3],
+        [3, 3, 3, 3, 5],
+        [3, 3, 3, 3, 3],
+        [3, 3, 3, 3, 5],
+        [3, 3, 3, 3, 3]  // U面底边缘中心块翻为前色(5)
+    ],
+    Array(5).fill(null).map(() => Array(5).fill(4)),
+    [
+        [5, 5, 5, 5, 5],
+        [5, 5, 5, 5, 3],
+        [5, 5, 5, 5, 5],
+        [5, 5, 5, 5, 3],
+        [5, 5, 5, 5, 5]  // F面顶边缘中心块翻为顶色(3)
+    ],
+    Array(5).fill(null).map(() => Array(5).fill(6)),
 ];
-const preset02_cross = [
-    makeCrossFace(1, 2),
-    makeCrossFace(2, 1),
-    makeCrossFace(3, 4),
-    makeCrossFace(4, 3),
-    makeCrossFace(5, 6),
-    makeCrossFace(6, 5)
-];
 
-const DEFAULT_SNAPSHOT_ID = '';
+const DEFAULT_SNAPSHOT_ID = 'preset-5-02';
 const PRESET_SNAPSHOTS = [
-    { id: 'preset-5-01', title: '五阶 单棱翻转', time: '预设快照', preset: true, cube: preset01_flip },
-    { id: 'preset-5-02', title: '五阶 中心十字纹', time: '预设快照', preset: true, cube: preset02_cross }
+    { id: 'preset-5-01', title: '五阶 单棱翻转', time: '预设快照', preset: true, cube: preset01_flip }, 
+    { id: 'preset-5-02', title: '五阶 单棱翻转', time: '预设快照', preset: true, cube: preset02_cross }, 
 ];
 
 const PRESET_FORMULAS = [
@@ -966,13 +1007,7 @@ const PRESET_FORMULAS = [
         title: '🔄 五阶 特殊单棱翻转',
         time: '预设公式', preset: true, cube: preset01_flip,
         notation: "2R2 B2 U2 2L U2 2R' U2 2R U2 F2 2R F2 2L' B2 2R2"
-    },
-    {
-        id: 'preset-5-02',
-        title: '✨ 六面十字花样',
-        time: '预设公式', preset: true, cube: preset02_cross,
-        notation: "3R2 3U2 3F2"
-    }
+    }, 
 ].map(f => Object.assign({}, f, { moves: notationToMoves(f.notation) }));
 
 /* =========================================================================
@@ -1264,6 +1299,20 @@ new Vue({
                 this.toast('恢复快照时出错');
                 console.error('Restore snapshot error:', e);
             }
+        },
+
+        copySnapshot(id) {
+            const snap = this.sortedSnapshots.find(s => s.id === id);
+            if (!snap || !snap.cube) { this.toast('快照数据无效'); return; }
+            const copy = {
+                id: Date.now(),
+                title: snap.title + ' 副本',
+                time: new Date().toLocaleString('zh-CN'),
+                cube: snap.cube.map(row => row.slice())
+            };
+            this.snapshots.unshift(copy);
+            this.writeStorage(SNAPSHOT_KEY, this.snapshots);
+            this.toast('已复制为"' + copy.title + '"');
         },
 
         deleteSnapshot(id) {
