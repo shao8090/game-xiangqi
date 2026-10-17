@@ -2,1239 +2,1336 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>魔方小游戏 · Vue2</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>三阶魔方 3D</title>
 <style>
-  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none}
-  html,body{height:100%;overflow:hidden;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif}
-  body{background:radial-gradient(1200px 800px at 50% 15%,#2b3a67,#1a2238 60%,#10142a);color:#fff}
-  #app{position:relative;width:100%;height:100%;overflow:hidden}
-
-  /* ===== 3D 画布容器（全屏常驻，杜绝重排拉伸） ===== */
-  .cube-canvas{
-    position:absolute;inset:0;width:100%;height:100%;
-    z-index:1;touch-action:none;overflow:hidden;
-  }
-  .cube-canvas canvas{
-    display:block;width:100%;height:100%;
-    touch-action:none;outline:none;
-  }
-
-  /* ===== UI 悬浮层 (HUD) ===== */
-  .hud-overlay{
-    position:absolute;inset:0;z-index:10;
-    display:flex;flex-direction:column;justify-content:space-between;
-    pointer-events:none;
-    transition:opacity .25s cubic-bezier(.25,.8,.25,1), transform .25s cubic-bezier(.25,.8,.25,1);
-  }
-  .hud-overlay.hud-hidden{
-    opacity:0;
-    pointer-events:none !important;
-    transform:scale(0.98);
-  }
-
-  .hud-top{
-    pointer-events:auto;
-    background:linear-gradient(180deg, rgba(16,20,42,0.85) 0%, rgba(16,20,42,0.55) 75%, transparent 100%);
-    backdrop-filter:blur(10px);
-    -webkit-backdrop-filter:blur(10px);
-    padding-bottom:12px;
-  }
-  .hud-bottom{
-    pointer-events:auto;
-    background:linear-gradient(0deg, rgba(16,20,42,0.85) 0%, rgba(16,20,42,0.55) 75%, transparent 100%);
-    backdrop-filter:blur(10px);
-    -webkit-backdrop-filter:blur(10px);
-    padding-top:10px;
-  }
-
-  /* ===== 工具栏网格 ===== */
-  .toolbar-row{
-    display:grid;
-    grid-template-columns:repeat(4,1fr);
-    gap:8px;
-    padding:8px 12px;
-    align-items:center;
-  }
-  .toolbar-row.bottom{
-    grid-template-columns:1fr 1fr 1fr;
-    padding:6px 12px 14px;
-  }
-
-  /* ===== 按钮 ===== */
-  .btn{
-    border:none;cursor:pointer;color:#fff;font-size:13px;
-    padding:9px 4px;border-radius:10px;text-align:center;
-    background:linear-gradient(135deg,#4f6df5,#7b3ff2);
-    box-shadow:0 4px 14px rgba(79,109,245,.35);
-    transition:transform .1s,opacity .15s,box-shadow .15s;
-    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
-    font-family:inherit;
-  }
-  .btn:active{transform:scale(.94)}
-  .btn.gray{background:linear-gradient(135deg,#3a4358,#2a3040);box-shadow:0 4px 14px rgba(0,0,0,.35)}
-  .btn:disabled{opacity:.32;cursor:not-allowed;transform:none}
-  .btn.rec.active{
-    background:linear-gradient(135deg,#e11d48,#f43f5e);
-    box-shadow:0 4px 14px rgba(225,29,72,.5);
-    animation:pulse 1.2s ease-in-out infinite;
-  }
-  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.6}}
-
-  /* ===== 悬浮快捷呼出浮标 ===== */
-  .wake-btn{
-    position:absolute;top:14px;right:14px;z-index:9;
-    background:rgba(20,24,42,0.6);border:1px solid rgba(255,255,255,0.15);
-    color:rgba(255,255,255,0.85);font-size:12px;padding:6px 10px;border-radius:20px;
-    backdrop-filter:blur(8px);cursor:pointer;transition:opacity .2s;
-  }
-
-  /* ===== 统计单元格 ===== */
-  .stat-cell{
-    font-size:12px;opacity:.9;text-align:center;
-    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
-    line-height:1.25;text-shadow:0 1px 3px rgba(0,0,0,0.5);
-  }
-  .stat-cell b{font-size:15px;color:#7fe3ff;margin-left:2px}
-
-  /* ===== Toast ===== */
-  #toast{
-    position:fixed;left:50%;top:18%;transform:translateX(-50%);
-    background:rgba(10,14,28,.88);border:1px solid rgba(255,255,255,.1);
-    color:#fff;padding:10px 22px;border-radius:20px;font-size:14px;
-    opacity:0;pointer-events:none;transition:opacity .3s, transform .3s;
-    z-index:200;white-space:nowrap;max-width:90vw;overflow:hidden;
-    text-overflow:ellipsis;box-shadow:0 8px 30px rgba(0,0,0,.5);
-  }
-  #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
-
-  /* ===== 模态窗 ===== */
-  .modal-mask{
-    position:fixed;inset:0;background:rgba(0,0,0,.7);
-    display:flex;align-items:center;justify-content:center;z-index:100;
-    backdrop-filter:blur(4px);
-  }
-  .modal-box{
-    background:#1e2436;border-radius:16px;padding:20px;
-    width:90%;max-width:400px;max-height:82vh;overflow-y:auto;
-    color:#fff;box-shadow:0 10px 40px rgba(0,0,0,.5);
-    border:1px solid rgba(255,255,255,0.08);
-  }
-  .modal-box h3{margin:0 0 14px;font-size:18px}
-  .modal-box input{
-    width:100%;padding:12px;border:1px solid #3a4358;border-radius:10px;
-    background:#10142a;color:#fff;font-size:15px;outline:none;margin-bottom:14px;
-  }
-  .modal-box input:focus{border-color:#7b3ff2}
-  .modal-actions{display:flex;gap:10px;justify-content:flex-end}
-
-  .snapshot-list{max-height:240px;overflow-y:auto;margin-top:4px}
-  .snapshot-item{
-    display:flex;align-items:center;gap:10px;padding:10px 12px;
-    background:#10142a;border-radius:10px;margin-bottom:8px;
-  }
-  .snapshot-info{flex:1;overflow:hidden;min-width:0}
-  .snapshot-title{font-size:14px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .snapshot-time{font-size:11px;opacity:.5;margin-top:2px}
-  .snapshot-actions{display:flex;gap:6px;flex-shrink:0}
-  .snapshot-actions button{
-    border:none;cursor:pointer;font-size:12px;padding:6px 10px;border-radius:8px;color:#fff;
-    background:linear-gradient(135deg,#4f6df5,#7b3ff2);font-family:inherit;
-  }
-  .snapshot-actions button.del{background:linear-gradient(135deg,#c41e3a,#ff5800)}
-  .empty-tip{text-align:center;opacity:.5;padding:22px 0;font-size:13px}
-  .formula-preview{
-    background:#10142a;border:1px solid #3a4358;border-radius:10px;padding:12px;
-    font-family:ui-monospace,Menlo,Consolas,monospace;font-size:14px;line-height:1.7;
-    word-break:break-all;max-height:120px;overflow-y:auto;margin-bottom:14px;color:#7fe3ff;
-  }
-  .formula-mini{
-    font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11px;color:#7fe3ff;
-    opacity:.75;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:3px;
-  }
-  .tip-text{font-size:11px;opacity:.45;line-height:1.6;margin-bottom:12px}
+    *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none}
+    html,body{height:100%;overflow:hidden;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif}
+    body{display:flex;flex-direction:column;background:radial-gradient(1200px 800px at 50% 15%,#2b3a67,#1a2238 60%,#10142a)}
+    #app{display:flex;flex-direction:column;height:100%}
+    [v-cloak]{display:none}
+    #hud{display:grid;grid-template-columns:1fr auto auto 1fr;grid-template-rows:auto auto;gap:6px 8px;padding:10px 12px;color:#fff;align-items:center}
+    #hud.buttons-hidden,#footer.buttons-hidden{opacity:0;pointer-events:none;transform:scale(.96)}
+    #hud,#footer{transition:opacity .28s ease,transform .28s ease;will-change:opacity,transform}
+    #hud .r1c1{grid-row:1;grid-column:1;justify-self:start}
+    #hud .r1c2{grid-row:1;grid-column:2;justify-self:center;white-space:nowrap}
+    #hud .r1c3{grid-row:1;grid-column:3;justify-self:center;white-space:nowrap}
+    #hud .r1c4{grid-row:1;grid-column:4;justify-self:end}
+    #hud .r2c1{grid-row:2;grid-column:1;justify-self:start}
+    #hud .r2c2{grid-row:2;grid-column:2;justify-self:center;white-space:nowrap}
+    #hud .r2c3{grid-row:2;grid-column:3;justify-self:center;white-space:nowrap}
+    #hud .r2c4{grid-row:2;grid-column:4;justify-self:end}
+    #footer{display:flex;align-items:center;justify-content:center;gap:6px;padding:10px 12px;flex-wrap:wrap;color:#fff;background:rgba(20,26,44,.75);border-top:1px solid rgba(255,255,255,.08)}
+    .btn{border:none;cursor:pointer;color:#fff;font-size:13px;padding:7px 12px;border-radius:10px;background:linear-gradient(135deg,#4f6df5,#7b3ff2);box-shadow:0 4px 14px rgba(79,109,245,.4);transition:transform .1s,opacity .15s;white-space:nowrap}
+    .btn:active{transform:scale(.94)}
+    .btn.gray{background:linear-gradient(135deg,#3a4358,#2a3040);box-shadow:0 4px 14px rgba(0,0,0,.35)}
+    .btn:disabled{opacity:.32;cursor:not-allowed;transform:none}
+    .nav-btn{font-size:15px;padding:10px 22px;border-radius:12px}
+    .btn.rec.active{background:linear-gradient(135deg,#e11d48,#f43f5e);box-shadow:0 4px 14px rgba(225,29,72,.5);animation:pulse 1.2s ease-in-out infinite}
+    @keyframes pulse{0%,100%{opacity:1}50%{opacity:.6}}
+    .stat{font-size:12px;opacity:.85;margin-left:4px;white-space:nowrap}
+    .stat b{font-size:14px;color:#7fe3ff}
+    #wrap{flex:1;position:relative;touch-action:none;min-height:0}
+    canvas{display:block}
+    #wrap > canvas{width:100% !important;height:100% !important;display:block}
+    #toast{position:fixed;left:50%;top:16%;transform:translateX(-50%);background:rgba(0,0,0,.78);color:#fff;padding:12px 24px;border-radius:14px;font-size:15px;opacity:0;pointer-events:none;transition:opacity .3s;z-index:200;white-space:nowrap;max-width:92vw;overflow:hidden;text-overflow:ellipsis}
+    #toast.show{opacity:1}
+    #snapshot-modal{position:fixed;inset:0;background:rgba(0,0,0,.7);display:none;align-items:center;justify-content:center;z-index:100}
+    #snapshot-modal.show{display:flex}
+    .modal-box{background:#1e2436;border-radius:16px;padding:20px;width:90%;max-width:400px;max-height:82vh;overflow-y:auto;color:#fff;box-shadow:0 10px 40px rgba(0,0,0,.5)}
+    .modal-box h3{margin:0 0 14px;font-size:18px}
+    .modal-box input{width:100%;padding:12px;border:1px solid #3a4358;border-radius:10px;background:#10142a;color:#fff;font-size:15px;outline:none;margin-bottom:14px}
+    .modal-box input:focus{border-color:#7b3ff2}
+    .modal-actions{display:flex;gap:10px;justify-content:flex-end}
+    .snapshot-list{max-height:none;overflow-y:auto;margin-top:4px}
+    .snapshot-item{display:flex;align-items:center;gap:10px;padding:10px 12px;background:#10142a;border-radius:10px;margin-bottom:8px}
+    .snapshot-info{flex:1;overflow:hidden;min-width:0}
+    .snapshot-title{font-size:14px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#fff}
+    .snapshot-time{font-size:11px;opacity:.5;margin-top:2px;color:#fff}
+    .snapshot-actions{display:flex;gap:6px;flex-shrink:0}
+    .snapshot-actions button{border:none;cursor:pointer;font-size:12px;padding:6px 10px;border-radius:8px;color:#fff;background:linear-gradient(135deg,#4f6df5,#7b3ff2)}
+    .snapshot-actions button.del{background:linear-gradient(135deg,#c41e3a,#ff5800)}
+    .empty-tip{text-align:center;opacity:.5;padding:18px 0;font-size:13px}
+    .formula-preview{background:#10142a;border:1px solid #3a4358;border-radius:10px;padding:12px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:14px;line-height:1.7;word-break:break-all;max-height:120px;overflow-y:auto;margin-bottom:14px;color:#7fe3ff}
+    .formula-mini{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11px;color:#7fe3ff;opacity:.75;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:3px}
+    .tip-text{font-size:11px;opacity:.45;line-height:1.6;margin-bottom:12px}
+    #drawer-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:150;display:none}
+    #drawer-overlay.show{display:block}
+    #drawer-panel{position:fixed;top:0;right:0;bottom:0;width:340px;max-width:88vw;background:#1e2436;z-index:151;transform:translateX(100%);transition:transform .3s cubic-bezier(.4,0,.2,1);display:flex;flex-direction:column;box-shadow:-4px 0 24px rgba(0,0,0,.4)}
+    #drawer-panel.open{transform:translateX(0)}
+    .drawer-header{display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:1px solid #3a4358;flex-shrink:0}
+    .drawer-header h3{margin:0;font-size:17px;color:#fff}
+    .drawer-close{border:none;background:none;color:#aaa;font-size:22px;cursor:pointer;padding:4px 8px;border-radius:8px;line-height:1}
+    .drawer-close:hover{background:#3a4358;color:#fff}
+    .drawer-content{flex:1;overflow-y:auto;padding:14px 18px}
+    .preset-badge{display:inline-block;font-size:10px;padding:1px 6px;border-radius:6px;background:linear-gradient(135deg,#0ea5e9,#6366f1);color:#fff;margin-left:6px;vertical-align:middle;font-weight:500}
+    .snapshot-item.is-preset{background:linear-gradient(135deg,#152036,#0f1728);border:1px solid rgba(99,102,241,.35)}
 </style>
-</head>
-<body>
-
-<div id="app">
-  <!-- 3D 魔方全景渲染舞台 -->
-  <cube-canvas @ready="onEngineReady"></cube-canvas>
-
-  <!-- 隐藏状态下的唤醒浮标 -->
-  <div v-show="!uiVisible" class="wake-btn" @click="toggleUI">
-    👁️ 显示面板
-  </div>
-
-  <!-- HUD 工具交互悬浮层 -->
-  <div class="hud-overlay" :class="{ 'hud-hidden': !uiVisible }">
-    <!-- 顶部操作区 -->
-    <div class="hud-top">
-      <div class="toolbar-row">
-        <button class="btn gray" @click="openSnapshotLibrary">📸 快照库</button>
-        <button class="btn gray" @click="openFormulaLibrary">📐 步骤库</button>
-        <div class="stat-cell">步数<b>{{ moves }}</b></div>
-        <button class="btn" :disabled="locked" @click="onReset">↺ 复原</button>
-      </div>
-
-      <div class="toolbar-row">
-        <button class="btn" :disabled="locked" @click="openSnapshotModal">💾 存快照</button>
-        <button class="btn rec" :class="{active: recording}" :disabled="locked" @click="onRecord">
-          {{ recording ? '⏹ ' + recordedMoves.length : '⏺ 记录' }}
-        </button>
-        <div class="stat-cell">时间<b>{{ timeText }}</b></div>
-        <button class="btn" :disabled="locked" @click="onShuffle">🔀 打乱</button>
-      </div>
-    </div>
-
-    <!-- 底部操作区 -->
-    <div class="hud-bottom">
-      <div class="toolbar-row bottom">
-        <button class="btn gray" :disabled="locked || !canPrev" @click="onPrev">⏪ 上一步</button>
-        <button class="btn gray" @click="onResetView">↺ 视角</button>
-        <button class="btn gray" :disabled="locked || !canNext" @click="onNext">下一步 ⏩</button>
-      </div>
-    </div>
-  </div>
-
-  <toast-msg :show="toast.show" :msg="toast.msg"></toast-msg>
-
-  <modal-layer v-if="activeModal" @close="closeModal">
-    <save-snapshot-modal
-      v-if="activeModal === 'snapshot-save'"
-      @save="onSaveSnapshot"
-      @close="closeModal"></save-snapshot-modal>
-
-    <save-formula-modal
-      v-else-if="activeModal === 'formula-save'"
-      :moves="recordedMoves"
-      @save="onSaveFormula"
-      @close="closeModal"></save-formula-modal>
-
-    <library-modal
-      v-else-if="activeModal === 'snapshot-lib'"
-      title="📸 快照库"
-      :items="snapshots"
-      empty-text="暂无快照"
-      action-label="恢复"
-      @action="onRestoreSnapshot"
-      @delete="onDeleteSnapshot"
-      @close="closeModal"></library-modal>
-
-    <library-modal
-      v-else-if="activeModal === 'formula-lib'"
-      title="📐 步骤库"
-      :items="formulas"
-      empty-text="暂无公式，点击「⏺ 记录」开始录制"
-      action-label="执行"
-      @action="onPlayFormula"
-      @delete="onDeleteFormula"
-      @close="closeModal"></library-modal>
-  </modal-layer>
-</div>
 
 <script src="./../js/three.min.js"></script>
 <script src="./../js/vue.min.js"></script>
+</head>
+<body>
+
+<div id="app" v-cloak>
+    <div id="hud" :class="{ 'buttons-hidden': !buttonsVisible }">
+        <button class="btn gray r1c1" :disabled="uiLocked" @click="openSnapshotList">📋 快照库</button>
+        <button class="btn gray r1c2" :disabled="uiLocked" @click="openFormulaList">📜 公式库</button>
+        <span class="stat r1c3">步数 <b>{{ stepCount }}</b></span>
+        <button class="btn r1c4" :disabled="uiLocked" @click="onReset">↺ 复原</button>
+
+        <button class="btn r2c1" :disabled="uiLocked" @click="openSnapshotSave">📸 存快照</button>
+        <button class="btn rec r2c2" :class="{ active: recording }" :disabled="uiLocked"
+                @click="toggleRecord">{{ recordLabel }}</button>
+        <span class="stat r2c3">时间 <b>{{ timerText }}</b></span>
+        <button class="btn r2c4" :disabled="uiLocked" @click="onScramble">🔀 打乱</button>
+    </div>
+
+    <div id="wrap" ref="wrap"></div>
+
+    <div id="footer" :class="{ 'buttons-hidden': !buttonsVisible }">
+        <button class="btn gray nav-btn" :disabled="!canPrev" @click="onPrev">◀ 上一步</button>
+        <button class="btn gray" @click="onResetView">↺ 视角</button>
+        <button class="btn gray nav-btn" :disabled="!canNext" @click="onNext">下一步 ▶</button>
+    </div>
+
+    <div id="toast" :class="{ show: toastShow }">{{ toastMsg }}</div>
+
+    <div id="drawer-overlay" :class="{ show: drawerOpen }" @click.self="closeDrawer"></div>
+    <div id="drawer-panel" :class="{ open: drawerOpen }">
+        <div class="drawer-header">
+            <h3 v-if="drawerType === 'snapshots'">📋 快照库</h3>
+            <h3 v-else-if="drawerType === 'formulas'">📜 步骤库</h3>
+            <button class="drawer-close" @click="closeDrawer">✕</button>
+        </div>
+        <div class="drawer-content">
+            <template v-if="drawerType === 'snapshots'">
+                <div class="snapshot-list">
+                    <div v-if="!sortedSnapshots.length" class="empty-tip">暂无快照</div>
+                    <div v-for="s in sortedSnapshots" :key="s.id"
+                         class="snapshot-item" :class="{ 'is-preset': s.preset }">
+                        <div class="snapshot-info">
+                            <div class="snapshot-title">
+                                {{ s.title }}
+                                <span v-if="s.preset" class="preset-badge">预设</span>
+                            </div>
+                            <div class="snapshot-time">{{ s.time }}</div>
+                        </div>
+                        <div class="snapshot-actions">
+                            <button @click="restoreSnapshot(s.id)">恢复</button>
+                            <button v-if="!s.preset" class="del" @click="deleteSnapshot(s.id)">删除</button>
+                        </div>
+                    </div>
+                </div>
+            </template>
+
+            <template v-else-if="drawerType === 'formulas'">
+                <div class="snapshot-list">
+                    <div v-if="!sortedFormulas.length" class="empty-tip">暂无公式，点击「⏺ 记录」开始录制</div>
+                    <div v-for="f in sortedFormulas" :key="f.id"
+                         class="snapshot-item" :class="{ 'is-preset': f.preset }">
+                        <div class="snapshot-info">
+                            <div class="snapshot-title">
+                                {{ f.title }}
+                                <span v-if="f.preset" class="preset-badge">预设</span>
+                            </div>
+                            <div class="formula-mini">{{ f.notation }}</div>
+                            <div class="snapshot-time">{{ f.time }} · {{ f.moves.length }} 步</div>
+                        </div>
+                        <div class="snapshot-actions">
+                            <button @click="playFormula(f.id)">恢复</button>
+                            <button class="del" v-if="!f.preset" @click="deleteFormula(f.id)">删除</button>
+                        </div>
+                    </div>
+                </div>
+            </template>
+        </div>
+    </div>
+
+    <div id="snapshot-modal" :class="{ show: modalType !== null }" @click.self="closeModal">
+        <div class="modal-box">
+            <template v-if="modalType === 'saveSnapshot'">
+                <h3>📸 保存快照</h3>
+                <input ref="snapInput" type="text" v-model="snapTitle"
+                       placeholder="输入快照标题..." maxlength="30" @keydown.enter="doSaveSnapshot">
+                <div class="modal-actions">
+                    <button class="btn gray" @click="closeModal">取消</button>
+                    <button class="btn" @click="doSaveSnapshot">保存</button>
+                </div>
+            </template>
+
+            <template v-else-if="modalType === 'saveFormula'">
+                <h3>💾 保存公式</h3>
+                <div class="formula-preview">{{ formulaPreview }}</div>
+                <div class="tip-text">
+                    记法：R/L/U/D/F/B 表示各面顺时针 90°，' 表示逆时针，2 表示 180°；
+                    M/E/S 表示中层。共 {{ formulaStepCount }} 步。
+                </div>
+                <input ref="formulaInput" type="text" v-model="formulaTitle"
+                       placeholder="给公式起个名字…" maxlength="30" @keydown.enter="doSaveFormula">
+                <div class="modal-actions">
+                    <button class="btn gray" @click="closeModal">取消</button>
+                    <button class="btn" @click="doSaveFormula">保存</button>
+                </div>
+            </template>
+        </div>
+    </div>
+</div>
+
 <script>
 /* =========================================================================
-   常量 & 工具函数
-   ========================================================================= */
-const FACE_COLOR = {
-  R: 0xb71234, L: 0xff5800, U: 0xffffff,
-  D: 0xffd500, F: 0x009b48, B: 0x0046ad, X: 0x14141c
-};
+ * 1. 3D 引擎（三阶版）
+ *   - 按需渲染（dirty flag）
+ *   - 复用临时对象 / 复用 mesh
+ *   - 多指针追踪，避免双指缩放误触发旋转
+ * ========================================================================= */
+function createCubeEngine(hooks) {
+    hooks = hooks || {};
 
-const FACES = [
-  { key:'R', axis:'x', sign: 1 },
-  { key:'L', axis:'x', sign:-1 },
-  { key:'U', axis:'y', sign: 1 },
-  { key:'D', axis:'y', sign:-1 },
-  { key:'F', axis:'z', sign: 1 },
-  { key:'B', axis:'z', sign:-1 }
+    /* ---------- 常量 ---------- */
+    const SIZE         = 3;
+    const CUBE_SIZE    = 1.0;
+    const GAP          = 0.04;
+    const STEP         = CUBE_SIZE + GAP;        // 1.04
+    const OFFSET       = (SIZE - 1) / 2;         // 1
+    const ANIM_DURATION = 160;
+    const NAV_DURATION  = 140;
+    const SCRAMBLE_DUR_SINGLE = 55;
+    const SCRAMBLE_DUR_DOUBLE = 80;
+    const VEC_POOL_MAX = 64;
+    const TOTAL_CUBIES = SIZE * SIZE * SIZE;     // 27
+
+    /* ---------- 配色 ---------- */
+    const COLORS = {
+        R: 0x0051ba,   // 右：蓝
+        L: 0xc41e3a,   // 左：红
+        U: 0xffd500,   // 上：黄
+        D: 0xffffff,   // 下：白
+        F: 0x009e60,   // 前：绿
+        B: 0xff5800,   // 后：橙
+        INNER: 0x1a1a1a
+    };
+    const FACE_ORDER = ['R', 'L', 'U', 'D', 'F', 'B'];
+    const COLOR_TO_NUM = {};
+    const NUM_TO_COLOR = { 0: COLORS.INNER };
+    FACE_ORDER.forEach((f, i) => {
+        COLOR_TO_NUM[COLORS[f]] = i + 1;
+        NUM_TO_COLOR[i + 1] = COLORS[f];
+    });
+
+    /* ---------- 场景 ---------- */
+    const scene    = new THREE.Scene();
+    const camera   = new THREE.PerspectiveCamera(38, 1, 0.1, 200);
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+
+    scene.add(new THREE.AmbientLight(0xffffff, 0.9));
+    const dirLight = new THREE.DirectionalLight(0xffffff, 0.45);
+    dirLight.position.set(6, 10, 8);
+    scene.add(dirLight);
+
+    const cubeGroup = new THREE.Group();
+    scene.add(cubeGroup);
+
+    /* ---------- 共享材质池 ---------- */
+    const materialMap = {};
+    Object.keys(COLORS).forEach(k => {
+        materialMap[COLORS[k]] = new THREE.MeshLambertMaterial({ color: COLORS[k] });
+    });
+
+    /* ---------- 几何体 ---------- */
+    const boxGeom = new THREE.BoxGeometry(CUBE_SIZE, CUBE_SIZE, CUBE_SIZE);
+    const AXIS_X = new THREE.Vector3(1, 0, 0);
+    const AXIS_Y = new THREE.Vector3(0, 1, 0);
+    const AXIS_Z = new THREE.Vector3(0, 0, 1);
+
+    /* ---------- 复用临时对象 ---------- */
+    const _tmpMatrix4 = new THREE.Matrix4();
+    const _tmpWN      = new THREE.Vector3();
+    const _tmpVecA    = new THREE.Vector3();
+    const _tmpVecB    = new THREE.Vector3();
+    const _tmpVecC    = new THREE.Vector3();
+
+    /* ---------- 轻量向量池 ---------- */
+    const _vecPool = [];
+    function getVec(x, y, z) {
+        const v = _vecPool.pop() || new THREE.Vector3();
+        v.set(x || 0, y || 0, z || 0);
+        return v;
+    }
+    function returnVec(v) {
+        if (_vecPool.length < VEC_POOL_MAX) _vecPool.push(v);
+    }
+
+    /* ---------- 引擎状态 ---------- */
+    let wrapEl   = null;
+    let dom      = null;
+    let cubies   = [];
+    let disposed = false;
+    let resizeObserver = null;
+    let lastW = 0, lastH = 0;
+
+    /* ---------- 按需渲染 ---------- */
+    let needRender = true;
+    function markDirty() { needRender = true; }
+
+      /* ---------- 相机轨道 ---------- */
+    let RAD = 14;                                   // 原来 11
+    const RAD_MIN = 4.5, RAD_MAX = 30;              // RAD_MAX 由 26 提到 30
+    let theta = 0.8, phi = 1.02;
+    const DEF = { theta: 0.8, phi: 1.02, rad: 14 }; // 原来 11
+
+    /* 魔方在画面中的占比：数值越小，默认显示越小（0.78 ≈ 缩小到 78%） */
+    const CUBE_VISUAL_SCALE = 1.3;
+
+    function updCam() {
+        camera.position.setFromSphericalCoords(RAD, phi, theta);
+        camera.lookAt(0, 0, 0);
+        markDirty();
+    }
+
+    /* 根据视口自适应初始距离（保证竖屏也能完整显示） */
+    function computeFitRadius() {
+        const w = wrapEl ? wrapEl.clientWidth : 0;
+        const h = wrapEl ? wrapEl.clientHeight : 0;
+        if (!w || !h) return DEF.rad;
+        const aspect = w / h;
+        const halfExtent = SIZE * STEP * 0.70 * CUBE_VISUAL_SCALE;  // 乘上视觉缩放
+        const tanHalf = Math.tan((camera.fov * Math.PI / 180) / 2);
+        const distV = halfExtent / tanHalf;
+        const distH = halfExtent / (tanHalf * Math.max(aspect, 0.15));
+        return Math.min(RAD_MAX, Math.max(RAD_MIN, Math.max(distV, distH)));
+    }
+
+    function resize() {
+        if (!wrapEl) return;
+        const w = wrapEl.clientWidth, h = wrapEl.clientHeight;
+        if (!w || !h) return;
+        if (w === lastW && h === lastH) return;
+        lastW = w; lastH = h;
+        renderer.setSize(w, h, false);
+        camera.aspect = w / h;
+        camera.updateProjectionMatrix();
+        markDirty();
+    }
+
+    function resetView() {
+        theta = DEF.theta; phi = DEF.phi; RAD = DEF.rad;
+        updCam();
+    }
+
+    /* ---------- 索引 <-> 坐标 ---------- */
+    // cubies 索引：i = x*9 + y*3 + z
+    function idxToXYZ(i) {
+        const SS = SIZE * SIZE;
+        return { x: Math.floor(i / SS), y: Math.floor((i % SS) / SIZE), z: i % SIZE };
+    }
+
+    /* ---------- 创建 mesh（仅一次） ---------- */
+    function initCube() {
+        while (cubeGroup.children.length) {
+            cubeGroup.remove(cubeGroup.children[0]);
+        }
+        cubies = [];
+        for (let i = 0; i < TOTAL_CUBIES; i++) {
+            const materials = [
+                materialMap[COLORS.INNER], materialMap[COLORS.INNER],
+                materialMap[COLORS.INNER], materialMap[COLORS.INNER],
+                materialMap[COLORS.INNER], materialMap[COLORS.INNER]
+            ];
+            const mesh = new THREE.Mesh(boxGeom, materials);
+            cubeGroup.add(mesh);
+            cubies.push(mesh);
+        }
+        resetCubies();
+    }
+
+    /* ---------- 复位 cubies（复用 mesh） ---------- */
+    function resetCubies() {
+        for (let i = 0; i < TOTAL_CUBIES; i++) {
+            const { x, y, z } = idxToXYZ(i);
+            const c = cubies[i];
+            c.position.set(
+                (x - OFFSET) * STEP,
+                (y - OFFSET) * STEP,
+                (z - OFFSET) * STEP
+            );
+            c.quaternion.set(0, 0, 0, 1);
+            c.material[0] = materialMap[x === SIZE - 1 ? COLORS.R : COLORS.INNER];
+            c.material[1] = materialMap[x === 0        ? COLORS.L : COLORS.INNER];
+            c.material[2] = materialMap[y === SIZE - 1 ? COLORS.U : COLORS.INNER];
+            c.material[3] = materialMap[y === 0        ? COLORS.D : COLORS.INNER];
+            c.material[4] = materialMap[z === SIZE - 1 ? COLORS.F : COLORS.INNER];
+            c.material[5] = materialMap[z === 0        ? COLORS.B : COLORS.INNER];
+            c.updateMatrix();
+        }
+        markDirty();
+    }
+
+    /* ---------- 坐标吸附 ---------- */
+    function snapCoord(val) {
+        let layer = Math.round(val / STEP);
+        layer = Math.max(-OFFSET, Math.min(OFFSET, layer));
+        return layer * STEP;
+    }
+
+    function snapCubie(mesh) {
+        mesh.position.x = snapCoord(mesh.position.x);
+        mesh.position.y = snapCoord(mesh.position.y);
+        mesh.position.z = snapCoord(mesh.position.z);
+
+        mesh.updateMatrix();
+        _tmpMatrix4.extractRotation(mesh.matrix);
+        const m = _tmpMatrix4.elements;
+        for (let i = 0; i < 16; i++) m[i] = Math.round(m[i]);
+        mesh.quaternion.setFromRotationMatrix(_tmpMatrix4);
+        mesh.updateMatrix();
+    }
+
+    /* ---------- 动画队列 ---------- */
+    let pendingMoves = 0;
+    let animChain = Promise.resolve();
+
+    function busy() { return pendingMoves > 0; }
+
+    function rotateSlice(axis, layerCoord, direction, duration) {
+        duration = duration || ANIM_DURATION;
+        pendingMoves++;
+        const run = () => animateSlice(axis, layerCoord, direction, duration);
+        const p = animChain.then(run, run);
+        animChain = p.then(() => {}, () => {});
+        return p.then(
+            v => { pendingMoves--; return v; },
+            e => { pendingMoves--; throw e; }
+        );
+    }
+
+    function animateSlice(axis, layerCoord, direction, duration) {
+        return new Promise((resolve) => {
+            const rotationGroup = new THREE.Group();
+            cubeGroup.add(rotationGroup);
+
+            const targetLayerPos = layerCoord * STEP;
+            const activeCubies = cubies.filter(
+                c => Math.abs(c.position[axis] - targetLayerPos) < STEP / 2
+            );
+            activeCubies.forEach(c => rotationGroup.attach(c));
+
+            const targetAngle = (Math.PI / 2) * direction;
+            const startTime = performance.now();
+
+            function step(time) {
+                if (disposed) { resolve(); return; }
+
+                const elapsed  = time - startTime;
+                const progress = Math.min(elapsed / duration, 1);
+                const ease     = 1 - Math.pow(1 - progress, 3);
+
+                rotationGroup.rotation[axis] = targetAngle * ease;
+                markDirty();
+
+                if (progress < 1) {
+                    requestAnimationFrame(step);
+                } else {
+                    rotationGroup.rotation[axis] = targetAngle;
+                    rotationGroup.updateMatrixWorld();
+                    activeCubies.forEach(c => {
+                        cubeGroup.attach(c);
+                        snapCubie(c);
+                    });
+                    cubeGroup.remove(rotationGroup);
+                    markDirty();
+                    resolve();
+                }
+            }
+            requestAnimationFrame(step);
+        });
+    }
+
+    /* ---------- 历史记录 ---------- */
+    let moveHistory  = [];
+    let historyIndex = 0;
+
+    function notifyNav() {
+        if (hooks.onNav) hooks.onNav(historyIndex, moveHistory.length);
+    }
+
+    function pushHistory(step) {
+        moveHistory.length = historyIndex;
+        moveHistory.push(step);
+        historyIndex++;
+        notifyNav();
+    }
+
+    function clearHistory() {
+        moveHistory = [];
+        historyIndex = 0;
+        notifyNav();
+    }
+
+    function setHistory(moves) {
+        moveHistory = moves.map(m => ({ axis: m.axis, layer: m.layer, dir: m.dir }));
+        historyIndex = 0;
+        notifyNav();
+    }
+
+    function goPrev() {
+        if (historyIndex <= 0 || busy()) return;
+        historyIndex--;
+        const s = moveHistory[historyIndex];
+        rotateSlice(s.axis, s.layer, -s.dir, NAV_DURATION).then(notifyNav);
+        notifyNav();
+    }
+
+    function goNext() {
+        if (historyIndex >= moveHistory.length || busy()) return;
+        const s = moveHistory[historyIndex];
+        historyIndex++;
+        rotateSlice(s.axis, s.layer, s.dir, NAV_DURATION).then(notifyNav);
+        notifyNav();
+    }
+
+    /* ---------- 打乱 ---------- */
+    function generateScrambleSequence(length) {
+        length = length || 25;
+        const axes   = ['x', 'y', 'z'];
+        const coords = [-1, 1];          // 三阶只用外层
+        const dirs   = [1, -1, 2];
+        const seq = [];
+        let lastAxis = '', lastLayer = null;
+
+        for (let i = 0; i < length; i++) {
+            let axis, layer, dir;
+            do {
+                axis  = axes[(Math.random() * 3) | 0];
+                layer = coords[(Math.random() * 2) | 0];
+                dir   = dirs[(Math.random() * 3) | 0];
+            } while (axis === lastAxis && layer === lastLayer);
+
+            seq.push({ axis, layer, dir });
+            lastAxis = axis;
+            lastLayer = layer;
+        }
+        return seq;
+    }
+
+    async function runScramble(length) {
+        const seq = generateScrambleSequence(length);
+        for (const step of seq) {
+            const duration = Math.abs(step.dir) === 2 ? SCRAMBLE_DUR_DOUBLE : SCRAMBLE_DUR_SINGLE;
+            pushHistory(step);
+            await rotateSlice(step.axis, step.layer, step.dir, duration);
+        }
+    }
+
+    /* ---------- 快照：位姿 ---------- */
+    function captureState() {
+        return cubies.map(c => ({
+            pos:  { x: c.position.x, y: c.position.y, z: c.position.z },
+            quat: { x: c.quaternion.x, y: c.quaternion.y, z: c.quaternion.z, w: c.quaternion.w }
+        }));
+    }
+
+    /* ---------- 快照：面片网格（6面 × 3×3） ---------- */
+    function captureFaceGrid() {
+        const faces = [];
+        for (let f = 0; f < 6; f++) {
+            faces.push(Array(SIZE).fill(null).map(() => Array(SIZE).fill(0)));
+        }
+
+        for (const cubie of cubies) {
+            const px = Math.round(cubie.position.x / STEP + OFFSET);
+            const py = Math.round(cubie.position.y / STEP + OFFSET);
+            const pz = Math.round(cubie.position.z / STEP + OFFSET);
+
+            for (let lf = 0; lf < 6; lf++) {
+                _tmpWN.set(0, 0, 0);
+                if (lf === 0) _tmpWN.set(1, 0, 0);
+                else if (lf === 1) _tmpWN.set(-1, 0, 0);
+                else if (lf === 2) _tmpWN.set(0, 1, 0);
+                else if (lf === 3) _tmpWN.set(0, -1, 0);
+                else if (lf === 4) _tmpWN.set(0, 0, 1);
+                else _tmpWN.set(0, 0, -1);
+                _tmpWN.applyQuaternion(cubie.quaternion);
+
+                let gf = -1, r = 0, c = 0;
+                if (Math.abs(_tmpWN.x - 1) < 0.5)      { gf = 0; r = py; c = pz; }
+                else if (Math.abs(_tmpWN.x + 1) < 0.5) { gf = 1; r = py; c = pz; }
+                else if (Math.abs(_tmpWN.y - 1) < 0.5) { gf = 2; r = px; c = pz; }
+                else if (Math.abs(_tmpWN.y + 1) < 0.5) { gf = 3; r = px; c = pz; }
+                else if (Math.abs(_tmpWN.z - 1) < 0.5) { gf = 4; r = px; c = py; }
+                else if (Math.abs(_tmpWN.z + 1) < 0.5) { gf = 5; r = px; c = py; }
+                else continue;
+
+                const mat = cubie.material[lf];
+                const hex = (mat && mat.color) ? mat.color.getHex() : COLORS.INNER;
+                faces[gf][r][c] = COLOR_TO_NUM[hex] || 0;
+            }
+        }
+        return faces;
+    }
+
+    /* ---------- 恢复：面片网格 ---------- */
+    function restoreFromFaceGridInternal(grid) {
+        for (let i = 0; i < cubies.length; i++) {
+            const { x, y, z } = idxToXYZ(i);
+            const c = cubies[i];
+
+            c.position.set(
+                (x - OFFSET) * STEP,
+                (y - OFFSET) * STEP,
+                (z - OFFSET) * STEP
+            );
+            c.quaternion.set(0, 0, 0, 1);
+
+            // 各面索引：0=R(+X) 1=L(-X) 2=U(+Y) 3=D(-Y) 4=F(+Z) 5=B(-Z)
+            c.material[0] = materialMap[x === SIZE - 1 ? NUM_TO_COLOR[grid[0][y][z]] : COLORS.INNER];
+            c.material[1] = materialMap[x === 0        ? NUM_TO_COLOR[grid[1][y][z]] : COLORS.INNER];
+            c.material[2] = materialMap[y === SIZE - 1 ? NUM_TO_COLOR[grid[2][x][z]] : COLORS.INNER];
+            c.material[3] = materialMap[y === 0        ? NUM_TO_COLOR[grid[3][x][z]] : COLORS.INNER];
+            c.material[4] = materialMap[z === SIZE - 1 ? NUM_TO_COLOR[grid[4][x][y]] : COLORS.INNER];
+            c.material[5] = materialMap[z === 0        ? NUM_TO_COLOR[grid[5][x][y]] : COLORS.INNER];
+
+            c.updateMatrix();
+        }
+        markDirty();
+
+        moveHistory = [];
+        historyIndex = 0;
+        notifyNav();
+        return true;
+    }
+
+    function restoreFromFaceGrid(grid) {
+        if (grid && grid.length === 6 && Array.isArray(grid[0]) && Array.isArray(grid[0][0])) {
+            return restoreFromFaceGridInternal(grid);
+        }
+        return restoreState(grid);
+    }
+
+    /* ---------- 恢复：位姿 ---------- */
+    function restoreState(state) {
+        if (!state || state.length !== cubies.length) return false;
+        state.forEach((s, i) => {
+            const c = cubies[i];
+            c.position.set(s.pos.x, s.pos.y, s.pos.z);
+            c.quaternion.set(s.quat.x, s.quat.y, s.quat.z, s.quat.w);
+            snapCubie(c);
+        });
+        markDirty();
+        return true;
+    }
+
+    /* ---------- 交互 ---------- */
+    const raycaster = new THREE.Raycaster();
+    const ndc       = new THREE.Vector2();
+    const activePointers = new Set();
+    let drag = null;
+    let pinchDist0 = 0, pinchRad0 = RAD;
+
+    let downTime = 0, downX = 0, downY = 0, tapMoved = false;
+    let lastTapTime = 0, lastTapX = 0, lastTapY = 0;
+
+    const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
+
+    function onPointerDown(e) {
+        activePointers.add(e.pointerId);
+        if (activePointers.size > 1) { drag = null; return; }
+
+        e.preventDefault();
+        try { dom.setPointerCapture(e.pointerId); } catch (_) {}
+
+        downTime = performance.now();
+        downX = e.clientX; downY = e.clientY;
+        tapMoved = false;
+
+        const rect = dom.getBoundingClientRect();
+        ndc.set(
+            ((e.clientX - rect.left) / rect.width) * 2 - 1,
+            -((e.clientY - rect.top) / rect.height) * 2 + 1
+        );
+        raycaster.setFromCamera(ndc, camera);
+        const hits = raycaster.intersectObjects(cubies, false);
+
+        if (hits.length && !busy()) {
+            const h = hits[0];
+            const localN = (h.face && h.face.normal) ? h.face.normal.clone() : new THREE.Vector3(0, 0, 1);
+            const n = localN.applyQuaternion(h.object.quaternion).round();
+
+            drag = {
+                type: 'layer', cubie: h.object, n,
+                point: h.point.clone(),
+                sx: e.clientX, sy: e.clientY, done: false
+            };
+        } else {
+            drag = { type: 'view', sx: e.clientX, sy: e.clientY };
+        }
+    }
+
+    function onPointerMove(e) {
+        if (Math.hypot(e.clientX - downX, e.clientY - downY) > 8) tapMoved = true;
+
+        if (!drag) return;
+        const dx = e.clientX - drag.sx, dy = e.clientY - drag.sy;
+
+        if (drag.type === 'view') {
+            theta -= dx * 0.008;
+            phi   -= dy * 0.008;
+            phi = clamp(phi, 0.15, Math.PI - 0.15);
+            drag.sx = e.clientX; drag.sy = e.clientY;
+            updCam();
+        } else if (!drag.done && Math.hypot(dx, dy) > 14) {
+            drag.done = true;
+            handleCubeDrag(drag, dx, dy);
+            drag = null;
+        }
+    }
+
+    function onPointerUp(e) {
+        activePointers.delete(e.pointerId);
+
+        if (drag && e && e.type === 'pointerup' && !tapMoved &&
+            performance.now() - downTime < 350) {
+            const now = performance.now();
+            if (now - lastTapTime < 320 &&
+                Math.hypot(e.clientX - lastTapX, e.clientY - lastTapY) < 40) {
+                lastTapTime = 0;
+                if (hooks.onDoubleTap) hooks.onDoubleTap();
+            } else {
+                lastTapTime = now;
+                lastTapX = e.clientX;
+                lastTapY = e.clientY;
+            }
+        }
+        drag = null;
+    }
+
+    function onTouchStart(e) {
+        if (e.touches.length === 2) {
+            drag = null;
+            const dx = e.touches[0].clientX - e.touches[1].clientX;
+            const dy = e.touches[0].clientY - e.touches[1].clientY;
+            pinchDist0 = Math.hypot(dx, dy);
+            pinchRad0  = RAD;
+        }
+    }
+
+    function onTouchMove(e) {
+        if (e.touches.length === 2) {
+            e.preventDefault();
+            const dx = e.touches[0].clientX - e.touches[1].clientX;
+            const dy = e.touches[0].clientY - e.touches[1].clientY;
+            const dist = Math.hypot(dx, dy);
+            if (pinchDist0 > 0) {
+                RAD = clamp(pinchRad0 * (pinchDist0 / dist), RAD_MIN, RAD_MAX);
+                updCam();
+            }
+        }
+    }
+
+    function onTouchEnd() { pinchDist0 = 0; }
+
+    function onWheel(e) {
+        e.preventDefault();
+        RAD = clamp(RAD * (1 + e.deltaY * 0.001), RAD_MIN, RAD_MAX);
+        updCam();
+    }
+
+    /* ---------- 屏幕方向投影 ---------- */
+    function scrDirInto(p, v, out) {
+        _tmpVecA.set(p.x, p.y, p.z).project(camera);
+        _tmpVecB.set(p.x + v.x, p.y + v.y, p.z + v.z).project(camera);
+        out.set(_tmpVecB.x - _tmpVecA.x, _tmpVecB.y - _tmpVecA.y, 0).normalize();
+        return out;
+    }
+
+    /* ---------- 拖动核心 ---------- */
+    function handleCubeDrag(d, dx, dy) {
+        const n = d.n;
+        const ts = [];
+        if (n.x === 0) ts.push(AXIS_X);
+        if (n.y === 0) ts.push(AXIS_Y);
+        if (n.z === 0) ts.push(AXIS_Z);
+
+        _tmpVecC.set(dx, -dy, 0).normalize();
+        const dragV = _tmpVecC;
+
+        let best = null, bs = 0;
+        for (const t of ts) {
+            const sd = scrDirInto(d.point, t, _tmpVecA);
+            const s = sd.dot(dragV);
+            if (Math.abs(s) > Math.abs(bs)) {
+                bs = s;
+                if (!best) best = new THREE.Vector3();
+                best.set(t.x * Math.sign(s), t.y * Math.sign(s), t.z * Math.sign(s));
+            }
+        }
+        if (!best) return;
+
+        // v = ω × r  →  旋转轴 = n × best
+        const axisVec = new THREE.Vector3().crossVectors(n, best);
+
+        let comp, dir;
+        if (Math.abs(axisVec.x) > 0.5)      { comp = 'x'; dir = Math.sign(axisVec.x); }
+        else if (Math.abs(axisVec.y) > 0.5) { comp = 'y'; dir = Math.sign(axisVec.y); }
+        else                                { comp = 'z'; dir = Math.sign(axisVec.z); }
+
+        let layerCoord = Math.round(d.cubie.position[comp] / STEP);
+        layerCoord = Math.max(-OFFSET, Math.min(OFFSET, layerCoord));
+
+        const step = { axis: comp, layer: layerCoord, dir };
+        pushHistory(step);
+        if (hooks.onUserMove) hooks.onUserMove(step);
+        rotateSlice(comp, layerCoord, dir);
+    }
+
+    /* ---------- 事件绑定 ---------- */
+    let ctxLostHandler, ctxRestoredHandler;
+
+    function bindEvents() {
+        dom.addEventListener('pointerdown', onPointerDown);
+        dom.addEventListener('pointermove', onPointerMove);
+        window.addEventListener('pointerup', onPointerUp);
+        window.addEventListener('pointercancel', onPointerUp);
+        dom.addEventListener('touchstart', onTouchStart, { passive: false });
+        dom.addEventListener('touchmove', onTouchMove, { passive: false });
+        dom.addEventListener('touchend', onTouchEnd);
+        dom.addEventListener('wheel', onWheel, { passive: false });
+        window.addEventListener('resize', resize);
+        window.addEventListener('orientationchange', resize);
+
+        ctxLostHandler = (e) => { e.preventDefault(); console.warn('[cube] WebGL context lost'); };
+        ctxRestoredHandler = () => { markDirty(); };
+        dom.addEventListener('webglcontextlost', ctxLostHandler);
+        dom.addEventListener('webglcontextrestored', ctxRestoredHandler);
+    }
+
+    function unbindEvents() {
+        if (dom) {
+            dom.removeEventListener('pointerdown', onPointerDown);
+            dom.removeEventListener('pointermove', onPointerMove);
+            dom.removeEventListener('touchstart', onTouchStart);
+            dom.removeEventListener('touchmove', onTouchMove);
+            dom.removeEventListener('touchend', onTouchEnd);
+            dom.removeEventListener('wheel', onWheel);
+            dom.removeEventListener('webglcontextlost', ctxLostHandler);
+            dom.removeEventListener('webglcontextrestored', ctxRestoredHandler);
+        }
+        window.removeEventListener('pointerup', onPointerUp);
+        window.removeEventListener('pointercancel', onPointerUp);
+        window.removeEventListener('resize', resize);
+        window.removeEventListener('orientationchange', resize);
+    }
+
+    /* ---------- 渲染循环（按需渲染） ---------- */
+    let rafId = 0;
+    function loop(now) {
+        if (disposed) return;
+        rafId = requestAnimationFrame(loop);
+        if (hooks.onFrame) hooks.onFrame(now);
+        if (needRender) {
+            renderer.render(scene, camera);
+            needRender = false;
+        }
+    }
+
+    /* ---------- 对外 API ---------- */
+    function mount(el) {
+        wrapEl = el;
+        dom = renderer.domElement;
+        wrapEl.appendChild(dom);
+
+        resize();
+        RAD = computeFitRadius();
+        DEF.rad = RAD;
+        updCam();
+
+        initCube();
+        bindEvents();
+
+        if (typeof ResizeObserver !== 'undefined') {
+            resizeObserver = new ResizeObserver(() => resize());
+            resizeObserver.observe(wrapEl);
+        }
+
+        notifyNav();
+        rafId = requestAnimationFrame(loop);
+    }
+
+    function destroy() {
+        if (disposed) return;
+        disposed = true;
+        cancelAnimationFrame(rafId);
+        unbindEvents();
+
+        if (resizeObserver) { resizeObserver.disconnect(); resizeObserver = null; }
+
+        while (cubeGroup.children.length) cubeGroup.remove(cubeGroup.children[0]);
+        boxGeom.dispose();
+        Object.values(materialMap).forEach(m => m.dispose());
+
+        if (dom && dom.parentNode) dom.parentNode.removeChild(dom);
+        renderer.dispose();
+
+        _vecPool.length = 0;
+        cubies = [];
+        moveHistory = [];
+    }
+
+    function resetAll(keepView) {
+        clearHistory();
+        if (!keepView) resetView();
+        cubeGroup.rotation.set(0, 0, 0);
+        resetCubies();
+    }
+
+    return {
+        mount, destroy, busy,
+        rotateSlice, runScramble,
+        goPrev, goNext, clearHistory, setHistory,
+        captureState, captureFaceGrid, restoreState, restoreFromFaceGrid,
+        resetAll, resetView, resize,
+        get historyIndex() { return historyIndex; },
+        get historyLength() { return moveHistory.length; }
+    };
+}
+
+/* =========================================================================
+ * 2. 记法解析 & 预设
+ * ========================================================================= */
+function notationToMoves(notation) {
+    const tokens = String(notation || '').trim().split(/\s+/);
+    const moves = [];
+    for (const raw of tokens) {
+        if (!raw) continue;
+        const face   = raw[0];
+        const suffix = raw.slice(1);
+
+        let axis, layer, cw;
+        if      (face === 'R') { axis = 'x'; layer =  1; cw = -1; }
+        else if (face === 'L') { axis = 'x'; layer = -1; cw =  1; }
+        else if (face === 'U') { axis = 'y'; layer =  1; cw = -1; }
+        else if (face === 'D') { axis = 'y'; layer = -1; cw =  1; }
+        else if (face === 'F') { axis = 'z'; layer =  1; cw = -1; }
+        else if (face === 'B') { axis = 'z'; layer = -1; cw =  1; }
+        else continue;
+
+        let dir;
+        if (suffix === '2')      dir = 2;
+        else if (suffix === "'") dir = -cw;
+        else                     dir = cw;
+
+        moves.push({ axis, layer, dir });
+    }
+    return moves;
+}
+
+const DEFAULT_SNAPSHOT_ID = '';
+
+var preset03 = [
+  
+]
+/* 预设快照（可自行添加 cube 网格数据） */
+const PRESET_SNAPSHOTS = [
+    { id: 'preset-03', title: '复棱',  time: '预设快照', preset: true, cube: preset03 },
 ];
 
-const FORMULA_KEY  = 'mf03_formulas';
-const SNAPSHOT_KEY = 'mf03_snapshots';
-const CUBE_HALF    = 1.5;
-
-const clamp = (v, min, max) => Math.min(max, Math.max(min, v));
-const pad2  = n => String(n).padStart(2, '0');
-
-function loadJSON(key, fallback){
-  try {
-    const v = JSON.parse(localStorage.getItem(key));
-    return v || fallback;
-  } catch(e){
-    return fallback;
-  }
-}
-
-function fmtTime(ms){
-  const s = Math.floor(Math.max(0, ms) / 1000);
-  return pad2(Math.floor(s / 60)) + ':' + pad2(s % 60);
-}
-
-const easeInOut = k => k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
-
-function tween(duration, onUpdate){
-  return new Promise(resolve => {
-    const t0 = performance.now();
-    const step = now => {
-      const k = Math.min(1, (now - t0) / duration);
-      onUpdate(easeInOut(k), k);
-      if (k < 1) requestAnimationFrame(step);
-      else resolve();
-    };
-    requestAnimationFrame(step);
-  });
-}
-
-function stepToNotation({ axis, layer, dir }){
-  const comp = axis.x ? 'x' : axis.y ? 'y' : 'z';
-  let letter, cw;
-  if (comp === 'x'){
-    if (layer > 0){ letter = 'R'; cw = -1; }
-    else if (layer < 0){ letter = 'L'; cw = 1; }
-    else { letter = 'M'; cw = 1; }
-  } else if (comp === 'y'){
-    if (layer > 0){ letter = 'U'; cw = -1; }
-    else if (layer < 0){ letter = 'D'; cw = 1; }
-    else { letter = 'E'; cw = 1; }
-  } else {
-    if (layer > 0){ letter = 'F'; cw = -1; }
-    else if (layer < 0){ letter = 'B'; cw = 1; }
-    else { letter = 'S'; cw = -1; }
-  }
-  if (Math.abs(dir) === 2) return letter + '2';
-  return dir === cw ? letter : letter + "'";
-}
-
-function genScramble(count){
-  const axes = [
-    { x:1, y:0, z:0 },
-    { x:0, y:1, z:0 },
-    { x:0, y:0, z:1 }
-  ];
-  const seq = [];
-  let lastKey = '';
-  while (seq.length < count){
-    const axis  = axes[(Math.random() * 3) | 0];
-    const layer = ((Math.random() * 3) | 0) - 1;
-    const dir   = Math.random() < 0.5 ? 1 : -1;
-    const comp  = axis.x !== 0 ? 'x' : (axis.y !== 0 ? 'y' : 'z');
-    const key   = comp + layer;
-    if (key === lastKey) continue;
-    lastKey = key;
-    seq.push({ axis, layer, dir });
-  }
-  return seq;
-}
+/* 预设公式：从复原状态起播放 */
+const PRESET_FORMULAS = [
+    {
+        id: 'preset-oll-fish',
+        title: '🐟 小鱼公式 (OLL)',
+        time: '预设公式', preset: true,
+        notation: "R U R' U R U2 R'"
+    },
+    {
+        id: 'preset-oll-cross',
+        title: '✚ 十字公式 (OLL)',
+        time: '预设公式', preset: true,
+        notation: "F R U R' U' F'"
+    },
+    {
+        id: 'preset-pll-t',
+        title: '🔀 T 型换角 (PLL)',
+        time: '预设公式', preset: true,
+        notation: "R U R' U' R' F R2 U' R' U' R U R' F'"
+    },
+    {
+        id: 'preset-sexy',
+        title: '🔁 Sexy Move ×3',
+        time: '预设公式', preset: true,
+        notation: "R U R' U' R U R' U' R U R' U'"
+    }
+].map(f => Object.assign({}, f, { moves: notationToMoves(f.notation) }));
 
 /* =========================================================================
-   CubeEngine —— 重构升级的 Three.js 魔方引擎
-   ========================================================================= */
-class CubeEngine {
-  constructor(container){
-    this.container = container;
+ * 3. Vue 应用
+ * ========================================================================= */
+const FORMULA_KEY  = 'mfv3_formulas';
+const SNAPSHOT_KEY = 'mfv3_snapshots';
 
-    this.cubies   = [];
-    this._pending = 0;
-    this._chain   = Promise.resolve();
-    this._history = [];
-    this._cursor  = 0;
-
-    this.onHistoryChange = null;
-    this.onUserTurn      = null;
-    this.onUserTurnEnd   = null;
-    this.onBlankDblClick = null;
-
-    this.DEFAULT_THETA = 0.8;
-    this.DEFAULT_PHI   = 1.02;
-    this.FILL_RATIO    = 0.48; 
-    this.MIN_ZOOM      = 0.5;
-    this.MAX_ZOOM      = 2.5;
-
-    this.theta = this.DEFAULT_THETA;
-    this.phi   = this.DEFAULT_PHI;
-    this.zoom  = 1;
-    this._baseDistance = 20;
-
-    this._ndc   = new THREE.Vector2();
-    this._ray   = new THREE.Raycaster();
-    this._drag  = null;
-    this._pinch = null;
-    this._lastTap = null;
-
-    this._initRenderer();
-    this._initScene();
-    this._buildCube();
-    this._bindEvents();
-    this.resize();
-
-    this._tick = this._tick.bind(this);
-    this._rafId = requestAnimationFrame(this._tick);
-  }
-
-  _initRenderer(){
-    this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-    this.dom = this.renderer.domElement;
-    this.container.appendChild(this.dom);
-  }
-
-  _initScene(){
-    this.scene  = new THREE.Scene();
-    this.camera = new THREE.PerspectiveCamera(38, 1, 0.1, 200);
-
-    this.scene.add(new THREE.AmbientLight(0xffffff, 0.9));
-    const dl = new THREE.DirectionalLight(0xffffff, 0.45);
-    dl.position.set(6, 10, 8);
-    this.scene.add(dl);
-  }
-
-  _buildCube(){
-    this.geometry  = new THREE.BoxGeometry(0.96, 0.96, 0.96);
-    this.materials = {};
-    for (const f of FACES){
-      this.materials[f.key] = new THREE.MeshLambertMaterial({ color: FACE_COLOR[f.key] });
-    }
-    this.materials.X = new THREE.MeshLambertMaterial({ color: FACE_COLOR.X });
-
-    for (let x = -1; x <= 1; x++)
-    for (let y = -1; y <= 1; y++)
-    for (let z = -1; z <= 1; z++){
-      if (!x && !y && !z) continue;
-
-      const pos = { x, y, z };
-      const mats = FACES.map(f =>
-        pos[f.axis] === f.sign ? this.materials[f.key] : this.materials.X
-      );
-
-      const stickers = FACES
-        .filter(f => pos[f.axis] === f.sign)
-        .map(f => ({
-          normal: new THREE.Vector3(
-            f.axis === 'x' ? f.sign : 0,
-            f.axis === 'y' ? f.sign : 0,
-            f.axis === 'z' ? f.sign : 0
-          ),
-          color: f.key
-        }));
-
-      const cubie = new THREE.Mesh(this.geometry, mats);
-      cubie.position.set(x, y, z);
-      cubie.userData = { home: cubie.position.clone(), stickers };
-
-      this.scene.add(cubie);
-      this.cubies.push(cubie);
-    }
-  }
-
-  /**
-   * 改进的相机适配算法：根据屏幕短边等比缩放，彻底消除拉伸及大小异常变动
-   */
-  _updateCamera(){
-    const w = this.container.clientWidth  || 1;
-    const h = this.container.clientHeight || 1;
-    const aspect = w / h;
-
-    this.camera.aspect = aspect;
-    this.camera.updateProjectionMatrix();
-
-    const fovRad = (this.camera.fov * Math.PI) / 180;
-    const tanHalf = Math.tan(fovRad / 2);
-    // 以视口短边为基准，确保横竖屏或视图切换时魔方视觉尺寸完全稳定
-    const effectiveTan = aspect < 1 ? tanHalf * aspect : tanHalf;
-    this._baseDistance = (CUBE_HALF / effectiveTan) / this.FILL_RATIO;
-
-    const dist = this._baseDistance / this.zoom;
-    this.camera.position.setFromSphericalCoords(dist, this.phi, this.theta);
-    this.camera.lookAt(0, 0, 0);
-  }
-
-  resetView(){
-    this.theta = this.DEFAULT_THETA;
-    this.phi   = this.DEFAULT_PHI;
-    this.zoom  = 1;
-    this._updateCamera();
-  }
-
-  resize(){
-    const w = this.container.clientWidth;
-    const h = this.container.clientHeight;
-    if (w <= 0 || h <= 0) return;
-
-    // 严谨同步物理渲染尺寸与 CSS 显示尺寸，杜绝形变拉伸
-    this.renderer.setSize(w, h, true);
-    this._updateCamera();
-  }
-
-  _bindEvents(){
-    const dom = this.dom;
-    this._h = {
-      down:   e => this._onDown(e),
-      move:   e => this._onMove(e),
-      up:     e => this._onUp(e),
-      wheel:  e => this._onWheel(e),
-      ts:     e => this._onTouchStart(e),
-      tm:     e => this._onTouchMove(e),
-      te:     () => { this._pinch = null; },
-      resize: () => this.resize()
-    };
-
-    dom.addEventListener('pointerdown',   this._h.down);
-    dom.addEventListener('pointermove',   this._h.move);
-    window.addEventListener('pointerup',    this._h.up);
-    window.addEventListener('pointercancel', this._h.up);
-    dom.addEventListener('wheel',      this._h.wheel, { passive: false });
-    dom.addEventListener('touchstart', this._h.ts,    { passive: false });
-    dom.addEventListener('touchmove',  this._h.tm,    { passive: false });
-    dom.addEventListener('touchend',   this._h.te);
-    window.addEventListener('resize',  this._h.resize);
-
-    if (window.ResizeObserver) {
-      this._ro = new ResizeObserver(() => this.resize());
-      this._ro.observe(this.container);
-    }
-  }
-
-  _onWheel(e){
-    e.preventDefault();
-    this.zoom = clamp(this.zoom * (1 - e.deltaY * 0.001), this.MIN_ZOOM, this.MAX_ZOOM);
-    this._updateCamera();
-  }
-
-  _onTouchStart(e){
-    if (e.touches.length !== 2) return;
-    this._drag = null;
-    this._lastTap = null;
-
-    const [a, b] = e.touches;
-    this._pinch = {
-      dist: Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY),
-      zoom: this.zoom
-    };
-  }
-
-  _onTouchMove(e){
-    if (e.touches.length !== 2 || !this._pinch) return;
-    e.preventDefault();
-
-    const [a, b] = e.touches;
-    const dist = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
-    if (dist <= 0) return;
-
-    this.zoom = clamp(
-      this._pinch.zoom * (dist / this._pinch.dist),
-      this.MIN_ZOOM,
-      this.MAX_ZOOM
-    );
-    this._updateCamera();
-  }
-
-  _onDown(e){
-    e.preventDefault();
-    this.dom.setPointerCapture(e.pointerId);
-
-    const rect = this.dom.getBoundingClientRect();
-    this._ndc.set(
-      ((e.clientX - rect.left) / rect.width)  * 2 - 1,
-      -((e.clientY - rect.top) / rect.height) * 2 + 1
-    );
-    this._ray.setFromCamera(this._ndc, this.camera);
-
-    const hits = this.isBusy() ? [] : this._ray.intersectObjects(this.cubies, false);
-
-    if (hits.length){
-      const hit = hits[0];
-      const normal = hit.face.normal.clone().transformDirection(hit.object.matrixWorld);
-      normal.set(Math.round(normal.x), Math.round(normal.y), Math.round(normal.z));
-
-      this._drag = {
-        type: 'layer',
-        cubie: hit.object,
-        normal,
-        point: hit.point.clone(),
-        startX: e.clientX,
-        startY: e.clientY,
-        resolved: false
-      };
-    } else {
-      this._drag = {
-        type: 'view',
-        startX: e.clientX,
-        startY: e.clientY,
-        lastX: e.clientX,
-        lastY: e.clientY,
-        moved: false
-      };
-    }
-  }
-
-  _onMove(e){
-    const d = this._drag;
-    if (!d) return;
-
-    if (d.type === 'view'){
-      const dx = e.clientX - d.lastX;
-      const dy = e.clientY - d.lastY;
-      d.lastX = e.clientX;
-      d.lastY = e.clientY;
-
-      if (!d.moved && Math.hypot(e.clientX - d.startX, e.clientY - d.startY) > 5){
-        d.moved = true;
-      }
-      if (!d.moved) return;
-
-      this.theta -= dx * 0.008;
-      this.phi    = clamp(this.phi - dy * 0.008, 0.15, Math.PI - 0.15);
-      this._updateCamera();
-      return;
-    }
-
-    if (d.resolved) return;
-
-    const dx = e.clientX - d.startX;
-    const dy = e.clientY - d.startY;
-    if (Math.hypot(dx, dy) > 14){
-      d.resolved = true;
-      this._drag = null;
-      this._applyDrag(d, dx, dy);
-    }
-  }
-
-  _onUp(e){
-    const d = this._drag;
-    this._drag = null;
-    this._pinch = null;
-    if (!d) return;
-
-    const isTap = d.type === 'layer' ? !d.resolved : !d.moved;
-    if (!isTap){
-      this._lastTap = null;
-      return;
-    }
-
-    const now = performance.now();
-    const last = this._lastTap;
-    if (last && now - last.time < 350 &&
-        Math.hypot(e.clientX - last.x, e.clientY - last.y) < 30){
-      this._lastTap = null;
-      if (this.onBlankDblClick) this.onBlankDblClick();
-    } else {
-      this._lastTap = { x: e.clientX, y: e.clientY, time: now };
-    }
-  }
-
-  _applyDrag(drag, dx, dy){
-    const n = drag.normal;
-    const tangents = [];
-    if (n.x === 0) tangents.push(new THREE.Vector3(1, 0, 0));
-    if (n.y === 0) tangents.push(new THREE.Vector3(0, 1, 0));
-    if (n.z === 0) tangents.push(new THREE.Vector3(0, 0, 1));
-
-    const dragVec = new THREE.Vector2(dx, -dy).normalize();
-
-    let best = null;
-    let bestAbs = 0;
-    for (const t of tangents){
-      const s = this._screenDir(drag.point, t).dot(dragVec);
-      if (Math.abs(s) > bestAbs){
-        bestAbs = Math.abs(s);
-        best = t.clone().multiplyScalar(Math.sign(s));
-      }
-    }
-    if (!best) return;
-
-    const axisVec = new THREE.Vector3().crossVectors(n, best);
-    const comp = Math.abs(axisVec.x) > 0.5 ? 'x'
-               : Math.abs(axisVec.y) > 0.5 ? 'y'
-               : 'z';
-
-    const step = {
-      axis:  { x: axisVec.x, y: axisVec.y, z: axisVec.z },
-      layer: Math.round(drag.cubie.position[comp]),
-      dir:   axisVec[comp] > 0 ? 1 : -1
-    };
-
-    this.pushHistory(step);
-    if (this.onUserTurn) this.onUserTurn(step);
-
-    const p = this.turn(step.axis, step.layer, step.dir, 200);
-    if (this.onUserTurnEnd){
-      p.then(() => this.onUserTurnEnd(), () => {});
-    }
-  }
-
-  _screenDir(point, vec){
-    const a = point.clone().project(this.camera);
-    const b = point.clone().add(vec).project(this.camera);
-    return new THREE.Vector2(b.x - a.x, b.y - a.y).normalize();
-  }
-
-  isBusy(){ return this._pending > 0; }
-
-  turn(axis, layer, dir, duration = 200){
-    this._pending++;
-    const run = () => this._animateMove(axis, layer, dir, duration);
-    const p = this._chain.then(run, run);
-    this._chain = p.catch(() => {});
-    return p.finally(() => { this._pending--; });
-  }
-
-  _animateMove(axis, layer, dir, duration){
-    const comp  = axis.x !== 0 ? 'x' : (axis.y !== 0 ? 'y' : 'z');
-    const pivot = new THREE.Group();
-    this.scene.add(pivot);
-
-    for (const c of this.cubies){
-      if (Math.round(c.position[comp]) === layer) pivot.attach(c);
-    }
-
-    const target = (Math.PI / 2) * dir;
-
-    return tween(duration, k => {
-      pivot.rotation[comp] = target * k;
-    }).then(() => {
-      pivot.rotation[comp] = target;
-      pivot.updateMatrixWorld(true);
-
-      for (const child of pivot.children.slice()){
-        this.scene.attach(child);
-        child.position.set(
-          Math.round(child.position.x),
-          Math.round(child.position.y),
-          Math.round(child.position.z)
-        );
-      }
-      this.scene.remove(pivot);
-    });
-  }
-
-  pushHistory(step){
-    this._history.length = this._cursor;
-    this._history.push(step);
-    this._cursor++;
-    this._emitHistory();
-  }
-
-  clearHistory(){
-    this._history = [];
-    this._cursor = 0;
-    this._emitHistory();
-  }
-
-  getHistoryState(){
-    return { index: this._cursor, length: this._history.length };
-  }
-
-  _emitHistory(){
-    if (this.onHistoryChange){
-      this.onHistoryChange(this._cursor, this._history.length);
-    }
-  }
-
-  goPrev(){
-    if (this._cursor <= 0 || this.isBusy()) return null;
-    const step = this._history[--this._cursor];
-    const p = this.turn(step.axis, step.layer, -step.dir, 140);
-    this._emitHistory();
-    return p;
-  }
-
-  goNext(){
-    if (this._cursor >= this._history.length || this.isBusy()) return null;
-    const step = this._history[this._cursor++];
-    const p = this.turn(step.axis, step.layer, step.dir, 140);
-    this._emitHistory();
-    return p;
-  }
-
-  reset(){
-    for (const c of this.cubies){
-      c.position.copy(c.userData.home);
-      c.quaternion.identity();
-    }
-    this.resetView();
-    this.clearHistory();
-  }
-
-  capture(){
-    return this.cubies.map(c => ({
-      pos:  { x: c.position.x,   y: c.position.y,   z: c.position.z },
-      quat: { x: c.quaternion.x, y: c.quaternion.y, z: c.quaternion.z, w: c.quaternion.w }
-    }));
-  }
-
-  restore(state){
-    if (!state || state.length !== this.cubies.length) return false;
-    state.forEach((s, i) => {
-      this.cubies[i].position.set(s.pos.x, s.pos.y, s.pos.z);
-      this.cubies[i].quaternion.set(s.quat.x, s.quat.y, s.quat.z, s.quat.w);
-    });
-    return true;
-  }
-
-  isSolved(){
-    const faces = new Map();
-    const n = new THREE.Vector3();
-
-    for (const c of this.cubies){
-      for (const s of c.userData.stickers){
-        n.copy(s.normal).applyQuaternion(c.quaternion);
-        const key = `${Math.round(n.x)},${Math.round(n.y)},${Math.round(n.z)}`;
-
-        let set = faces.get(key);
-        if (!set) faces.set(key, set = new Set());
-        set.add(s.color);
-      }
-    }
-
-    for (const set of faces.values()){
-      if (set.size > 1) return false;
-    }
-    return true;
-  }
-
-  _tick(){
-    this._rafId = requestAnimationFrame(this._tick);
-    this.renderer.render(this.scene, this.camera);
-  }
-
-  dispose(){
-    cancelAnimationFrame(this._rafId);
-
-    if (this._ro) this._ro.disconnect();
-
-    this.dom.removeEventListener('pointerdown',   this._h.down);
-    this.dom.removeEventListener('pointermove',   this._h.move);
-    window.removeEventListener('pointerup',       this._h.up);
-    window.removeEventListener('pointercancel',   this._h.up);
-    this.dom.removeEventListener('wheel',         this._h.wheel);
-    this.dom.removeEventListener('touchstart',    this._h.ts);
-    this.dom.removeEventListener('touchmove',     this._h.tm);
-    this.dom.removeEventListener('touchend',      this._h.te);
-    window.removeEventListener('resize',          this._h.resize);
-
-    this.geometry.dispose();
-    for (const k in this.materials) this.materials[k].dispose();
-    this.renderer.dispose();
-
-    if (this.dom.parentNode) this.dom.parentNode.removeChild(this.dom);
-  }
-}
-
-/* =========================================================================
-   Vue 组件
-   ========================================================================= */
-
-Vue.component('cube-canvas', {
-  template: '<div class="cube-canvas" ref="wrap"></div>',
-  mounted(){
-    this.engine = new CubeEngine(this.$refs.wrap);
-    this.$emit('ready', this.engine);
-  },
-  beforeDestroy(){
-    if (this.engine) this.engine.dispose();
-  }
-});
-
-Vue.component('toast-msg', {
-  props: {
-    show: { type: Boolean, default: false },
-    msg:  { type: String,  default: '' }
-  },
-  template: '<div id="toast" :class="{ show: show }">{{ msg }}</div>'
-});
-
-Vue.component('modal-layer', {
-  template: `
-    <div class="modal-mask" @click.self="$emit('close')">
-      <div class="modal-box"><slot></slot></div>
-    </div>
-  `
-});
-
-Vue.component('save-snapshot-modal', {
-  data(){ return { title: '' }; },
-  template: `
-    <div>
-      <h3>💾 保存快照</h3>
-      <input type="text" v-model="title" ref="input"
-             placeholder="输入快照标题..." maxlength="30"
-             @keydown.enter="submit">
-      <div class="modal-actions">
-        <button class="btn gray" @click="$emit('close')">取消</button>
-        <button class="btn" @click="submit">保存</button>
-      </div>
-    </div>
-  `,
-  mounted(){ this.$refs.input.focus(); },
-  methods: {
-    submit(){ this.$emit('save', this.title.trim()); }
-  }
-});
-
-Vue.component('save-formula-modal', {
-  props: { moves: { type: Array, default: () => [] } },
-  data(){ return { title: '' }; },
-  computed: {
-    notation(){ return this.moves.map(stepToNotation).join(' '); }
-  },
-  template: `
-    <div>
-      <h3>💾 保存步骤公式</h3>
-      <div class="formula-preview">{{ notation }}</div>
-      <div class="tip-text">
-        记法：R/L/U/D/F/B 为外层面，M/E/S 为中层，' 表示逆时针，2 表示 180°。共 {{ moves.length }} 步。
-      </div>
-      <input type="text" v-model="title" ref="input"
-             placeholder="给公式起个名字…" maxlength="30"
-             @keydown.enter="submit">
-      <div class="modal-actions">
-        <button class="btn gray" @click="$emit('close')">取消</button>
-        <button class="btn" @click="submit">保存</button>
-      </div>
-    </div>
-  `,
-  mounted(){ this.$refs.input.focus(); },
-  methods: {
-    submit(){ this.$emit('save', this.title.trim()); }
-  }
-});
-
-Vue.component('library-modal', {
-  props: {
-    title:       { type: String, default: '' },
-    items:       { type: Array,  default: () => [] },
-    emptyText:   { type: String, default: '暂无数据' },
-    actionLabel: { type: String, default: '执行' }
-  },
-  template: `
-    <div>
-      <h3>{{ title }}</h3>
-      <div class="snapshot-list">
-        <div v-if="items.length === 0" class="empty-tip">{{ emptyText }}</div>
-        <div v-for="it in items" :key="it.id" class="snapshot-item">
-          <div class="snapshot-info">
-            <div class="snapshot-title">{{ it.title }}</div>
-            <div v-if="it.notation" class="formula-mini">{{ it.notation }}</div>
-            <div class="snapshot-time">
-              {{ it.time }}<template v-if="it.moves"> · {{ it.moves.length }} 步</template>
-            </div>
-          </div>
-          <div class="snapshot-actions">
-            <button @click="$emit('action', it.id)">{{ actionLabel }}</button>
-            <button class="del" @click="$emit('delete', it.id)">删除</button>
-          </div>
-        </div>
-      </div>
-      <div class="modal-actions" style="margin-top:14px">
-        <button class="btn gray" @click="$emit('close')">关闭</button>
-      </div>
-    </div>
-  `
-});
-
-/* =========================================================================
-   根实例
-   ========================================================================= */
 new Vue({
-  el: '#app',
+    el: '#app',
 
-  data(){
-    return {
-      engine: null,
-      uiVisible: true,
+    data() {
+        return {
+            timerText: '00:00',
+            stepCount: 0,
+            recording: false,
+            recordedMoves: [],
+            uiLocked: false,
+            buttonsVisible: true,
+            navIndex: 0,
+            navLen: 0,
+            toastMsg: '',
+            toastShow: false,
+            modalType: null,
+            drawerOpen: false,
+            drawerType: null,
+            snapTitle: '',
+            formulaTitle: '',
+            formulaPreview: '',
+            formulaStepCount: 0,
+            snapshots: [],
+            formulas: []
+        };
+    },
 
-      moves: 0,
-      timeText: '00:00',
-      timing: false,
-      tStart: 0,
-      timerId: null,
-      started: false,
-
-      canPrev: false,
-      canNext: false,
-      locked: false,
-
-      recording: false,
-      recordedMoves: [],
-
-      activeModal: null,
-      snapshots: [],
-      formulas: [],
-      toast: { show: false, msg: '' }
-    };
-  },
-
-  created(){
-    this.snapshots = loadJSON(SNAPSHOT_KEY, []);
-    this.formulas  = loadJSON(FORMULA_KEY, []);
-    this._toastTimer = null;
-  },
-
-  beforeDestroy(){
-    this.stopTimer();
-    clearTimeout(this._toastTimer);
-  },
-
-  methods: {
-    onEngineReady(engine){
-      this.engine = engine;
-
-      engine.onHistoryChange = (index, length) => {
-        this.canPrev = index > 0;
-        this.canNext = index < length;
-      };
-
-      engine.onUserTurn = step => {
-        this.startTimer();
-        this.moves++;
-        if (this.recording) this.recordedMoves.push(step);
-      };
-
-      engine.onUserTurnEnd = () => {
-        if (this.started && engine.isSolved()){
-          this.stopTimer();
-          this.started = false;
-          this.showToast(`🎉 还原成功！步数 ${this.moves}，用时 ${this.timeText}`);
+    computed: {
+        canPrev() { return this.navIndex > 0; },
+        canNext() { return this.navIndex < this.navLen; },
+        recordLabel() {
+            return this.recording ? '结束(' + this.recordedMoves.length + ')' : '记录';
+        },
+        sortedSnapshots() {
+            return [...PRESET_SNAPSHOTS, ...this.snapshots];
+        },
+        sortedFormulas() {
+            return [...PRESET_FORMULAS, ...this.formulas];
         }
-      };
-
-      // 双击空白处切换 UI 显隐
-      engine.onBlankDblClick = () => this.toggleUI();
-
-      const { index, length } = engine.getHistoryState();
-      this.canPrev = index > 0;
-      this.canNext = index < length;
     },
 
-    toggleUI(){
-      this.uiVisible = !this.uiVisible;
-      this.showToast(this.uiVisible ? '已显示面板' : '已隐藏面板，双击空白处可恢复');
+    created() {
+        this.snapshots = this.readStorage(SNAPSHOT_KEY, []).filter(s => !s.preset);
+        this.formulas  = this.readStorage(FORMULA_KEY, []).filter(f => !f.preset);
+
+        this._timing = false;
+        this._timeStart = 0;
+        this._recordStartState = null;
+        this._recordStartGrid  = null;
+        this._toastTimer = null;
+        this.engine = null;
     },
 
-    blockIfBusy(){
-      if (this.engine && this.engine.isBusy()){
-        this.showToast('动画进行中，请稍候…');
-        return true;
-      }
-      return false;
+    mounted() {
+        this.engine = createCubeEngine({
+            onNav: (idx, len) => { this.navIndex = idx; this.navLen = len; },
+            onUserMove: (step) => {
+                if (this.recording) this.recordedMoves.push(step);
+                this.startTimer();
+                this.stepCount++;
+            },
+            onDoubleTap: () => this.toggleButtons(),
+            onFrame: (now) => {
+                this.tickTimer(now);
+            }
+        });
+        this.$nextTick(() => {
+            this.engine.mount(this.$refs.wrap);
+            this.loadDefaultSnapshot();
+        });
+        window.addEventListener('keydown', this.onKeyDown);
     },
 
-    startTimer(){
-      if (this.timing) return;
-      this.timing = true;
-      this.tStart = performance.now();
-      this._tickTimer();
-      this.timerId = setInterval(this._tickTimer, 200);
+    beforeDestroy() {
+        if (this.engine) this.engine.destroy();
+        clearTimeout(this._toastTimer);
+        window.removeEventListener('keydown', this.onKeyDown);
     },
 
-    _tickTimer(){
-      if (!this.timing) return;
-      this.timeText = fmtTime(performance.now() - this.tStart);
-    },
+    methods: {
+        readStorage(key, fallback) {
+            try { return JSON.parse(localStorage.getItem(key)) || fallback; }
+            catch (e) { return fallback; }
+        },
+        writeStorage(key, value) {
+            try { localStorage.setItem(key, JSON.stringify(value)); } catch (e) {}
+        },
+        toast(msg) {
+            this.toastMsg = msg;
+            this.toastShow = true;
+            clearTimeout(this._toastTimer);
+            this._toastTimer = setTimeout(() => { this.toastShow = false; }, 2400);
+        },
+        busyGuard() {
+            if (this.engine && this.engine.busy()) {
+                this.toast('动画进行中,请稍候...');
+                return true;
+            }
+            return false;
+        },
+        startTimer() {
+            if (this._timing) return;
+            this._timing = true;
+            this._timeStart = performance.now();
+        },
+        stopTimer() { this._timing = false; },
+        tickTimer(now) {
+            if (!this._timing) return;
+            const t = this.fmt(now - this._timeStart);
+            if (t !== this.timerText) this.timerText = t;
+        },
+        fmt(ms) {
+            const s = Math.floor(ms / 1000);
+            return String(Math.floor(s / 60)).padStart(2, '0') + ':' +
+                   String(s % 60).padStart(2, '0');
+        },
+        resetStats() { this.stepCount = 0; this.timerText = '00:00'; },
 
-    stopTimer(){
-      if (this.timerId){
-        clearInterval(this.timerId);
-        this.timerId = null;
-      }
-      if (this.timing){
-        this.timing = false;
-        this.timeText = fmtTime(performance.now() - this.tStart);
-      }
-    },
+        onKeyDown(e) {
+            if (e.target.tagName === 'INPUT') return;
+            switch (e.key) {
+                case 'ArrowLeft': case 'z': e.preventDefault(); this.onPrev(); break;
+                case 'ArrowRight': case 'x': e.preventDefault(); this.onNext(); break;
+                case 'r': e.preventDefault(); this.onReset(); break;
+                case 's': e.preventDefault(); this.onScramble(); break;
+                case 'v': e.preventDefault(); this.onResetView(); break;
+                case ' ': e.preventDefault(); this.toggleRecord(); break;
+                case 'Escape': this.closeModal(); break;
+            }
+        },
 
-    resetRun(){
-      this.stopTimer();
-      this.timing   = false;
-      this.tStart   = 0;
-      this.timeText = '00:00';
-      this.moves    = 0;
-      this.started  = false;
-    },
+        loadDefaultSnapshot() {
+            if (!this.engine || !DEFAULT_SNAPSHOT_ID) return;
+            const snap = this.sortedSnapshots.find(s => s.id === DEFAULT_SNAPSHOT_ID);
+            if (!snap || !snap.cube) return;
+            try {
+                if (this.engine.restoreFromFaceGrid(snap.cube)) {
+                    this.stopTimer();
+                    this.resetStats();
+                }
+            } catch (e) {
+                console.error('默认快照加载失败:', e);
+            }
+        },
 
-    showToast(msg){
-      this.toast = { show: true, msg };
-      clearTimeout(this._toastTimer);
-      this._toastTimer = setTimeout(() => {
-        this.toast = { show: false, msg };
-      }, 2600);
-    },
+        onReset() {
+            if (this.busyGuard()) return;
+            if (this.recording) this.abortRecording();
+            this.stopTimer();
+            this.resetStats();
+            this.engine.resetAll();
+            this.toast('已复原');
+        },
 
-    async onShuffle(){
-      const engine = this.engine;
-      if (!engine || engine.isBusy()) return;
+        async onScramble() {
+            if (this.engine.busy()) return;
+            if (this.recording) this.abortRecording();
+            this.uiLocked = true;
+            this.stopTimer();
+            this.resetStats();
+            this.toast('正在打乱...');
+            try {
+                await this.engine.runScramble(25);
+                this.toast('打乱完成!');
+            } catch (e) {
+                this.toast('打乱过程中出错');
+                console.error('Scramble error:', e);
+            } finally {
+                this.uiLocked = false;
+            }
+        },
+        onResetView() { this.engine.resetView(); this.toast('视角已还原'); },
 
-      this.locked = true;
-      this.resetRun();
-      engine.clearHistory();
-      this.showToast('🔀 正在打乱…');
+        toggleButtons() {
+            this.buttonsVisible = !this.buttonsVisible;
+            if (!this.buttonsVisible) {
+                this.toast('按钮已隐藏，再次双击空白处可恢复');
+            }
+        },
 
-      try {
-        for (const m of genScramble(20)){
-          engine.pushHistory(m);
-          await engine.turn(m.axis, m.layer, m.dir, 80);
+        onPrev() { this.engine.goPrev(); },
+        onNext() { this.engine.goNext(); },
+
+        abortRecording() {
+            this.recording = false;
+            this.recordedMoves = [];
+            this._recordStartState = null;
+            this._recordStartGrid  = null;
+        },
+
+        toggleRecord() {
+            if (this.busyGuard()) return;
+            if (!this.recording) {
+                this.recording = true;
+                this.recordedMoves = [];
+                this._recordStartState = this.engine.captureState();
+                this._recordStartGrid  = this.engine.captureFaceGrid();
+                this.toast('开始记录步骤,转动魔方吧');
+                return;
+            }
+            this.recording = false;
+            if (this.recordedMoves.length === 0) {
+                this.abortRecording();
+                this.toast('未记录到任何步骤');
+                return;
+            }
+            this.openFormulaSave();
+        },
+
+        stepToNotation(axis, layer, dir) {
+            // 中层：M（跟随 L） / E（跟随 D） / S（跟随 F）
+            if (layer === 0) {
+                let face, cw;
+                if (axis === 'x')      { face = 'M'; cw =  1; }
+                else if (axis === 'y') { face = 'E'; cw =  1; }
+                else                   { face = 'S'; cw = -1; }
+                if (Math.abs(dir) === 2) return face + '2';
+                return dir === cw ? face : face + "'";
+            }
+
+            let face, cw;
+            if (axis === 'x') {
+                if (layer > 0) { face = 'R'; cw = -1; } else { face = 'L'; cw = 1; }
+            } else if (axis === 'y') {
+                if (layer > 0) { face = 'U'; cw = -1; } else { face = 'D'; cw = 1; }
+            } else {
+                if (layer > 0) { face = 'F'; cw = -1; } else { face = 'B'; cw = 1; }
+            }
+            if (Math.abs(dir) === 2) return face + '2';
+            return dir === cw ? face : face + "'";
+        },
+        movesToNotation(moves) {
+            return moves.map(m => this.stepToNotation(m.axis, m.layer, m.dir)).join(' ');
+        },
+
+        openModal(type) { this.modalType = type; },
+        closeModal() { this.modalType = null; },
+        closeDrawer() { this.drawerOpen = false; this.drawerType = null; },
+
+        openSnapshotSave() {
+            if (this.busyGuard()) return;
+            this.snapTitle = '';
+            this.openModal('saveSnapshot');
+            this.$nextTick(() => {
+                const el = this.$refs.snapInput;
+                if (el) el.focus();
+            });
+        },
+        doSaveSnapshot() {
+            const title = this.snapTitle.trim();
+            this.saveSnapshot(title);
+            this.closeModal();
+        },
+        saveSnapshot(title) {
+            const snap = {
+                id: Date.now(),
+                title: title || '快照 ' + (this.snapshots.length + 1),
+                time: new Date().toLocaleString('zh-CN'),
+                cube: this.engine.captureFaceGrid()
+            };
+            this.snapshots.unshift(snap);
+            this.writeStorage(SNAPSHOT_KEY, this.snapshots);
+            this.toast('已保存"' + snap.title + '"');
+        },
+        openSnapshotList() { this.drawerType = 'snapshots'; this.drawerOpen = true; },
+
+        restoreSnapshot(id) {
+            const snap = this.sortedSnapshots.find(s => s.id === id);
+            if (!snap) return;
+            if (this.busyGuard()) return;
+            try {
+                if (snap.cube && snap.cube.length === 6) {
+                    if (this.engine.restoreFromFaceGrid(snap.cube)) {
+                        this.stopTimer();
+                        this.resetStats();
+                        this.toast('已恢复"' + snap.title + '"');
+                        this.closeDrawer();
+                    } else {
+                        this.toast('快照数据不兼容');
+                    }
+                } else {
+                    this.toast('快照数据格式错误');
+                }
+            } catch (e) {
+                this.toast('恢复快照时出错');
+                console.error('Restore snapshot error:', e);
+            }
+        },
+
+        deleteSnapshot(id) {
+            const target = this.sortedSnapshots.find(s => s.id === id);
+            if (target && target.preset) { this.toast('预设快照不可删除'); return; }
+            this.snapshots = this.snapshots.filter(s => s.id !== id);
+            this.writeStorage(SNAPSHOT_KEY, this.snapshots);
+            this.toast('已删除快照');
+        },
+
+        openFormulaSave() {
+            this.formulaPreview   = this.movesToNotation(this.recordedMoves);
+            this.formulaStepCount = this.recordedMoves.length;
+            this.formulaTitle     = '';
+            this.openModal('saveFormula');
+            this.$nextTick(() => {
+                const el = this.$refs.formulaInput;
+                if (el) el.focus();
+            });
+        },
+        doSaveFormula() {
+            const title = this.formulaTitle.trim() || '公式 ' + (this.formulas.length + 1);
+            const formula = {
+                id: Date.now(),
+                title,
+                time: new Date().toLocaleString('zh-CN'),
+                notation: this.movesToNotation(this.recordedMoves),
+                moves: this.recordedMoves.map(m => ({ axis: m.axis, layer: m.layer, dir: m.dir })),
+                startState: this._recordStartState || null,
+                cube: this._recordStartGrid || null
+            };
+            this.formulas.unshift(formula);
+            this.writeStorage(FORMULA_KEY, this.formulas);
+            this.abortRecording();
+            this.closeModal();
+            this.toast('已保存公式「' + title + '」');
+        },
+        openFormulaList() { this.drawerType = 'formulas'; this.drawerOpen = true; },
+
+        deleteFormula(id) {
+            const target = this.sortedFormulas.find(f => f.id === id);
+            if (target && target.preset) { this.toast('预设公式不可删除'); return; }
+            this.formulas = this.formulas.filter(f => f.id !== id);
+            this.writeStorage(FORMULA_KEY, this.formulas);
+            this.toast('已删除公式');
+        },
+
+        playFormula(id) {
+            const f = this.sortedFormulas.find(x => x.id === id);
+            if (!f) return;
+            if (this.busyGuard()) return;
+            this.closeDrawer();
+
+            let msg = '';
+            try {
+                if (f.startState && this.engine.restoreState(f.startState)) {
+                    msg = '已还原到录制「' + f.title + '」时的初始状态';
+                } else if (f.cube && this.engine.restoreFromFaceGrid(f.cube)) {
+                    msg = '已恢复到「' + f.title + '」的起始快照，可用「下一步 ▶」逐步演示';
+                } else {
+                    this.engine.resetAll(true);
+                    msg = '已复原到初始状态，可用「下一步 ▶」逐步演示「' + f.title + '」';
+                }
+            } catch (e) {
+                console.error('Play formula error:', e);
+                this.toast('播放公式时出错');
+                return;
+            }
+
+            this.stopTimer();
+            this.resetStats();
+            this.engine.setHistory(f.moves);
+            this.toast(msg);
         }
-        this.started = true;
-        this.startTimer();
-        this.showToast('🔀 打乱完成！');
-      } finally {
-        this.locked = false;
-      }
-    },
-
-    onReset(){
-      if (!this.engine) return;
-      if (this.blockIfBusy()) return;
-
-      this.engine.reset();
-      this.resetRun();
-      this.showToast('↺ 已复原');
-    },
-
-    onResetView(){
-      if (!this.engine) return;
-      this.engine.resetView();
-      this.showToast('↺ 视角已还原');
-    },
-
-    onPrev(){
-      if (!this.engine || this.engine.isBusy()) return;
-      this.engine.goPrev();
-    },
-
-    onNext(){
-      if (!this.engine || this.engine.isBusy()) return;
-      this.engine.goNext();
-    },
-
-    onRecord(){
-      if (!this.engine) return;
-      if (this.blockIfBusy()) return;
-
-      if (!this.recording){
-        this.recording = true;
-        this.recordedMoves = [];
-        this.showToast('🔴 开始记录步骤，转动魔方吧');
-        return;
-      }
-
-      this.recording = false;
-      if (this.recordedMoves.length === 0){
-        this.showToast('未记录到任何步骤');
-        return;
-      }
-      this.activeModal = 'formula-save';
-    },
-
-    onSaveFormula(title){
-      const moves = this.recordedMoves;
-      const formula = {
-        id:       Date.now(),
-        title:    title || ('公式 ' + (this.formulas.length + 1)),
-        time:     new Date().toLocaleString('zh-CN'),
-        notation: moves.map(stepToNotation).join(' '),
-        moves:    moves.map(m => ({
-          axis:  { x: m.axis.x, y: m.axis.y, z: m.axis.z },
-          layer: m.layer,
-          dir:   m.dir
-        }))
-      };
-
-      this.formulas.unshift(formula);
-      this.persistFormulas();
-
-      this.recordedMoves = [];
-      this.closeModal();
-      this.showToast('✓ 已保存公式「' + formula.title + '」');
-    },
-
-    async onPlayFormula(id){
-      const formula = this.formulas.find(f => f.id === id);
-      if (!formula || !this.engine) return;
-      if (this.blockIfBusy()) return;
-
-      this.closeModal();
-      this.showToast('▶ 执行「' + formula.title + '」');
-
-      for (const m of formula.moves){
-        this.engine.pushHistory(m);
-        this.moves++;
-        await this.engine.turn(m.axis, m.layer, m.dir, 130);
-      }
-      this.showToast('✓ 公式执行完成');
-    },
-
-    onDeleteFormula(id){
-      this.formulas = this.formulas.filter(f => f.id !== id);
-      this.persistFormulas();
-    },
-
-    persistFormulas(){
-      localStorage.setItem(FORMULA_KEY, JSON.stringify(this.formulas));
-    },
-
-    openSnapshotModal(){
-      if (this.blockIfBusy()) return;
-      this.activeModal = 'snapshot-save';
-    },
-
-    onSaveSnapshot(title){
-      const snap = {
-        id:    Date.now(),
-        title: title || ('快照 ' + (this.snapshots.length + 1)),
-        time:  new Date().toLocaleString('zh-CN'),
-        cube:  this.engine.capture()
-      };
-
-      this.snapshots.unshift(snap);
-      this.persistSnapshots();
-      this.closeModal();
-      this.showToast('✓ 已保存「' + snap.title + '」');
-    },
-
-    onRestoreSnapshot(id){
-      const snap = this.snapshots.find(s => s.id === id);
-      if (!snap || !this.engine) return;
-      if (this.blockIfBusy()) return;
-
-      if (!this.engine.restore(snap.cube)){
-        this.showToast('快照数据不兼容');
-        return;
-      }
-
-      this.resetRun();
-      this.engine.clearHistory();
-      this.closeModal();
-      this.showToast('✓ 已恢复「' + snap.title + '」');
-    },
-
-    onDeleteSnapshot(id){
-      this.snapshots = this.snapshots.filter(s => s.id !== id);
-      this.persistSnapshots();
-    },
-
-    persistSnapshots(){
-      localStorage.setItem(SNAPSHOT_KEY, JSON.stringify(this.snapshots));
-    },
-
-    openSnapshotLibrary(){
-      if (this.blockIfBusy()) return;
-      this.activeModal = 'snapshot-lib';
-    },
-
-    openFormulaLibrary(){
-      if (this.blockIfBusy()) return;
-      this.activeModal = 'formula-lib';
-    },
-
-    closeModal(){
-      this.activeModal = null;
     }
-  }
 });
 </script>
 </body>
