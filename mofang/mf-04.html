@@ -69,6 +69,9 @@
     .drawer-close{border:none;background:none;color:#aaa;font-size:22px;cursor:pointer;padding:4px 8px;border-radius:8px;line-height:1}
     .drawer-close:hover{background:#3a4358;color:#fff}
     .drawer-content{flex:1;overflow-y:auto;padding:14px 18px}
+    /* ✅ 预设徽标 */
+    .preset-badge{display:inline-block;font-size:10px;padding:1px 6px;border-radius:6px;background:linear-gradient(135deg,#0ea5e9,#6366f1);color:#fff;margin-left:6px;vertical-align:middle;font-weight:500}
+    .snapshot-item.is-preset{background:linear-gradient(135deg,#152036,#0f1728);border:1px solid rgba(99,102,241,.35)}
 </style>
 
 <!-- <script src="https://cdn.jsdelivr.net/npm/vue@2.7.16/dist/vue.min.js"></script>
@@ -112,15 +115,20 @@
         <div class="drawer-content">
             <template v-if="drawerType === 'snapshots'">
                 <div class="snapshot-list">
-                    <div v-if="!snapshots.length" class="empty-tip">暂无快照</div>
-                    <div v-for="s in sortedSnapshots" :key="s.id" class="snapshot-item">
+                    <div v-if="!sortedSnapshots.length" class="empty-tip">暂无快照</div>
+                    <div v-for="s in sortedSnapshots" :key="s.id"
+                         class="snapshot-item" :class="{ 'is-preset': s.preset }">
                         <div class="snapshot-info">
-                            <div class="snapshot-title">{{ s.title }}</div>
+                            <div class="snapshot-title">
+                                {{ s.title }}
+                                <span v-if="s.preset" class="preset-badge">预设</span>
+                            </div>
                             <div class="snapshot-time">{{ s.time }}</div>
                         </div>
                         <div class="snapshot-actions">
                             <button @click="restoreSnapshot(s.id)">恢复</button>
-                            <button class="del" @click="deleteSnapshot(s.id)">删除</button>
+                            <!-- ✅ 预设快照不显示删除按钮 -->
+                            <button v-if="!s.preset" class="del" @click="deleteSnapshot(s.id)">删除</button>
                         </div>
                     </div>
                 </div>
@@ -128,16 +136,21 @@
 
             <template v-else-if="drawerType === 'formulas'">
                 <div class="snapshot-list">
-                    <div v-if="!formulas.length" class="empty-tip">暂无公式，点击「⏺ 记录」开始录制</div>
-                    <div v-for="f in formulas" :key="f.id" class="snapshot-item">
+                    <div v-if="!sortedFormulas.length" class="empty-tip">暂无公式，点击「⏺ 记录」开始录制</div>
+                    <div v-for="f in sortedFormulas" :key="f.id"
+                         class="snapshot-item" :class="{ 'is-preset': f.preset }">
                         <div class="snapshot-info">
-                            <div class="snapshot-title">{{ f.title }}</div>
+                            <div class="snapshot-title">
+                                {{ f.title }}
+                                <span v-if="f.preset" class="preset-badge">预设</span>
+                            </div>
                             <div class="formula-mini">{{ f.notation }}</div>
                             <div class="snapshot-time">{{ f.time }} · {{ f.moves.length }} 步</div>
                         </div>
                         <div class="snapshot-actions">
                             <button @click="playFormula(f.id)">恢复</button>
-                            <button class="del" @click="deleteFormula(f.id)" v-if="isShowDelete(f)">删除</button>
+                            <!-- ✅ 预设公式不显示删除按钮 -->
+                            <button class="del" v-if="isShowDelete(f)" @click="deleteFormula(f.id)">删除</button>
                         </div>
                     </div>
                 </div>
@@ -196,9 +209,15 @@ function createCubeEngine(hooks) {
     const SCRAMBLE_DUR_SINGLE = 55;
     const SCRAMBLE_DUR_DOUBLE = 80;
 
+    /* ✅ 默认配色（按用户要求）：
+     *   右(R)=蓝  左(L)=红  上(U)=黄  下(D)=白  前(F)=绿  后(B)=橙 */
     const COLORS = {
-        R: 0xc41e3a, L: 0xff5800, U: 0xffffff,
-        D: 0xffd500, F: 0x009e60, B: 0x0051ba,
+        R: 0x0051ba,   // 右：蓝
+        L: 0xc41e3a,   // 左：红
+        U: 0xffd500,   // 上：黄
+        D: 0xffffff,   // 下：白
+        F: 0x009e60,   // 前：绿
+        B: 0xff5800,   // 后：橙
         INNER: 0x1a1a1a
     };
 
@@ -829,9 +848,11 @@ function createCubeEngine(hooks) {
         moveHistory = [];
     }
 
-    function resetAll() {
+    /* ✅ 新增 keepView 参数：为 true 时保留当前视角，只重置魔方本体与历史
+     *   —— 用于「预设公式恢复到初始快照」时避免视角被突然拉回 */
+    function resetAll(keepView) {
         clearHistory();
-        resetView();
+        if (!keepView) resetView();
         cubeGroup.rotation.set(0, 0, 0);
         initCube();
     }
@@ -849,7 +870,119 @@ function createCubeEngine(hooks) {
 }
 
 /* =========================================================================
- * 2. Vue 应用
+ * 2. 记法解析器 & 预设数据
+ * ========================================================================= */
+
+/* 把 "2R'" / "U2" / "F" 等记法解析成引擎的 {axis, layer, dir} 结构 */
+function notationToMoves(notation) {
+    const tokens = String(notation || '').trim().split(/\s+/);
+    const moves = [];
+    for (const raw of tokens) {
+        if (!raw) continue;
+        let s = raw;
+        let inner = false;
+        // 前缀 "2" 表示内层（2R / 2L / 2U / 2D / 2F / 2B）
+        if (s.length > 1 && s[0] === '2' && /[RLUDFB]/.test(s[1])) {
+            inner = true;
+            s = s.slice(1);
+        }
+        const face   = s[0];
+        const suffix = s.slice(1);
+
+        let axis, base, cw;
+        if      (face === 'R') { axis = 'x'; base =  1.5; cw = -1; }
+        else if (face === 'L') { axis = 'x'; base = -1.5; cw =  1; }
+        else if (face === 'U') { axis = 'y'; base =  1.5; cw = -1; }
+        else if (face === 'D') { axis = 'y'; base = -1.5; cw =  1; }
+        else if (face === 'F') { axis = 'z'; base =  1.5; cw = -1; }
+        else if (face === 'B') { axis = 'z'; base = -1.5; cw =  1; }
+        else continue;
+
+        const layer = inner ? base - Math.sign(base) * 1.0 : base;
+
+        let dir;
+        if (suffix === '2')      dir = 2;
+        else if (suffix === "'") dir = -cw;
+        else                     dir = cw;
+
+        moves.push({ axis, layer, dir });
+    }
+    return moves;
+}
+
+var preset02 = [
+    [[1, 1, 1, 1], [1, 1, 1, 1], [1, 1, 1, 1], [1, 1, 1, 1]],  // 右 R：蓝
+    [[2, 2, 2, 2], [2, 2, 2, 2], [2, 2, 2, 2], [2, 2, 2, 2]],  // 左 L：红（含 1 个蓝异常）
+    [[3, 3, 3, 3], [3, 3, 3, 5], [3, 3, 3, 5], [3, 3, 3, 3]],  // 上 U：黄（含 2 个绿异常）
+    [[4, 4, 4, 4], [4, 4, 4, 4], [4, 4, 4, 4], [4, 4, 4, 4]],  // 下 D：白
+    [[5, 5, 5, 5], [5, 5, 5, 3], [5, 5, 5, 3], [5, 5, 5, 5]],  // 前 F：绿（含 2 个黄异常）
+    [[6, 6, 6, 6], [6, 6, 6, 6], [6, 6, 6, 6], [6, 6, 6, 6]]   // 后 B：橙
+]
+var preset03 = [
+    [[1, 1, 1, 1], [1, 1, 1, 1], [1, 1, 1, 1], [5, 1, 1, 6]],  // 右 R：蓝（右上角含绿/橙）
+    [[2, 2, 2, 2], [2, 2, 2, 2], [2, 2, 2, 2], [2, 2, 2, 2]],  // 左 L：红（含 1 个蓝异常）
+    [[3, 3, 3, 3], [3, 3, 3, 3], [3, 3, 3, 3], [3, 3, 3, 3]],  // 上 U：黄
+    [[4, 4, 4, 4], [4, 4, 4, 4], [4, 4, 4, 4], [4, 4, 4, 4]],  // 下 D：白
+    [[5, 5, 5, 5], [5, 5, 5, 5], [5, 5, 5, 5], [5, 5, 5, 1]],  // 前 F：绿（右下角含蓝）
+    [[6, 6, 6, 6], [6, 6, 6, 6], [6, 6, 6, 6], [6, 6, 6, 1]]   // 后 B：橙（右下角含蓝）
+
+]
+/* ---------- 预设快照 ---------- */
+/* 已还原状态：6 个面，每面 4×4，颜色编号与引擎 COLOR_TO_NUM 一致
+ *
+ *   面索引： 0=R(右)  1=L(左)  2=U(上)  3=D(下)  4=F(前)  5=B(后)
+ *
+ *   默认配色（用户指定）：
+ *     右 R = 蓝    左 L = 红    上 U = 黄
+ *     下 D = 白    前 F = 绿    后 B = 橙
+ *
+ *   颜色编号（与 COLORS 对应）：
+ *     1 = 蓝(R)   2 = 红(L)   3 = 黄(U)
+ *     4 = 白(D)   5 = 绿(F)   6 = 橙(B)
+ */
+/* ✅ 页面默认加载的预设快照 ID（留空则不自动加载）
+ *   改成 'preset-02' 可在打开页面时自动进入「反棱」起始态 */
+const DEFAULT_SNAPSHOT_ID = 'preset-03';
+const PRESET_SNAPSHOTS = [
+    {
+        id: 'preset-02',
+        title: '反棱',
+        time: '预设快照',
+        preset: true,
+        cube: preset02
+    },
+    {
+        id: 'preset-03',
+        title: '调角',
+        time: '预设快照',
+        preset: true,
+        cube: preset03
+    },
+];
+
+
+/* ---------- 预设公式 ---------- */
+const PRESET_FORMULAS = [
+    {
+        id: 'preset-02',
+        title: '🔓 四阶 OLL 翻棱 ',
+        time: '预设公式',
+        preset: true,
+        cube: preset02,           // ✅ 公式起始快照（现在会被 playFormula 使用）
+        notation: "2R2 B2 U2 2L U2 2R' U2 2R U2 F2 2R F2 2L' B2 2R2"
+    },
+    {
+        id: 'preset-03',
+        title: '🔄 四阶 PLL 调角 ',
+        time: '预设公式',
+        preset: true,
+        cube: preset03,           // ✅ 公式起始快照（现在会被 playFormula 使用）
+        notation: "2R' R U' R' U 2R U' R U' U' R' U' 2R U 2R' U' 2R' R' F 2R R 2R R U' 2R' R' U' 2R R U 2R' R' F'"
+    }, 
+].map(f => Object.assign({}, f, { moves: notationToMoves(f.notation) }));
+
+/* =========================================================================
+ * 3. Vue 应用
  * ========================================================================= */
 const FORMULA_KEY  = 'mfv4_formulas';
 const SNAPSHOT_KEY = 'mfv4_snapshots';
@@ -890,8 +1023,12 @@ new Vue({
         recordLabel() {
             return this.recording ? '结束(' + this.recordedMoves.length + ')' : '记录';
         },
+        /* ✅ 预设 + 用户保存的合并列表（预设永远在前，不可删除） */
         sortedSnapshots() {
-            return [...this.snapshots];
+            return [...PRESET_SNAPSHOTS, ...this.snapshots];
+        },
+        sortedFormulas() {
+            return [...PRESET_FORMULAS, ...this.formulas];
         }
     },
 
@@ -899,9 +1036,14 @@ new Vue({
         this.snapshots = this.readStorage(SNAPSHOT_KEY, []);
         this.formulas  = this.readStorage(FORMULA_KEY, []);
 
+        /* ✅ 防御：如果 localStorage 中混入了 preset 标记的数据，清掉标记避免被误删 */
+        this.snapshots = this.snapshots.filter(s => !s.preset);
+        this.formulas  = this.formulas.filter(f => !f.preset);
+
         this._timing = false;
         this._timeStart = 0;
         this._recordStartState = null;
+        this._recordStartGrid  = null;   // ✅ 新增：录制起点面片网格兜底
         this._toastTimer = null;
         this.engine = null;
     },
@@ -921,7 +1063,11 @@ new Vue({
                 this.updateFPS(now);
             }
         });
-        this.$nextTick(() => this.engine.mount(this.$refs.wrap));
+        this.$nextTick(() => {
+            this.engine.mount(this.$refs.wrap);
+            /* ✅ 页面加载完成后，自动加载默认的预设快照（由 DEFAULT_SNAPSHOT_ID 决定） */
+            this.loadDefaultSnapshot();
+        });
         window.addEventListener('keydown', this.onKeyDown);
     },
 
@@ -989,6 +1135,25 @@ new Vue({
                 case 'Escape': this.closeModal(); break;
             }
         },
+
+        /* ✅ 页面初始化时调用：把魔方恢复成默认预设快照（由 DEFAULT_SNAPSHOT_ID 决定） */
+        loadDefaultSnapshot() {
+            if (!this.engine) return;
+            if (!DEFAULT_SNAPSHOT_ID) return;
+            const snap = this.sortedSnapshots.find(s => s.id === DEFAULT_SNAPSHOT_ID);
+            if (!snap || !snap.cube) return;
+            try {
+                if (this.engine.restoreFromFaceGrid(snap.cube)) {
+                    this.stopTimer();
+                    this.resetStats();
+                } else {
+                    console.warn('默认快照数据不兼容:', DEFAULT_SNAPSHOT_ID);
+                }
+            } catch (e) {
+                console.error('默认快照加载失败:', e);
+            }
+        },
+
         onReset() {
             if (this.busyGuard()) return;
             this.stopTimer();
@@ -1030,13 +1195,18 @@ new Vue({
             if (!this.recording) {
                 this.recording = true;
                 this.recordedMoves = [];
+                /* ✅ 同时记录「cubie 位姿」与「面片网格」两种起始快照：
+                 *   - startState 精确还原朝向（首选）
+                 *   - cube 作为兜底（cubie 数量不匹配 / 跨端导入时可用） */
                 this._recordStartState = this.engine.captureState();
+                this._recordStartGrid  = this.engine.captureFaceGrid();
                 this.toast('开始记录步骤,转动魔方吧');
                 return;
             }
             this.recording = false;
             if (this.recordedMoves.length === 0) {
                 this._recordStartState = null;
+                this._recordStartGrid  = null;
                 this.toast('未记录到任何步骤');
                 return;
             }
@@ -1088,8 +1258,10 @@ new Vue({
             this.toast('已保存"' + snap.title + '"');
         },
         openSnapshotList() { this.drawerType = 'snapshots'; this.drawerOpen = true; },
+
         restoreSnapshot(id) {
-            const snap = this.snapshots.find(s => s.id === id);
+            /* ✅ 在合并列表中查找（含预设） */
+            const snap = this.sortedSnapshots.find(s => s.id === id);
             if (!snap) return;
             if (this.busyGuard()) return;
             try {
@@ -1112,11 +1284,19 @@ new Vue({
                 console.error('Restore snapshot error:', e);
             }
         },
+
         deleteSnapshot(id) {
+            /* ✅ 预设快照禁止删除 */
+            const target = this.sortedSnapshots.find(s => s.id === id);
+            if (target && target.preset) {
+                this.toast('预设快照不可删除');
+                return;
+            }
             this.snapshots = this.snapshots.filter(s => s.id !== id);
             this.writeStorage(SNAPSHOT_KEY, this.snapshots);
             this.toast('已删除快照');
         },
+
         openFormulaSave() {
             this.formulaPreview   = this.movesToNotation(this.recordedMoves);
             this.formulaStepCount = this.recordedMoves.length;
@@ -1135,39 +1315,81 @@ new Vue({
                 time: new Date().toLocaleString('zh-CN'),
                 notation: this.movesToNotation(this.recordedMoves),
                 moves: this.recordedMoves.map(m => ({ axis: m.axis, layer: m.layer, dir: m.dir })),
-                startState: this._recordStartState || null
+                /* ✅ 起始快照：位姿（首选）+ 面片网格（兜底） */
+                startState: this._recordStartState || null,
+                cube: this._recordStartGrid || null
             };
             this.formulas.unshift(formula);
             this.writeStorage(FORMULA_KEY, this.formulas);
             this.recordedMoves = [];
             this._recordStartState = null;
+            this._recordStartGrid  = null;
             this.closeModal();
             this.toast('已保存公式「' + title + '」');
         },
         openFormulaList() { this.drawerType = 'formulas'; this.drawerOpen = true; },
+
+        /* ✅ 预设公式不显示删除按钮 */
+        isShowDelete(f) {
+            return !f.preset;
+        },
+
         deleteFormula(id) {
+            /* ✅ 预设公式禁止删除 */
+            const target = this.sortedFormulas.find(f => f.id === id);
+            if (target && target.preset) {
+                this.toast('预设公式不可删除');
+                return;
+            }
             this.formulas = this.formulas.filter(f => f.id !== id);
             this.writeStorage(FORMULA_KEY, this.formulas);
+            this.toast('已删除公式');
         },
+
+        /* ✅ 核心修复：播放公式前，优先恢复到「公式自带的起始快照」
+         *   1) startState（用户录制，位姿精确）→ 直接还原
+         *   2) cube（预设公式 / 用户兜底，面片网格）→ restoreFromFaceGrid
+         *   3) 都没有 → 退回已复原状态（兼容旧数据）
+         *   之后 setHistory(f.moves) 让用户用「下一步 ▶」逐步演示。 */
         playFormula(id) {
-            const f = this.formulas.find(x => x.id === id);
+            const f = this.sortedFormulas.find(x => x.id === id);
             if (!f) return;
             if (this.busyGuard()) return;
             this.closeDrawer();
+
+            let restored = false;
+            let msg = '';
+
             try {
-                if (f.startState) {
-                    this.engine.restoreState(f.startState);
-                    this.toast('已还原到录制「' + f.title + '」时的初始状态');
-                } else {
-                    this.toast('查看公式「' + f.title + '」');
+                // ① 用户录制公式：优先用位姿快照
+                if (f.startState && this.engine.restoreState(f.startState)) {
+                    restored = true;
+                    msg = '已还原到录制「' + f.title + '」时的初始状态';
                 }
-                this.stopTimer();
-                this.resetStats();
-                this.engine.setHistory(f.moves);
+                // ② 预设公式或兜底：用面片网格快照
+                else if (f.cube && this.engine.restoreFromFaceGrid(f.cube)) {
+                    restored = true;
+                    msg = '已恢复到「' + f.title + '」的起始快照，可用「下一步 ▶」逐步演示';
+                }
+                // ③ 旧数据无起始快照：复位到复原态
+                else {
+                    this.engine.resetAll(true);
+                    msg = '已恢复到初始快照，可用「下一步 ▶」逐步演示「' + f.title + '」';
+                }
             } catch (e) {
-                this.toast('播放公式时出错');
                 console.error('Play formula error:', e);
+                this.toast('播放公式时出错');
+                return;
             }
+
+            if (!restored && !f.cube) {
+                /* resetAll 已执行，无需额外处理 */
+            }
+
+            this.stopTimer();
+            this.resetStats();
+            this.engine.setHistory(f.moves);
+            this.toast(msg);
         }
     }
 });
