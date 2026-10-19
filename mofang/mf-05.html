@@ -1426,18 +1426,20 @@
             Array(5).fill(null).map(() => Array(5).fill(6)),
         ]
 
-        const DEFAULT_SNAPSHOT_ID = 'preset03';
+        console.log('当前域名:', window.location.hostname);
+
+        const DEFAULT_SNAPSHOT_ID = window.location.hostname?'':'preset02';
         const PRESET_SNAPSHOTS = [
             { id: 'preset01', title: '五阶 单棱翻转', time: '预设快照', preset: true, cube: preset01 },
-            { id: 'preset02', title: '五阶 单棱翻转', time: '预设快照', preset: true, cube: preset02 },
+            { id: 'preset02', title: '土棱翻转', time: '预设快照', preset: true, cube: preset02 },
             { id: 'preset03', title: '两棱翻转', time: '预设快照', preset: true, cube: preset03 },
         ];
 
         const PRESET_FORMULAS = [
             {
                 id: 'preset-5-01',
-                title: '🔄 五阶 特殊单棱翻转',
-                time: '预设公式', preset: true, cube: preset01,
+                title: '土棱翻转',
+                time: '预设公式', preset: true, cube: preset02,
                 notation: "2R2 B2 U2 2L U2 2R' U2 2R U2 F2 2R F2 2L' B2 2R2"
             },
         ].map(f => Object.assign({}, f, { moves: notationToMoves(f.notation) }));
