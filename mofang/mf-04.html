@@ -831,53 +831,71 @@ function createCubeEngine(hooks) {
         updCam();
     }
 
-    /* ---------- 屏幕方向投影 ---------- */
+       /* ---------- 屏幕方向投影 ---------- */
     function scrDirInto(p, v, out) {
         _tmpVecA.set(p.x, p.y, p.z).project(camera);
         _tmpVecB.set(p.x + v.x, p.y + v.y, p.z + v.z).project(camera);
-        out.set(_tmpVecB.x - _tmpVecA.x, _tmpVecB.y - _tmpVecA.y, 0).normalize();
-        return out;
+        out.set(_tmpVecB.x - _tmpVecA.x, _tmpVecB.y - _tmpVecA.y, 0);
+        // 退化保护：切线几乎垂直于屏幕时不要产生 NaN
+        if (out.lengthSq() < 1e-12) return out.set(0, 0, 0);
+        return out.normalize();
+    }
+
+    /* ---------- 轴向坐标 → 层坐标（-1.5 / -0.5 / 0.5 / 1.5） ---------- */
+    function toLayerCoord(val) {
+        const raw = val / STEP;
+        return Math.max(-1.5, Math.min(1.5, Math.round(raw * 2) / 2));
     }
 
     /* ---------- 拖动核心 ---------- */
     function handleCubeDrag(d, dx, dy) {
+        // 刚旋转过视角时，相机的逆矩阵可能还停留在上一帧，先强制刷新
+        camera.updateMatrixWorld();
+
         const n = d.n;
+
+        // 与命中面法线垂直的两个世界轴，才是可能的拖动切线
         const ts = [];
-        if (n.x === 0) ts.push(AXIS_X);
-        if (n.y === 0) ts.push(AXIS_Y);
-        if (n.z === 0) ts.push(AXIS_Z);
+        if (Math.abs(n.x) < 0.5) ts.push(AXIS_X);
+        if (Math.abs(n.y) < 0.5) ts.push(AXIS_Y);
+        if (Math.abs(n.z) < 0.5) ts.push(AXIS_Z);
 
-        _tmpVecC.set(dx, -dy, 0).normalize();
-        const dragV = _tmpVecC;
+        _tmpVecC.set(dx, -dy, 0);
+        if (_tmpVecC.lengthSq() < 1e-12) return;
+        const dragV = _tmpVecC.normalize();
 
-        let best = null, bs = 0;
+        // 选出屏幕投影方向与拖动方向最贴合的那条切线
+        let best = null, bestScore = 0;
         for (const t of ts) {
             const sd = scrDirInto(d.point, t, _tmpVecA);
             const s = sd.dot(dragV);
-            if (Math.abs(s) > Math.abs(bs)) {
-                bs = s;
+            if (Math.abs(s) > Math.abs(bestScore)) {
+                bestScore = s;
                 if (!best) best = _tmpVecD;
                 best.set(t.x * Math.sign(s), t.y * Math.sign(s), t.z * Math.sign(s));
             }
         }
         if (!best) return;
 
+        // 旋转轴 = 面法线 × 拖动切线
         const axisVec = _tmpVecC.crossVectors(n, best);
 
         let comp, dir;
         if (Math.abs(axisVec.x) > 0.5)      { comp = 'x'; dir = Math.sign(axisVec.x); }
         else if (Math.abs(axisVec.y) > 0.5) { comp = 'y'; dir = Math.sign(axisVec.y); }
         else                                { comp = 'z'; dir = Math.sign(axisVec.z); }
+        if (!dir) return;
 
-        const rawLayer = d.cubie.position[comp] / STEP;
-        let layerCoord = Math.floor(rawLayer + 0.5) + 0.5;
-        layerCoord = Math.max(-1.5, Math.min(1.5, layerCoord));
+        // ★ 关键修复：按 cubie 在旋转轴上的真实坐标吸附层号，
+        //   与 snapCoord() 使用同一套网格，不再整体偏移一层
+        const layerCoord = toLayerCoord(d.cubie.position[comp]);
 
         const step = { axis: comp, layer: layerCoord, dir };
         pushHistory(step);
         if (hooks.onUserMove) hooks.onUserMove(step);
         rotateSlice(comp, layerCoord, dir);
     }
+   
 
     /* ---------- 事件绑定 ---------- */
     let ctxLostHandler, ctxRestoredHandler;
@@ -1041,7 +1059,7 @@ var preset03 = [
     [[6, 6, 6, 6], [6, 6, 6, 6], [6, 6, 6, 6], [6, 6, 6, 1]]
 ];
 
-const DEFAULT_SNAPSHOT_ID = 'preset-02';
+const DEFAULT_SNAPSHOT_ID = '';
 const PRESET_SNAPSHOTS = [
     { id: 'preset-02', title: '反棱',  time: '预设快照', preset: true, cube: preset02 },
     { id: 'preset-03', title: '调角',  time: '预设快照', preset: true, cube: preset03 },
