@@ -1042,7 +1042,7 @@ function notationToMoves(notation) {
     return moves;
 }
 
-var preset02 = [
+var snapshots02 = [
     Array(4).fill(null).map(() => Array(4).fill(1)),
     Array(4).fill(null).map(() => Array(4).fill(2)),
     [[3, 3, 3, 3], [3, 3, 3, 5], [3, 3, 3, 5], [3, 3, 3, 3]],
@@ -1050,7 +1050,7 @@ var preset02 = [
     [[5, 5, 5, 5], [5, 5, 5, 3], [5, 5, 5, 3], [5, 5, 5, 5]],
     Array(4).fill(null).map(() => Array(4).fill(6)),
 ];
-var preset03 = [
+var snapshots03 = [
     [[1, 1, 1, 1], [1, 1, 1, 1], [1, 1, 1, 1], [5, 1, 1, 6]],
     Array(4).fill(null).map(() => Array(4).fill(2)),
     Array(4).fill(null).map(() => Array(4).fill(3)),
@@ -1061,21 +1061,21 @@ var preset03 = [
 
 const DEFAULT_SNAPSHOT_ID = '';
 const PRESET_SNAPSHOTS = [
-    { id: 'preset-02', title: '反棱',  time: '预设快照', preset: true, cube: preset02 },
-    { id: 'preset-03', title: '调角',  time: '预设快照', preset: true, cube: preset03 },
+    { id: 'snapshot02', title: '反棱',  time: '预设快照', preset: true, cube: snapshots02 },
+    { id: 'snapshot03', title: '调角',  time: '预设快照', preset: true, cube: snapshots03 },
 ];
 
 const PRESET_FORMULAS = [
     {
-        id: 'preset-02',
+        id: 'formulas02',
         title: '🔓 四阶 OLL 翻棱',
-        time: '预设公式', preset: true, cube: preset02,
+        time: '预设公式', preset: true, cube: snapshots02,
         notation: "2R2 B2 U2 2L U2 2R' U2 2R U2 F2 2R F2 2L' B2 2R2"
     },
     {
-        id: 'preset-03',
+        id: 'formulas03',
         title: '🔄 四阶 PLL 调角',
-        time: '预设公式', preset: true, cube: preset03,
+        time: '预设公式', preset: true, cube: snapshots03,
         notation: "2R' R U' R' U 2R U' R U' U' R' U' 2R U 2R' U' 2R' R' F 2R R 2R R U' 2R' R' U' 2R R U 2R' R' F'"
     },
 ].map(f => Object.assign({}, f, { moves: notationToMoves(f.notation) }));
