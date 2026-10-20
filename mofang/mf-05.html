@@ -1425,28 +1425,58 @@
             ],
             Array(5).fill(null).map(() => Array(5).fill(6)),
         ]
+        
+        // 1右  2左  3上   4底  5前  6后
+        // 蓝   红    黄   白   绿   橙
+        var snapshots04 = [ 
+            Array(5).fill(null).map(() => Array(5).fill(1)), 
+            Array(5).fill(null).map(() => Array(5).fill(2)), 
+            [
+                [3, 3, 3, 3, 3],
+                [5, 3, 3, 3, 3],
+                [3, 3, 3, 3, 3],
+                [6, 3, 3, 3, 3],
+                [3, 3, 3, 3, 3]
+            ],
+            Array(5).fill(null).map(() => Array(5).fill(4)), 
+            [
+                [5, 5, 5, 5, 5],
+                [5, 5, 5, 5, 6],
+                [5, 5, 5, 5, 5],
+                [5, 5, 5, 5, 5],
+                [5, 5, 5, 5, 5]
+            ],
+            [
+                [6, 6, 6, 6, 6],
+                [6, 6, 6, 6, 3],
+                [6, 6, 6, 6, 6],
+                [6, 6, 6, 6, 3],
+                [6, 6, 6, 6, 6]
+            ],
+        ]
 
         console.log('当前域名:', window.location.hostname);
 
-        const DEFAULT_SNAPSHOT_ID = window.location.hostname ? '' : 'preset02';
+        const DEFAULT_SNAPSHOT_ID = window.location.hostname ? '' : 'snapshots04';
         const PRESET_SNAPSHOTS = [
             { id: 'snapshots01', title: '五阶 单棱翻转', time: '预设快照', preset: true, cube: snapshots01 },
             { id: 'snapshots02', title: '土棱翻转', time: '预设快照', preset: true, cube: snapshots02 },
             { id: 'snapshots03', title: '两棱翻转', time: '预设快照', preset: true, cube: snapshots03 },
+            { id: 'snapshots04', title: '五棱翻转', time: '预设快照', preset: true, cube: snapshots04 },
         ];
 
         const PRESET_FORMULAS = [
             {
-                id: 'formulas01',
+                id: 'formulas02',
                 title: '土棱翻转',
                 time: '预设公式', preset: true, cube: snapshots02,
                 notation: "2R2 B2 U2 2L U2 2R' U2 2R U2 F2 2R F2 2L' B2 2R2"
             },
             {
-                id: 'formulas02',
+                id: 'formulas03',
                 title: '两棱翻转',
                 time: '预设公式', preset: true, cube: snapshots03,
-                notation: "R2 2R2 F2 U2 2R2 F2 U2 R2 2R2"
+                notation: ""
             },
         ].map(f => Object.assign({}, f, { moves: notationToMoves(f.notation) }));
 
