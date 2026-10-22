@@ -39,6 +39,20 @@ footer{height:46px;display:flex;align-items:center;padding:0 12px;flex-shrink:0;
 .mini-card{width:26px;height:36px;border-radius:3px;background:#1e40af;border:1px solid white;box-shadow:0 1px 2px rgba(0,0,0,0.3);cursor:pointer;flex-shrink:0;}
 .mini-card.stock{width:16px;height:24px;border-radius:2px;border-width:1px;box-shadow:0 1px 2px rgba(0,0,0,0.35);}
 .mini-card.foundation{background:#15803d;color:#fff;font-size:12px;font-weight:bold;display:flex;align-items:center;justify-content:center;}
+/* 确认框 */
+#confirm-overlay{display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.6);justify-content:center;align-items:center;animation:fadeIn 0.2s ease;}
+#confirm-overlay.show{display:flex;}
+#confirm-box{background:#fff;border-radius:12px;padding:28px 24px;max-width:300px;width:85%;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,0.5);animation:popIn 0.25s ease;}
+#confirm-box h3{font-size:16px;color:#1e1e1e;margin-bottom:8px;font-weight:700;}
+#confirm-box p{font-size:13px;color:#666;margin-bottom:20px;}
+#confirm-btns{display:flex;gap:10px;justify-content:center;}
+#confirm-btns button{padding:8px 24px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;border:none;outline:none;transition:background 0.15s;}
+#confirm-confirm{background:#d32f2f;color:#fff;}
+#confirm-confirm:active{background:#b71c1c;}
+#confirm-cancel{background:#e0e0e0;color:#333;}
+#confirm-cancel:active{background:#bdbdbd;}
+@keyframes fadeIn{from{opacity:0;}to{opacity:1;}}
+@keyframes popIn{from{transform:scale(0.8);opacity:0;}to{transform:scale(1);opacity:1;}}
 </style>
 </head>
 <body>
@@ -51,7 +65,7 @@ footer{height:46px;display:flex;align-items:center;padding:0 12px;flex-shrink:0;
                 <option value="2" selected>双花色 (中级 ♠♥)</option>
                 <option value="4">四花色 (高级 ♠♥♣♦)</option>
             </select>
-            <button onclick="initGame()">重新开始</button>
+            <button onclick="confirmRestart()">重新开始</button>
         </div>
         <div class="status">
             <!-- 发牌堆已移至步数左边 -->
@@ -68,6 +82,18 @@ footer{height:46px;display:flex;align-items:center;padding:0 12px;flex-shrink:0;
     <footer>
         <div class="foundation-box" id="foundations"></div>
     </footer>
+</div>
+
+<!-- 确认框 -->
+<div id="confirm-overlay">
+    <div id="confirm-box">
+        <h3 id="confirm-title">确认操作</h3>
+        <p id="confirm-msg">确定要执行此操作吗？</p>
+        <div id="confirm-btns">
+            <button id="confirm-cancel">取消</button>
+            <button id="confirm-confirm">确定</button>
+        </div>
+    </div>
 </div>
 
 <script>
@@ -122,10 +148,46 @@ document.addEventListener('touchmove', e => {
     }
 }, { passive: true });
 
+/* ================= 3.5 确认框 ================= */
+function showConfirm(title, msg, onConfirm) {
+    const overlay = document.getElementById('confirm-overlay');
+    document.getElementById('confirm-title').textContent = title;
+    document.getElementById('confirm-msg').textContent = msg;
+    overlay.classList.add('show');
+
+    const confirmBtn = document.getElementById('confirm-confirm');
+    const cancelBtn  = document.getElementById('confirm-cancel');
+
+    function close() {
+        overlay.classList.remove('show');
+        confirmBtn.removeEventListener('click', onOk);
+        cancelBtn.removeEventListener('click', onCancel);
+    }
+    function onOk() { close(); onConfirm(); }
+    function onCancel() { close(); }
+
+    confirmBtn.addEventListener('click', onOk);
+    cancelBtn.addEventListener('click', onCancel);
+}
+
+function confirmRestart() {
+    showConfirm('重新开始', '确定要重新开始游戏吗？当前进度将丢失。', () => {
+        initGame();
+    });
+}
+
 /* ================= 4. 难度 / 初始化 ================= */
 function changeDifficulty(val) {
-    difficulty = parseInt(val);
-    initGame();
+    const newDiff = parseInt(val);
+    if (newDiff === difficulty) return;
+    showConfirm('切换难度', '切换难度将重新开局，当前进度将丢失。确定继续？', () => {
+        difficulty = newDiff;
+        initGame();
+    });
+    /* 取消时还原 select 显示为当前难度 */
+    setTimeout(() => {
+        document.getElementById('diff-select').value = String(difficulty);
+    }, 0);
 }
 
 function initGame() {
