@@ -1399,29 +1399,29 @@
         ];
         // 1右  2左  3上   4底  5前  6后
         // 蓝   红    黄   白   绿   橙
-        var snapshots03 = [
+        var snapshots03 = [ 
             [
                 [1, 1, 1, 1, 1],
                 [1, 1, 1, 1, 1],
                 [1, 1, 1, 1, 1],
-                [1, 1, 1, 1, 5],
+                [1, 1, 1, 1, 2],
                 [1, 1, 1, 1, 1]
             ],
-            Array(5).fill(null).map(() => Array(5).fill(2)),
             [
-                [3, 3, 3, 3, 3],
-                [3, 3, 3, 3, 3],
-                [3, 3, 3, 3, 3],
-                [3, 3, 3, 3, 5],
-                [3, 3, 3, 3, 3]
-            ],
+                [2, 2, 2, 2, 2],
+                [2, 2, 2, 2, 1],
+                [2, 2, 2, 2, 2],
+                [2, 2, 2, 2, 2],
+                [2, 2, 2, 2, 2]
+            ], 
+            Array(5).fill(null).map(() => Array(5).fill(3)), 
             Array(5).fill(null).map(() => Array(5).fill(4)),
             [
                 [5, 5, 5, 5, 5],
                 [5, 5, 5, 5, 5],
                 [5, 5, 5, 5, 5],
-                [5, 5, 5, 5, 1],
-                [5, 5, 5, 3, 5]
+                [5, 5, 5, 5, 5],
+                [5, 5, 5, 5, 5]
             ],
             Array(5).fill(null).map(() => Array(5).fill(6)),
         ]
@@ -1457,9 +1457,8 @@
 
         console.log('当前域名:', window.location.hostname);
 
-        const DEFAULT_SNAPSHOT_ID = window.location.hostname ? '' : 'snapshots04';
-        const PRESET_SNAPSHOTS = [
-            { id: 'snapshots01', title: '五阶 单棱翻转', time: '预设快照', preset: true, cube: snapshots01 },
+        const DEFAULT_SNAPSHOT_ID = window.location.hostname ? '' : 'snapshots03';
+        const PRESET_SNAPSHOTS = [ 
             { id: 'snapshots02', title: '土棱翻转', time: '预设快照', preset: true, cube: snapshots02 },
             { id: 'snapshots03', title: '两棱翻转', time: '预设快照', preset: true, cube: snapshots03 },
             { id: 'snapshots04', title: '五棱翻转', time: '预设快照', preset: true, cube: snapshots04 },
@@ -1476,7 +1475,7 @@
                 id: 'formulas03',
                 title: '两棱翻转',
                 time: '预设公式', preset: true, cube: snapshots03,
-                notation: ""
+                notation: "2D R U R' F R F' R' 2D'"
             },
         ].map(f => Object.assign({}, f, { moves: notationToMoves(f.notation) }));
 
